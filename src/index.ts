@@ -4,8 +4,15 @@ import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/
 import { z } from 'zod'
 import { renderPdf, uploadPdf, type PdfMode } from './render-pdf.js'
 
-const REPO = 'https://raw.githubusercontent.com/soapboxbuild/soapbox-agent/main'
-const KNOWN_TYPES = ['rsra', 'crrem', 'sustainability-passport', 'portfolio-analysis', 'decarb', 'retrofit-advisor', 'esg-profile', 'esg-fund-deck', 'delivery-presentation'] as const
+// Repointed from soapboxbuild/soapbox-agent as part of the 2026-08-15 migration — this repo is
+// now the source of truth for the templates fetched below. raw.githubusercontent.com requires
+// the source repo to be public, matching soapbox-agent's own visibility.
+const REPO = 'https://raw.githubusercontent.com/soapboxbuild/soapbox-reporting-mcp/main'
+// 'sustainability-passport' removed (2026-08-15 migration): its template was deliberately not
+// carried over, per an explicit decision that the sustainability-passport skill/template pair
+// wasn't needed going forward. 'retrofit-advisor' has no template directory either but was left
+// as-is — that's pre-existing (unmigrated) behavior, not something this migration touched.
+const KNOWN_TYPES = ['rsra', 'crrem', 'portfolio-analysis', 'decarb', 'retrofit-advisor', 'esg-profile', 'esg-fund-deck', 'delivery-presentation'] as const
 type ReportType = typeof KNOWN_TYPES[number]
 
 // In-memory cache with 5-minute TTL — re-fetches after template updates without requiring a redeploy

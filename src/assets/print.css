@@ -1,0 +1,70 @@
+/* Soapbox report → print/PDF layer (Paged.js vocabulary).
+ * Injected at export time only; the on-screen template stays CDN-free.
+ * Consulting-grade US-Letter pagination: full-bleed hero on page 1, discreet
+ * running header on page 2+, footer with page numbers, keep-together packing. */
+
+/* ── Page geometry ─────────────────────────────────────────────── */
+@page {
+  size: 8.5in 11in;
+  margin: 26mm 14mm 16mm 14mm;
+  /* discreet running header (page 2+) */
+  @top-left  { content: element(runHeaderL); vertical-align: bottom; }
+  @top-right { content: element(runHeaderR); vertical-align: bottom; }
+  /* footer */
+  @bottom-left   { content: element(runFooter); vertical-align: top; color: #64748B; font-size: 8pt; }
+  @bottom-right  { content: "Page " counter(page) " of " counter(pages);
+                   vertical-align: top; color: #64748B; font-size: 8pt;
+                   font-family: -apple-system,'Helvetica Neue',Arial,sans-serif; }
+}
+/* Page 1: no running header (the hero IS the header); hero bleeds to top edge. */
+@page :first {
+  margin-top: 0;
+  @top-left  { content: none; }
+  @top-right { content: none; }
+}
+
+/* Running header/footer elements (injected by print-transform, hidden in flow). */
+.print-runhdr-l { position: running(runHeaderL); font: 600 8pt -apple-system,'Helvetica Neue',Arial,sans-serif; letter-spacing:.08em; text-transform:uppercase; color:#12253A; }
+.print-runhdr-r { position: running(runHeaderR); font: 400 8pt -apple-system,'Helvetica Neue',Arial,sans-serif; color:#64748B; }
+.print-runftr   { position: running(runFooter); font: 400 8pt -apple-system,'Helvetica Neue',Arial,sans-serif; color:#64748B; }
+
+/* ── Fidelity: keep the screen look, print all backgrounds ─────── */
+* { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+body { background: #fff !important; }
+.report { max-width: none !important; margin: 0 !important; padding: 0 !important; }
+
+/* Full-bleed hero: cancel the page-1 side margins for the navy header only, via
+ * negative margins equal to the @page side margin (14mm). Inner padding restores text inset. */
+.doc-header { margin: 0 -14mm !important; padding-left: 40px !important; padding-right: 40px !important; }
+.meta-strip { margin: 0 -14mm !important; }
+
+/* ── Keep-together / pagination discipline ─────────────────────── */
+/* Keep atomic blocks unbroken, but let .section itself FLOW — forcing a whole
+ * section to stay together made a section that didn't fit jump to a fresh page,
+ * stranding whitespace and orphaning its heading. */
+.kpi, .kpi-bar, .insight-box, .warn-box, .chart-wrap, svg, figure, .metric-row, .plan-block, .chart-block, .two-col > div {
+  break-inside: avoid;
+}
+h1,h2,h3,.section-title,.section-label,.section-intro { break-after: avoid; }
+.section-head { break-inside: avoid; break-after: avoid; }
+p, li { orphans: 3; widows: 3; }
+
+/* Tables: small ones stay whole; a table taller than a page splits WITH its header repeated. */
+table { break-inside: auto; }
+thead { display: table-header-group; }
+tr, tbody tr { break-inside: avoid; }
+
+/* ── Print accommodations for web-native elements ──────────────── */
+/* Force every <details> open so collapsed content (cashflow tables, sources) prints. */
+details { display: block !important; }
+details > summary { list-style: none; font-weight: 600; }
+details[open] > *, details > * { display: revert !important; }
+/* Chart legends: show all series (undo any interactive toggle-off). */
+.leg-off, [data-si].off { opacity: 1 !important; display: revert !important; }
+/* Hide pure on-screen chrome that has no meaning in print. */
+.chart-tip, .legend-hint, #navbar, #progress, .sidebar, [data-print="hide"] { display: none !important; }
+
+/* Appendix (interactive multi-state controls relocated here by print-transform). */
+.print-appendix { break-before: page; }
+.print-appendix .appendix-state { break-inside: avoid; margin-bottom: 16px; }
+.print-appendix h2 { font-size: 17px; font-weight: 700; color:#12253A; border-bottom:1.5px solid #12253A; padding-bottom:8px; margin-bottom:16px; }

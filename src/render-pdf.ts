@@ -10,7 +10,14 @@ import http from 'node:http'
 import { chromium, type Browser } from 'playwright'
 import { PDFDocument } from 'pdf-lib'
 
-const REPO = 'https://raw.githubusercontent.com/soapboxbuild/soapbox-agent/main'
+// Repointed from soapboxbuild/soapbox-agent as part of the 2026-08-15 migration — this repo is
+// now the source of truth for both the templates and these PDF-render assets. print.css and
+// paged.polyfill.js were carried over from soapbox-agent's skills/report-pdf/assets/ (the report-pdf
+// *skill*, i.e. its agent-facing instructions, was deliberately NOT migrated — these two files are
+// runtime assets the service itself depends on, a different thing that happened to live under the
+// same directory name). raw.githubusercontent.com requires the source repo to be public, matching
+// soapbox-agent's own visibility.
+const REPO = 'https://raw.githubusercontent.com/soapboxbuild/soapbox-reporting-mcp/main'
 
 let browserPromise: Promise<Browser> | null = null
 function getBrowser(): Promise<Browser> {
@@ -50,8 +57,8 @@ const TRANSFORM_JS = `(() => {
 
 async function renderReportPdf(html: string): Promise<Buffer> {
   const [printCss, pagedJs] = await Promise.all([
-    fetchText(`${REPO}/skills/report-pdf/assets/print.css`),
-    fetchText(`${REPO}/skills/report-pdf/assets/paged.polyfill.js`),
+    fetchText(`${REPO}/src/assets/print.css`),
+    fetchText(`${REPO}/src/assets/paged.polyfill.js`),
   ])
   // Serve the doc + assets over a real origin and page.goto — Paged.js (921 KB)
   // must load as an EXTERNAL <script>; inlining it breaks (embedded tokens).
