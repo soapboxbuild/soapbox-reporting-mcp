@@ -862,9 +862,25 @@
     var _sn = document.getElementById('summary-narrative');
     if (_sn) { _sn.style.display = 'none'; _sn.innerHTML = ''; }
     var kpiTiles = [];
-    if (fin.total_investment != null) kpiTiles.push({ label: 'Total Incremental Investment', value: fmtCurrency(num(fin.total_investment)) });
-    if (fin.total_incentives != null) kpiTiles.push({ label: 'Incentives', value: fmtCurrency(num(fin.total_incentives)) });
-    if (fin.net_investment != null) kpiTiles.push({ label: 'Net Investment', value: fmtCurrency(num(fin.net_investment)), sublabel: 'after incentives' });
+    // KPI sheet shows INCREMENTAL figures, not the gross capital plan (user, 2026-08-15, Crystal
+    // View Apartments). fin.total_investment / fin.net_investment are the GROSS totals (the
+    // like-for-like/mandatory replacement PLUS the true incremental decarb spend combined, e.g.
+    // $7.4M) -- a real, correct figure, but not what belongs on the cover next to the Value
+    // Bridge: it read as the incremental-only number and didn't reconcile against the bridge's
+    // own "Incremental Capex" bar, which is exactly what was reported. The bridge (or, absent
+    // that, the legacy financial.waterfall shape) is the source of truth for these tiles, since
+    // it's the same incremental-only figure the waterfall exhibit already renders.
+    var kpiBridge = fin.bridge || null;
+    var kpiWf = kpiBridge ? null : (fin.waterfall || null);
+    var kpiIncCapex = kpiBridge ? num(kpiBridge.incremental_capex) : (kpiWf ? num(kpiWf.incremental_capex) : null);
+    var kpiIncIncentives = kpiBridge ? num(kpiBridge.incentives) : (kpiWf ? num(kpiWf.incentives) : null);
+    // incremental_capex is negative (capital outlay) by schema convention; these tiles report the
+    // investment as a plain positive dollar amount, matching how "Total Investment" always read.
+    if (kpiIncCapex != null) kpiTiles.push({ label: 'Total Incremental Investment', value: fmtCurrency(Math.abs(kpiIncCapex)) });
+    if (kpiIncIncentives != null) kpiTiles.push({ label: 'Incentives', value: fmtCurrency(Math.abs(kpiIncIncentives)) });
+    if (kpiIncCapex != null && kpiIncIncentives != null) {
+      kpiTiles.push({ label: 'Net Incremental Investment', value: fmtCurrency(Math.abs(kpiIncCapex + kpiIncIncentives)), sublabel: 'after incentives' });
+    }
     var carbonPctForKpi = (imp.carbon && imp.carbon.reduction_pct != null) ? toFraction(num(imp.carbon.reduction_pct))
       : (imp.carbon && imp.carbon.baseline_tco2e != null && imp.carbon.post_retrofit_tco2e != null)
         ? (num(imp.carbon.baseline_tco2e) - num(imp.carbon.post_retrofit_tco2e)) / num(imp.carbon.baseline_tco2e)
