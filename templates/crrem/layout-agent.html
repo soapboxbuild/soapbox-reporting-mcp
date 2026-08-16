@@ -1,0 +1,312 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>[[PROPERTY_NAME]] — CRREM Pathway Analysis</title>
+<style>
+:root{
+  --orange:    #EA580C;
+  --orange-2:  #F97316;
+  --orange-bg: #FEF4EC;
+  --sage:  #1F6B45;  --sage-bg:  #EDF7F2;
+  --amber: #B45309;  --amber-bg: #FEF9EC;
+  --red:   #B91C1C;  --red-bg:   #FEF2F2;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,'Helvetica Neue',Arial,sans-serif;background:#F8F9FB;color:#1A1A2E}
+.report{max-width:860px;margin:0 auto;padding:40px 0 80px}
+
+/* Header */
+.doc-header{
+  background:
+    radial-gradient(120% 140% at 88% -20%, rgba(234,88,12,0.55) 0%, rgba(234,88,12,0) 46%),
+    radial-gradient(90% 120% at 0% 120%, rgba(31,107,69,0.35) 0%, rgba(31,107,69,0) 50%),
+    #12253A;
+  color:#fff;padding:32px 40px 0;position:relative;overflow:hidden
+}
+.doc-header-eyebrow{font-size:8px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;color:#4CAF82;margin-bottom:8px;position:relative;z-index:1}
+.doc-header-eyebrow::before,.section-label::before{content:'// ';color:var(--orange-2);font-weight:800}
+.doc-header-property-name{font-size:28px;font-weight:700;margin:8px 0 4px;line-height:1.2}
+.doc-header-address{font-size:13px;font-weight:300;color:rgba(255,255,255,.65);margin-bottom:24px}
+.doc-header-logos{
+  display:flex;align-items:center;gap:22px;
+  padding:6px 0 26px;
+}
+.doc-header-logos svg,.doc-header-logos img{display:block}
+.doc-header-logos .logo-divider{width:1px;height:24px;background:rgba(255,255,255,0.22)}
+.meta-strip{
+  background:#1A3550;padding:8px 40px;display:flex;justify-content:space-between;
+  align-items:center;font-size:11px;color:rgba(255,255,255,.5);letter-spacing:.04em;
+}
+.meta-confidential{color:#4CAF82;font-weight:600}
+
+/* Stranding alert bar */
+.stranding-bar{padding:14px 40px;display:flex;align-items:center;gap:16px;font-size:13px;font-weight:600}
+.stranding-bar.stranded{background:#FEE2E2;color:#991B1B;border-bottom:2px solid #FECACA}
+.stranding-bar.aligned{background:#D1FAE5;color:#065F46;border-bottom:2px solid #A7F3D0}
+.stranding-bar.at-risk{background:#FEF3C7;color:#92400E;border-bottom:2px solid #FDE68A}
+.stranding-icon{font-size:20px}
+
+/* KPI bar */
+.kpi-bar{display:flex;gap:0;background:#fff;border-bottom:1px solid #E2E8F0}
+.kpi-tile{flex:1;padding:16px 20px;border-right:1px solid #E2E8F0}
+.kpi-tile:last-child{border-right:none}
+.kpi-label{font-size:9px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:#64748B;margin-bottom:5px}
+.kpi-value{font-size:22px;font-weight:700;color:#12253A;font-variant-numeric:tabular-nums;line-height:1}
+.kpi-sub{font-size:11px;color:#64748B;margin-top:3px}
+
+/* Sections */
+.section{padding:32px 40px;background:#fff;margin-bottom:2px}
+.section-label{font-size:9px;font-weight:600;letter-spacing:.15em;text-transform:uppercase;color:#1F6B45;margin-bottom:4px}
+.section-title{font-size:18px;font-weight:700;color:#12253A;border-bottom:1.5px solid #12253A;padding-bottom:8px;margin-bottom:16px}
+.section-body{font-size:13px;line-height:1.7;color:#334155}
+
+/* Tables */
+table{width:100%;border-collapse:collapse;font-size:12px;margin:12px 0}
+th{background:#F1F4F8;text-align:left;padding:8px 10px;font-weight:600;border:1px solid #E2E8F0;font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:#475569}
+td{padding:8px 10px;border:1px solid #E2E8F0;vertical-align:top;color:#334155;font-variant-numeric:tabular-nums}
+tr:nth-child(even) td{background:#FAFBFC}
+th.num,td.num{text-align:right}
+
+/* Pathway status badges */
+.badge{display:inline-block;padding:2px 7px;border-radius:3px;font-size:10px;font-weight:600;letter-spacing:.04em;text-transform:uppercase}
+.badge-aligned{background:#D1FAE5;color:#065F46}
+.badge-atrisk{background:#FEF3C7;color:#92400E}
+.badge-stranded{background:#FEE2E2;color:#991B1B}
+.badge-grey{background:#F1F5F9;color:#475569}
+
+/* Chart */
+.chart-wrap{margin:12px 0;background:#FAFBFC;border:1px solid #E2E8F0;border-radius:4px;padding:16px;overflow-x:auto}
+.chart-legend{display:flex;flex-wrap:wrap;gap:16px;margin-top:12px;font-size:11px;color:#475569}
+.legend-item{display:flex;align-items:center;gap:6px}
+.legend-line{width:24px;height:3px;border-radius:2px}
+.legend-actual{background:#2563EB}
+.legend-crrem{background:#DC2626}
+.legend-bau{background:#94A3B8}
+.legend-decarb{background:#059669}
+
+/* Measure table highlights */
+.measure-mandatory{background:#FEF3C7 !important}
+.measure-top{background:#EFF6FF !important}
+
+/* Footer */
+.report-footer{padding:24px 40px;background:#F1F4F8;border-top:2px solid #E2E8F0;font-size:11px;color:#64748B;line-height:1.6}
+.footer-sources{font-weight:600;color:#475569;margin-bottom:4px}
+.footer-limitation{font-style:italic;color:#94A3B8;font-size:10px;margin-top:8px}
+
+@media print {
+  html, body { background: #fff; }
+  .section-label, .section-title { break-after: avoid; }
+  table, tr, .kpi-tile, .chart-wrap { break-inside: avoid; }
+  .doc-header, .meta-strip, .stranding-bar, .kpi-tile,
+  .badge, .badge-aligned, .badge-atrisk, .badge-stranded, .badge-grey,
+  th, .measure-mandatory, .measure-top {
+    -webkit-print-color-adjust: exact; print-color-adjust: exact;
+  }
+}
+</style>
+</head>
+<body>
+<div class="report">
+
+  <!-- HEADER -->
+  <div class="doc-header">
+    <div class="doc-header-eyebrow">Soapbox Sustainability Intelligence &mdash; CRREM Pathway Analysis</div>
+    <div class="doc-header-property-name">[[PROPERTY_NAME]]</div>
+    <div class="doc-header-address">[[FULL_ADDRESS]] &nbsp;&middot;&nbsp; [[PROPERTY_TYPE]] &nbsp;&middot;&nbsp; [[GFA_SF]] SF</div>
+    <div class="doc-header-logos">
+      <svg width="109" height="22" viewBox="0 0 178 36" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Soapbox">
+        <defs>
+          <linearGradient id="sbx-tile" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stop-color="#1aa863"></stop>
+            <stop offset="1" stop-color="#0c6c3d"></stop>
+          </linearGradient>
+          <linearGradient id="sbx-sheen" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#ffffff" stop-opacity="0.42"></stop>
+            <stop offset="0.55" stop-color="#ffffff" stop-opacity="0"></stop>
+          </linearGradient>
+        </defs>
+        <rect x="2" y="2" width="32" height="32" rx="8.5" fill="url(#sbx-tile)"></rect>
+        <rect x="2" y="2" width="32" height="32" rx="8.5" fill="url(#sbx-sheen)"></rect>
+        <text x="18" y="25.5" text-anchor="middle" font-family="'Bricolage Grotesque',-apple-system,'Helvetica Neue',Arial,sans-serif" font-weight="800" font-size="20" fill="#ffffff">S</text>
+        <text x="45" y="26" font-family="'Bricolage Grotesque',-apple-system,'Helvetica Neue',Arial,sans-serif" font-weight="800" font-size="27" letter-spacing="-0.6" fill="#ffffff">Soapbox<tspan fill="#f0652c">.</tspan></text>
+      </svg>
+      <div class="logo-divider"></div>
+      <svg width="27" height="22" viewBox="0 0 74 61" role="img" aria-label="Audette" style="display:block"><rect fill="#eb02ad" x="41.18" y="0.26" width="6.56" height="19.05"/><circle fill="#eb02ad" cx="62.48" cy="9.78" r="9.52"/><path fill="#eb02ad" d="M19.65,9.78.12,59.94h9l4.67-12.59H35l4.74,12.59H49L29.48,9.78ZM16.74,39.49,24.38,19,32,39.49Z"/></svg>
+    </div>
+  </div>
+  <div class="meta-strip">
+    <span id="hdr-date"></span>
+    <span id="hdr-by"></span>
+    <span class="meta-confidential">CONFIDENTIAL</span>
+    <span id="pb-raw" hidden>[[PREPARED_BY]]</span>
+    <span id="rd-raw" hidden>[[REPORT_DATE]]</span>
+  </div>
+
+  <!-- STRANDING STATUS BAR -->
+  <!-- Set class to: stranded / at-risk / aligned based on [[STRANDING_STATUS_CLASS]] -->
+  <div class="stranding-bar [[STRANDING_STATUS_CLASS]]">
+    <span class="stranding-icon">[[STRANDING_ICON]]</span>
+    <span>[[STRANDING_HEADLINE]]</span>
+  </div>
+
+  <!-- KPI BAR -->
+  <div class="kpi-bar">
+    <div class="kpi-tile">
+      <div class="kpi-label">Current Carbon Intensity</div>
+      <div class="kpi-value">[[CURRENT_CARBON_INTENSITY]]</div>
+      <div class="kpi-sub">kgCO₂e/m²/yr</div>
+    </div>
+    <div class="kpi-tile">
+      <div class="kpi-label">CRREM 2030 Target</div>
+      <div class="kpi-value">[[CRREM_2030_TARGET]]</div>
+      <div class="kpi-sub">kgCO₂e/m²/yr</div>
+    </div>
+    <div class="kpi-tile">
+      <div class="kpi-label">Gap to 2030 Target</div>
+      <div class="kpi-value">[[GAP_TO_2030]]</div>
+      <div class="kpi-sub">kgCO₂e/m²/yr over pathway</div>
+    </div>
+    <div class="kpi-tile">
+      <div class="kpi-label">Stranding Year</div>
+      <div class="kpi-value">[[STRANDING_YEAR]]</div>
+      <div class="kpi-sub">if no action taken</div>
+    </div>
+  </div>
+
+  <!-- PATHWAY CHART -->
+  <div class="section">
+    <div class="section-label">Carbon Trajectory</div>
+    <h2 class="section-title">CRREM Pathway vs. Asset Trajectory</h2>
+    <div class="chart-wrap">
+      [[CRREM_PATHWAY_SVG]]
+    </div>
+    <div class="chart-legend">
+      <div class="legend-item"><div class="legend-line legend-actual"></div>Asset (actual)</div>
+      <div class="legend-item"><div class="legend-line legend-crrem"></div>CRREM 1.5°C pathway</div>
+      <div class="legend-item"><div class="legend-line legend-bau"></div>BAU projection</div>
+      <div class="legend-item"><div class="legend-line legend-decarb"></div>With measures</div>
+    </div>
+  </div>
+
+  <!-- PATHWAY TABLE -->
+  <div class="section">
+    <div class="section-label">Year-by-Year</div>
+    <h2 class="section-title">Pathway Data Table</h2>
+    <div style="overflow-x:auto">
+    <table>
+      <thead><tr>
+        <th>Year</th>
+        <th class="num">Asset (kgCO₂e/m²)</th>
+        <th class="num">CRREM Target</th>
+        <th class="num">Gap</th>
+        <th class="num">With Measures</th>
+        <th>Status</th>
+      </tr></thead>
+      <tbody>
+        [[PATHWAY_TABLE_ROWS]]
+      </tbody>
+    </table>
+    </div>
+  </div>
+
+  <!-- STRANDING RISK -->
+  <div class="section">
+    <div class="section-label">Stranding Risk</div>
+    <h2 class="section-title">Stranding Risk Assessment</h2>
+    <div class="section-body">[[STRANDING_NARRATIVE]]</div>
+    <table style="margin-top:16px">
+      <thead><tr>
+        <th>Scenario</th>
+        <th>Stranding Year</th>
+        <th class="num">Cumulative Carbon Gap (tCO₂e)</th>
+        <th>Financial Exposure</th>
+      </tr></thead>
+      <tbody>
+        [[STRANDING_SCENARIOS_ROWS]]
+      </tbody>
+    </table>
+  </div>
+
+  <!-- DECARBONIZATION MEASURES -->
+  <div class="section">
+    <div class="section-label">Recommended Actions</div>
+    <h2 class="section-title">Decarbonization Measures</h2>
+    <div style="overflow-x:auto">
+    <table>
+      <thead><tr>
+        <th>Measure</th>
+        <th>Category</th>
+        <th class="num">CapEx</th>
+        <th class="num">Carbon Reduction (tCO₂e/yr)</th>
+        <th class="num">New Intensity (kgCO₂e/m²)</th>
+        <th>Pathway Impact</th>
+      </tr></thead>
+      <tbody>
+        [[MEASURES_ROWS]]
+      </tbody>
+    </table>
+    </div>
+    <div class="section-body" style="margin-top:12px">[[MEASURES_NARRATIVE]]</div>
+  </div>
+
+  <!-- ENERGY SOURCE BREAKDOWN -->
+  <div class="section">
+    <div class="section-label">Energy Sources</div>
+    <h2 class="section-title">Energy Source & Emissions Breakdown</h2>
+    <table>
+      <thead><tr>
+        <th>Source</th>
+        <th class="num">Consumption (kBtu/yr)</th>
+        <th class="num">% of Total</th>
+        <th class="num">Emissions (tCO₂e/yr)</th>
+        <th class="num">Emission Factor</th>
+      </tr></thead>
+      <tbody>
+        [[ENERGY_SOURCE_ROWS]]
+      </tbody>
+    </table>
+  </div>
+
+  <!-- PEER COMPARISON -->
+  <div class="section">
+    <div class="section-label">Benchmarking</div>
+    <h2 class="section-title">Peer Comparison</h2>
+    <table>
+      <thead><tr>
+        <th>Benchmark</th>
+        <th class="num">kgCO₂e/m²/yr</th>
+        <th>vs. This Asset</th>
+      </tr></thead>
+      <tbody>
+        [[PEER_COMPARISON_ROWS]]
+      </tbody>
+    </table>
+    <div class="section-body" style="margin-top:12px">[[BENCHMARK_NARRATIVE]]</div>
+  </div>
+
+  <!-- FOOTER -->
+  <div class="report-footer">
+    <div class="footer-sources">Data sources: CRREM v2 (2024) &middot; Audette &middot; ENERGY STAR &middot; Soapbox Sustainability Intelligence</div>
+    <div>CRREM pathways based on 1.5°C scenario for [[PROPERTY_TYPE]] in [[COUNTRY]]. Utility emission factors: [[GRID_EMISSION_FACTOR]] kgCO₂e/kWh ([[GRID_FACTOR_YEAR]]).</div>
+    <div class="footer-limitation">Carbon intensity calculations are based on available utility data. Estimates marked (est.) use peer-group medians and carry ±30% uncertainty. CRREM pathways are subject to revision — verify against current CRREM tool at crrem.org.</div>
+  </div>
+
+</div>
+<script>
+(function(){
+  function setText(id,val){var el=document.getElementById(id);if(el)el.textContent=val;}
+  // Read raw [[TOKEN]] values from hidden text nodes (never a JS string literal) so a
+  // substituted value cannot break out of a script-context string. textContent output is safe.
+  function raw(id){var el=document.getElementById(id);return el?(el.textContent||'').trim():'';}
+  var d = raw('rd-raw');
+  setText('hdr-date', (d && d.indexOf('[[')!==0) ? ('Prepared: ' + d) : '');
+  // Attribute to the human preparer (Soapbox), never the AI persona.
+  var preparedBy = raw('pb-raw');
+  if (!preparedBy || preparedBy.indexOf('[[')===0 || /\baris\b|soapbox ai/i.test(preparedBy)) preparedBy = 'Christopher Naismith, Soapbox';
+  setText('hdr-by', 'Prepared by: ' + preparedBy);
+})();
+</script>
+</body>
+</html>

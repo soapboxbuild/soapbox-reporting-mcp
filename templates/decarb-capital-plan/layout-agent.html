@@ -1,0 +1,1956 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Decarbonization Capital Plan</title>
+  <!--
+    CLIENT-RENDER TEMPLATE (decarb-capital-plan / layout-agent.html)
+    -----------------------------------------------------------------
+    "Research Desk" redesign (2026-07-27), paginated pass — same render
+    architecture as before (server injects JSON into #report-data, this
+    file's own JS renders every section — the agent writes no HTML and draws
+    no charts). Pages are sized to true US Letter (8.5in x 11in) with a
+    running header/footer on every interior page; the Measures page alone is
+    landscape (11in x 8.5in) to fit its combined cost+impact table borrowed
+    from decarb's own two-table roadmap. This is an on-screen/HTML sizing
+    convention only — real per-page print orientation in an exported PDF
+    would need the export pipeline (Playwright print) to honor it, not
+    something this static template can force on its own.
+
+    Elements deliberately borrowed from templates/decarb/layout-agent.html
+    (used as the quality/content bar):
+    the combined Cost+Impact measures table, and the gridded/axis-labeled
+    trajectory chart style (now shared by both the EUI and GHGi charts via
+    buildAxisChart()). See schema.json for the full data contract.
+
+    Visual tokens (colors, spacing, typography scale) originate from the base
+    design system this template was forked from; org design-system tokens
+    (presentation.brand.tokens) override them at runtime via the standalone
+    brand applicator script after the report-data island. Font FAMILIES are the
+    documented fallback stack (Arial/Helvetica, Times New Roman); a brand
+    tokens.fonts.import_url (Google Fonts only) may be injected at runtime.
+
+    All charts are hand-rolled inline SVG (no chart library — same constraint
+    as the single-file prohibition above). The CRREM compliance line is drawn
+    ONLY from impact.crrem.pathway, verbatim from the engine — never estimated
+    or hand-drawn (a fabricated compliance curve is a known past incident).
+  -->
+  <style>
+    :root {
+      /* ─── Default brand tokens (base palette; org brand tokens override
+           these custom properties at runtime — see the brand applicator) ─── */
+      --bronze:        #8F5A39;
+      --bronze-deep:   #543722;
+      --bronze-dark:   #694029;
+      --bronze-mid:    #A17052;
+      --travertine:    #F4EFE7;
+      --black:         #000000;
+      --off-black:     #202020;
+      --white:         #FFFFFF;
+      --sky-blue:      #A6D7F0;
+      --deep-blue:     #173359;
+
+      --ink:           #231F20;
+      --grey-700:      #565A5D;
+      --grey-500:      #707477;
+      --grey-400:      #989CA0;
+      --grey-300:      #C5C7C9;
+      --grey-200:      #E2E4E5;
+      --grey-100:      #F5F7F8;
+
+      --mi-navy:       #00458A;
+      --mi-blue:       #0092F9;
+      --mi-forest:     #004F31;
+      --mi-red:        #C00000;
+
+      --text-primary:  var(--black);
+      --text-body:     var(--ink);
+      --text-muted:    var(--grey-400);
+      --surface-page:  var(--white);
+      --surface-alt:   var(--travertine);
+      --surface-subtle:var(--grey-100);
+      --border-hairline: var(--grey-200);
+      --border-rule:   var(--black);
+
+      --chart-positive: var(--mi-forest);
+      --chart-negative: var(--mi-red);
+      --chart-series-1: var(--mi-navy);
+      --chart-series-2: var(--mi-blue);
+      --chart-bau: var(--grey-400);
+      --chart-net: var(--bronze);
+
+      --font-data: Arial, Helvetica, sans-serif;
+      --font-sans: Arial, Helvetica, sans-serif;
+      --font-serif: "Times New Roman", Times, serif;
+
+      --radius-none: 0px;
+      --radius-pill: 999px;
+      --border-width-accent-bar: 6px;
+      --space-3: 4px;
+      --space-4: 8px;
+      --space-5: 12px;
+      --space-6: 16px;
+      --space-8: 24px;
+      --space-9: 32px;
+      /* --space-3 and --space-5 were referenced (exec-summary-eyebrow margin, and the impact-section
+         exhibit/metric compaction below) but never defined here — an undefined var() with no fallback
+         makes the WHOLE declaration invalid, so those rules were silently computing to 0, not to the
+         "tightened" padding/margin the impact-compaction comment (2026-08-04) describes. Filled in on
+         the file's own 4px-step scale (matches --space-4/6/8 exactly: value = (N-2)*4) (user, 2026-08-15). */
+      --page-margin-print: 0.5in;
+      --rail-width: 0.9in;
+      --page-w-portrait: 8.5in;
+      --page-w-landscape: 11in;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      background: var(--surface-subtle);
+      color: var(--text-body);
+      font-family: var(--font-sans);
+      font-size: 14px;
+      line-height: 1.45;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .report { margin: 0 auto; }
+
+    /* ─── Interior page shell: US Letter portrait, left index rail + content column ─── */
+    .page {
+      display: flex;
+      width: var(--page-w-portrait);
+      min-height: 11in;
+      margin: 0 auto var(--space-8);
+      background: var(--surface-page);
+      border: 1px solid var(--border-hairline);
+    }
+    .page.landscape { width: var(--page-w-landscape); min-height: 8.5in; }
+    .page-body { flex: 1; min-width: 0; padding: var(--space-8) var(--page-margin-print); display: flex; flex-direction: column; }
+    .page-content { flex: 1; }
+
+    .rail {
+      flex-shrink: 0; width: var(--rail-width);
+      background: var(--deep-blue); color: var(--white);
+      padding: var(--space-8) var(--space-6);
+      display: flex; flex-direction: column; justify-content: space-between;
+    }
+    .rail-index { display: flex; flex-direction: column; gap: var(--space-6); }
+    .rail-item { font-size: 10px; letter-spacing: 0.04em; }
+    .rail-item .rail-num { display: block; font-family: var(--font-data); font-size: 13px; font-weight: 700; color: rgba(255,255,255,0.35); }
+    .rail-item .rail-label { display: block; margin-top: 2px; color: rgba(255,255,255,0.5); text-transform: uppercase; }
+    .rail-item.current .rail-num { color: var(--bronze-mid); }
+    .rail-item.current .rail-label { color: var(--white); font-weight: 700; }
+    .rail-item.current { position: relative; }
+    .rail-item.current::before { content: '>'; position: absolute; left: -14px; color: var(--bronze-mid); font-weight: 700; }
+    .rail-brand { font-size: 9px; letter-spacing: 0.08em; color: rgba(255,255,255,0.4); writing-mode: vertical-rl; text-orientation: mixed; text-transform: uppercase; }
+
+    /* ─── Running header/footer, every interior page ─── */
+    .page-header-run { display: flex; justify-content: space-between; align-items: baseline; padding-bottom: var(--space-4); margin-bottom: var(--space-8); border-bottom: 1px solid var(--border-hairline); }
+    .phr-brand { font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--bronze); font-weight: 700; }
+    .phr-property { display: flex; flex-direction: column; align-items: flex-end; font-size: 10px; color: var(--text-muted); line-height: 1.35; }
+    .phr-address { font-size: 9px; color: var(--text-faint, #989CA0); }
+    .page-footer-run { display: flex; justify-content: space-between; padding-top: var(--space-4); margin-top: var(--space-8); border-top: 1px solid var(--border-hairline); font-size: 9px; color: var(--text-muted); }
+
+    /* ─── Cover+Summary: big full-width header (biggest in the document), rail starts below it ─── */
+    .cover-page {
+      display: flex; flex-direction: column;
+      width: var(--page-w-portrait); min-height: 11in; margin: 0 auto var(--space-8);
+      background: var(--surface-page);
+      border: 1px solid var(--border-hairline);
+    }
+    /* Header is FULLY deep-blue — the same --deep-blue surface the interior-page rail already
+       uses (.rail below, line ~127), so the cover's brand surface is consistent with the rest of
+       the document rather than introducing a second dark brand color. White text tokens below
+       mirror that existing rail white-on-deep-blue contrast pattern.
+       The header used to carry an extra cover-header-bar column reserving var(--rail-width) of
+       blank space on the left — a leftover from when the bar and content were different colors
+       (a visible two-tone "sidebar + panel" split). Now that both are the same deep-blue, that
+       column was pure dead space rather than a visible sidebar, so it's removed; the header's
+       left margin is just its own padding now, same as the rest of the page. */
+    .cover-header { display: flex; background: var(--deep-blue); }
+    .cover-header-content { flex: 1; min-width: 0; padding: calc(var(--space-9) * 1.2) var(--page-margin-print) var(--space-9); }
+    .cover-logo { width: 190px; height: auto; margin-bottom: var(--space-8); display: block; }
+    .cover-logo-slot { margin-bottom: var(--space-8); }
+    .cover-logo-slot:empty { display: none; }
+    .cover-eyebrow { font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--white); font-weight: 700; margin-bottom: var(--space-6); }
+    .cover-title { font-family: var(--font-serif); font-size: 42px; font-weight: 400; color: var(--white); margin-bottom: var(--space-4); max-width: 720px; }
+    .cover-address { font-size: 16px; color: rgba(255,255,255,0.7); margin-bottom: var(--space-9); }
+    .cover-meta-bar { display: flex; flex-wrap: wrap; gap: var(--space-8); padding-top: var(--space-8); border-top: 1px solid rgba(255,255,255,0.25); }
+    .cover-meta-item .cover-meta-label { font-size: 10px; letter-spacing: 0.05em; text-transform: uppercase; color: rgba(255,255,255,0.6); margin-bottom: 2px; }
+    .cover-meta-item .cover-meta-value { font-size: 14px; font-weight: 600; color: var(--white); }
+    .cover-body-row { flex: 1; display: flex; border-top: 1px solid var(--border-hairline); }
+
+    /* ─── Section shell ─── */
+    .section-eyebrow { font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--bronze); font-weight: 700; margin-bottom: var(--space-4); }
+    .section-title { font-family: var(--font-serif); font-size: 24px; font-weight: 400; color: var(--text-primary); margin-bottom: var(--space-8); padding-bottom: var(--space-4); border-bottom: 2px solid var(--black); }
+    .subsection-title { font-family: var(--font-serif); font-size: 16px; font-weight: 600; color: var(--text-primary); margin: var(--space-8) 0 var(--space-4); }
+    .subsection-title:first-of-type { margin-top: 0; }
+    /* Plain paragraphs. The bronze left rule read as a pull-quote or a callout — a device for an
+       aside — when this is the primary text of the section and everything below it is supporting
+       detail (user, 2026-08-03). No border, no indent. */
+    .exec-summary { margin-bottom: var(--space-8); }
+    .exec-summary-eyebrow { font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--bronze); font-weight: 700; margin-bottom: var(--space-3); }
+    .exec-summary-headline { font-family: var(--font-serif); font-size: 20px; line-height: 1.4; color: var(--text-primary); margin-bottom: var(--space-4); }
+    .exec-summary-row { font-size: 12.5px; line-height: 1.6; color: var(--text-muted); margin-bottom: var(--space-2); }
+    .exec-summary-row strong { color: var(--text-primary); font-weight: 600; }
+    /* Uniform multi-paragraph executive summary: every paragraph the same size and weight,
+       no headline callout, no bold labels. Reads as plain prose. */
+    .exec-summary-para { font-size: 13px; line-height: 1.65; color: var(--text-primary); margin-bottom: var(--space-4); }
+    .exec-summary-para:last-child { margin-bottom: 0; }
+    .narrative { font-size: 14px; line-height: 1.6; white-space: pre-line; margin-bottom: var(--space-8); }
+    .narrative:last-child { margin-bottom: 0; }
+
+    /* ─── Exhibit framing (numbered chart/table figures, pitchbook convention) ─── */
+    .exhibit { border: 1px solid var(--border-hairline); padding: var(--space-8); margin: var(--space-8) 0; }
+    .exhibit:first-of-type { margin-top: 0; }
+    /* EUI and GHGi charts specifically, per the user's request (user, 2026-08-15). No border on just
+       these two exhibits — do not touch the shared .exhibit rule above, which still frames the Value
+       Bridge, capex table, and every other exhibit in this template. */
+    #exhibit-eui, #exhibit-ghgi { border: none; }
+    .exhibit-label { font-size: 10px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--bronze); font-weight: 700; margin-bottom: 2px; }
+    .exhibit-title { font-size: 15px; font-weight: 700; color: var(--text-primary); margin-bottom: var(--space-6); }
+    .exhibit-note { font-size: 10px; color: var(--text-muted); margin-top: var(--space-4); }
+    .exhibit-note.flag { color: var(--bronze); }
+
+    /* ─── KPI tiles ─── */
+    .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: var(--space-6); margin-top: var(--space-8); }
+    .kpi-tile { background: var(--surface-alt); padding: var(--space-6); border-left: 3px solid var(--bronze); }
+    .kpi-label { font-size: 10px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-muted); margin-bottom: var(--space-4); }
+    .kpi-value { font-family: var(--font-data); font-size: 24px; font-weight: 700; color: var(--text-primary); }
+    .kpi-sublabel { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+
+    /* ─── Tables (Measures) ─── */
+    table.data-table { width: 100%; border-collapse: collapse; font-size: 11px; margin-bottom: var(--space-8); }
+    table.data-table th { text-align: left; font-size: 9px; letter-spacing: 0.03em; text-transform: uppercase; color: var(--text-muted); font-weight: 600; padding: var(--space-4) var(--space-4); border-bottom: 1px solid var(--border-rule); vertical-align: bottom; }
+    table.data-table td { padding: var(--space-4); border-bottom: 1px solid var(--border-hairline); }
+    table.data-table td.num, table.data-table th.num { text-align: right; font-family: var(--font-data); }
+    table.data-table tr.totals-row td { font-weight: 700; border-top: 1px solid var(--border-rule); border-bottom: none; }
+    .group-header { font-size: 11px; font-weight: 700; color: var(--bronze); text-transform: uppercase; letter-spacing: 0.03em; margin: var(--space-6) 0 var(--space-4); }
+    .table-scroll { overflow-x: auto; }
+    /* Measures table (landscape page): a FIXED column layout so long measure names wrap inside a
+       bounded first column instead of stretching every row taller and pushing the table off the
+       8.5in page height. Column widths come from the <colgroup> the renderer emits; here we only
+       pin table-layout, a slightly smaller type scale, and tighter cell padding to reclaim vertical
+       room. break-word lets an over-long unbroken token in the name column wrap rather than widen it. */
+    table.data-table.measures-fixed { table-layout: fixed; font-size: 10px; }
+    table.data-table.measures-fixed th, table.data-table.measures-fixed td { padding: 4px 6px; }
+    table.data-table.measures-fixed td:first-child, table.data-table.measures-fixed th:first-child { overflow-wrap: break-word; }
+    table.data-table.measures-fixed td:first-child .consideration-detail,
+    table.data-table.measures-fixed td:first-child div { overflow-wrap: break-word; }
+
+    /* ─── Financial ─── */
+    .financial-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: var(--space-6); margin-bottom: var(--space-8); }
+    .financial-tile { padding: var(--space-6); background: var(--surface-alt); }
+    .financial-tile .fin-label { font-size: 10px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-muted); margin-bottom: var(--space-4); }
+    .financial-tile .fin-value { font-family: var(--font-data); font-size: 22px; font-weight: 700; color: var(--text-primary); }
+    .financial-tile .fin-sublabel { font-size: 10px; color: var(--text-muted); margin-top: 2px; }
+    .chart-legend { display: flex; gap: var(--space-8); margin-top: var(--space-6); flex-wrap: wrap; }
+    .legend-item { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-muted); }
+    .legend-swatch { width: 10px; height: 10px; flex-shrink: 0; }
+    .legend-swatch.line { height: 2px; width: 16px; }
+
+    /* ─── Impact bars (legacy, still used for measures section absent trajectory) ─── */
+    .impact-row { display: flex; gap: var(--space-6); margin-bottom: var(--space-6); flex-wrap: wrap; }
+    /* Impact compaction (client edit, 2026-08-04): two panels plus two charts overflowed onto a
+       continuation page. Tightening the exhibit padding and capping chart height fits the section on
+       one page, which reads better than a two-page Impact with one chart stranded. The block
+       paginator still catches it if a future asset's content genuinely needs more room. */
+    #impact-section .exhibit { padding: var(--space-5) var(--space-6); margin: var(--space-5) 0; }
+    #impact-section .exhibit-title { margin-bottom: var(--space-4); }
+    #impact-section .impact-metric { padding: var(--space-5); }
+    #impact-section svg { max-height: 125px; }
+    .impact-metric { flex: 1; min-width: 220px; padding: var(--space-6); }
+    /* Guaranteed break between the GHGi exhibit and the BPS panel that follows it — do not rely
+       solely on the preceding exhibit's own trailing margin (which computed to 0 while --space-5 was
+       undefined above, and would vanish anyway if EUI/GHGi are both hidden for this asset) (user, 2026-08-15). */
+    #impact-regulatory { margin-top: var(--space-6); }
+    .impact-metric-title { font-size: 12px; font-weight: 700; color: var(--text-primary); margin-bottom: var(--space-6); }
+    .impact-reduction-pct { font-size: 28px; font-weight: 700; color: var(--mi-forest); font-family: var(--font-data); }
+    .regulatory-badge { display: inline-block; padding: 3px 10px; border-radius: var(--radius-pill); font-size: 11px; font-weight: 700; margin-bottom: var(--space-4); }
+    .regulatory-badge.compliant { background: #E7F3EC; color: var(--mi-forest); }
+    .regulatory-badge.non-compliant { background: #FBEAEA; color: var(--mi-red); }
+    .regulatory-badge.not-applicable { background: var(--grey-100); color: var(--text-muted); }
+
+    /* ─── Implementation ─── */
+    .consideration-item { padding: var(--space-6) 0; border-bottom: 1px solid var(--border-hairline); }
+    .consideration-item:last-child { border-bottom: none; }
+    .consideration-title { font-weight: 700; font-size: 13px; margin-bottom: var(--space-4); }
+    .consideration-detail { font-size: 13px; color: var(--text-body); line-height: 1.5; }
+
+    @media print {
+      body { background: #fff; }
+      .page, .cover-page { border: none; margin: 0; }
+      .page, .cover-page { break-inside: avoid; break-after: page; }
+      .page.landscape { break-after: page; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="report">
+  <div class="cover-page" id="cover">
+   <div class="cover-header">
+    <div class="cover-header-content">
+    <!-- Cover logo slot — empty by default; the org brand applicator (script after the
+         report-data island) injects a sanitized tokens.logo.svg here when present. -->
+    <div class="cover-logo-slot" id="cover-logo-slot"></div>
+    <div class="cover-eyebrow" id="cover-for"></div>
+    <h1 class="cover-title" id="cover-property-name">Property Name</h1>
+    <p class="cover-address" id="cover-property-address">Address</p>
+    <div class="cover-meta-bar">
+      <div class="cover-meta-item"><div class="cover-meta-label">Type</div><div class="cover-meta-value" id="cover-meta-type">—</div></div>
+      <div class="cover-meta-item"><div class="cover-meta-label">Size</div><div class="cover-meta-value" id="cover-meta-size">—</div></div>
+      <div class="cover-meta-item"><div class="cover-meta-label">Built</div><div class="cover-meta-value" id="cover-meta-built">—</div></div>
+      <div class="cover-meta-item"><div class="cover-meta-label">Prepared By</div><div class="cover-meta-value" id="cover-meta-by">—</div></div>
+      <div class="cover-meta-item"><div class="cover-meta-label">Date</div><div class="cover-meta-value" id="cover-meta-date">—</div></div>
+    </div>
+    </div>
+   </div>
+   <div class="cover-body-row">
+    <div class="rail">
+      <div class="rail-index">
+        <div class="rail-item current"><span class="rail-num">01</span><span class="rail-label">Summary</span></div>
+        <div class="rail-item"><span class="rail-num">02</span><span class="rail-label">Measures</span></div>
+        <div class="rail-item"><span class="rail-num">03</span><span class="rail-label">Financial</span></div>
+        <div class="rail-item"><span class="rail-num">04</span><span class="rail-label">Impact</span></div>
+        <div class="rail-item"><span class="rail-num">05</span><span class="rail-label">Measure Detail</span></div>
+        <div class="rail-item"><span class="rail-num">06</span><span class="rail-label">Notes</span></div>
+      </div>
+      <div class="rail-brand">Decarbonization Capital Plan</div>
+    </div>
+    <div class="page-body">
+      <div class="page-content">
+        <div class="section-eyebrow">Section 01</div>
+        <h2 class="section-title">Summary</h2>
+        <div id="exec-summary" style="display:none"></div>
+        <div class="narrative" id="summary-narrative"></div>
+        <div class="kpi-grid" id="summary-kpi-grid"></div>
+      </div>
+      <div class="page-footer-run"><span>Confidential</span><span class="page-prop-name">—</span><span class="page-num-run">—</span></div>
+    </div>
+   </div>
+  </div>
+
+  <div class="page landscape" id="measures-section">
+    <div class="rail">
+      <div class="rail-index">
+        <div class="rail-item"><span class="rail-num">01</span><span class="rail-label">Summary</span></div>
+        <div class="rail-item current"><span class="rail-num">02</span><span class="rail-label">Measures</span></div>
+        <div class="rail-item"><span class="rail-num">03</span><span class="rail-label">Financial</span></div>
+        <div class="rail-item"><span class="rail-num">04</span><span class="rail-label">Impact</span></div>
+        <div class="rail-item"><span class="rail-num">05</span><span class="rail-label">Measure Detail</span></div>
+        <div class="rail-item"><span class="rail-num">06</span><span class="rail-label">Notes</span></div>
+      </div>
+      <div class="rail-brand">Decarbonization Capital Plan</div>
+    </div>
+    <div class="page-body">
+      <div class="page-header-run"><span class="phr-brand"></span><span class="phr-property"><span class="page-prop-name">—</span><span class="phr-address"></span></span></div>
+      <div class="page-content">
+        <div class="section-eyebrow">Section 02</div>
+        <h2 class="section-title">Recommended Measures</h2>
+        <div class="table-scroll" id="measures-groups"></div>
+        <div class="exhibit-note" id="measures-basis-note" style="display:none"></div>
+      </div>
+      <div class="page-footer-run"><span>Confidential</span><span class="page-prop-name">—</span><span class="page-num-run">—</span></div>
+    </div>
+  </div>
+
+  <!-- Measures considered but NOT recommended — its own page, a simple two-column
+       (measure + reason) table. Measures that are inapplicable due to building
+       characteristics (no gas, no elevators, etc.) are filtered out entirely and never
+       reach this table. Hidden when there is nothing to show. -->
+  <div class="page" id="measures-nr-section" style="display:none">
+    <div class="rail">
+      <div class="rail-index">
+        <div class="rail-item"><span class="rail-num">01</span><span class="rail-label">Summary</span></div>
+        <div class="rail-item current"><span class="rail-num">02</span><span class="rail-label">Measures</span></div>
+        <div class="rail-item"><span class="rail-num">03</span><span class="rail-label">Financial</span></div>
+        <div class="rail-item"><span class="rail-num">04</span><span class="rail-label">Impact</span></div>
+        <div class="rail-item"><span class="rail-num">05</span><span class="rail-label">Measure Detail</span></div>
+        <div class="rail-item"><span class="rail-num">06</span><span class="rail-label">Notes</span></div>
+      </div>
+      <div class="rail-brand">Decarbonization Capital Plan</div>
+    </div>
+    <div class="page-body">
+      <div class="page-header-run"><span class="phr-brand"></span><span class="phr-property"><span class="page-prop-name">—</span><span class="phr-address"></span></span></div>
+      <div class="page-content">
+        <div class="section-eyebrow">Section 02</div>
+        <h2 class="section-title">Measures Considered — Not Recommended</h2>
+        <div class="table-scroll" id="measures-nr-groups"></div>
+      </div>
+      <div class="page-footer-run"><span>Confidential</span><span class="page-prop-name">—</span><span class="page-num-run">—</span></div>
+    </div>
+  </div>
+
+  <div class="page" id="financial-section">
+    <div class="rail">
+      <div class="rail-index">
+        <div class="rail-item"><span class="rail-num">01</span><span class="rail-label">Summary</span></div>
+        <div class="rail-item"><span class="rail-num">02</span><span class="rail-label">Measures</span></div>
+        <div class="rail-item current"><span class="rail-num">03</span><span class="rail-label">Financial</span></div>
+        <div class="rail-item"><span class="rail-num">04</span><span class="rail-label">Impact</span></div>
+        <div class="rail-item"><span class="rail-num">05</span><span class="rail-label">Measure Detail</span></div>
+        <div class="rail-item"><span class="rail-num">06</span><span class="rail-label">Notes</span></div>
+      </div>
+      <div class="rail-brand">Decarbonization Capital Plan</div>
+    </div>
+    <div class="page-body">
+      <div class="page-header-run"><span class="phr-brand"></span><span class="phr-property"><span class="page-prop-name">—</span><span class="phr-address"></span></span></div>
+      <div class="page-content">
+        <div class="section-eyebrow">Section 03</div>
+        <h2 class="section-title">Financial</h2>
+
+        <div class="exhibit" id="exhibit-waterfall" style="display:none">
+          <div class="exhibit-label">Exhibit 3.1</div>
+          <div class="exhibit-title">Value Creation Bridge</div>
+          <svg id="waterfall-chart" viewBox="0 0 800 260" preserveAspectRatio="xMidYMid meet" style="width:100%;height:260px"></svg>
+          <div class="exhibit-note" id="waterfall-note">Cumulative operating flows over the hold plus capitalized exit value uplift at the presumed exit cap.</div>
+        </div>
+
+        <div class="exhibit" id="exhibit-cashflow" style="display:none">
+          <div class="exhibit-label">Exhibit 3.2</div>
+          <div class="exhibit-title">Annual Cashflow</div>
+          <div class="table-scroll">
+            <table class="data-table" id="cashflow-table"><thead id="cashflow-thead"></thead><tbody id="cashflow-tbody"></tbody></table>
+          </div>
+          <div class="exhibit-note" id="cashflow-note"></div>
+        </div>
+      </div>
+      <div class="page-footer-run"><span>Confidential</span><span class="page-prop-name">—</span><span class="page-num-run">—</span></div>
+    </div>
+  </div>
+
+  <div class="page" id="impact-section">
+    <div class="rail">
+      <div class="rail-index">
+        <div class="rail-item"><span class="rail-num">01</span><span class="rail-label">Summary</span></div>
+        <div class="rail-item"><span class="rail-num">02</span><span class="rail-label">Measures</span></div>
+        <div class="rail-item"><span class="rail-num">03</span><span class="rail-label">Financial</span></div>
+        <div class="rail-item current"><span class="rail-num">04</span><span class="rail-label">Impact</span></div>
+        <div class="rail-item"><span class="rail-num">05</span><span class="rail-label">Measure Detail</span></div>
+        <div class="rail-item"><span class="rail-num">06</span><span class="rail-label">Notes</span></div>
+      </div>
+      <div class="rail-brand">Decarbonization Capital Plan</div>
+    </div>
+    <div class="page-body">
+      <div class="page-header-run"><span class="phr-brand"></span><span class="phr-property"><span class="page-prop-name">—</span><span class="phr-address"></span></span></div>
+      <div class="page-content">
+        <div class="section-eyebrow">Section 04</div>
+        <h2 class="section-title">Impact</h2>
+        <div class="impact-row">
+          <div class="impact-metric" id="impact-carbon"></div>
+          <div class="impact-metric" id="impact-energy"></div>
+        </div>
+
+        <div class="exhibit" id="exhibit-eui" style="display:none">
+          <div class="exhibit-label">Exhibit 4.1</div>
+          <div class="exhibit-title">EUI Trajectory</div>
+          <div id="eui-chart-block"></div>
+        </div>
+
+        <div class="exhibit" id="exhibit-ghgi" style="display:none">
+          <div class="exhibit-label">Exhibit 4.2</div>
+          <div class="exhibit-title">GHG Intensity vs. Compliance Pathway</div>
+          <div id="ghgi-chart-block"></div>
+          <div class="exhibit-note flag" id="trajectory-flag" style="display:none"></div>
+        </div>
+
+        <div class="impact-metric" id="impact-regulatory" style="display:none"></div>
+      </div>
+      <div class="page-footer-run"><span>Confidential</span><span class="page-prop-name">—</span><span class="page-num-run">—</span></div>
+    </div>
+  </div>
+
+  <div class="page" id="measure-descriptions-section" style="display:none">
+    <div class="rail">
+      <div class="rail-index">
+        <div class="rail-item"><span class="rail-num">01</span><span class="rail-label">Summary</span></div>
+        <div class="rail-item"><span class="rail-num">02</span><span class="rail-label">Measures</span></div>
+        <div class="rail-item"><span class="rail-num">03</span><span class="rail-label">Financial</span></div>
+        <div class="rail-item"><span class="rail-num">04</span><span class="rail-label">Impact</span></div>
+        <div class="rail-item current"><span class="rail-num">05</span><span class="rail-label">Measure Detail</span></div>
+        <div class="rail-item"><span class="rail-num">06</span><span class="rail-label">Notes</span></div>
+      </div>
+      <div class="rail-brand">Decarbonization Capital Plan</div>
+    </div>
+    <div class="page-body">
+      <div class="page-header-run"><span class="phr-brand"></span><span class="phr-property"><span class="page-prop-name">—</span><span class="phr-address"></span></span></div>
+      <div class="page-content">
+        <div class="section-eyebrow">Section 05</div>
+        <h2 class="section-title">Measure Descriptions</h2>
+        <p class="narrative" id="measure-descriptions-lead" style="display:none"></p>
+        <div id="measure-descriptions-block" style="display:none">
+          <div id="measure-descriptions-items"></div>
+        </div>
+      </div>
+      <div class="page-footer-run"><span>Confidential</span><span class="page-prop-name">—</span><span class="page-num-run">—</span></div>
+    </div>
+  </div>
+
+  <div class="page" id="notes-section" style="display:none">
+    <div class="rail">
+      <div class="rail-index">
+        <div class="rail-item"><span class="rail-num">01</span><span class="rail-label">Summary</span></div>
+        <div class="rail-item"><span class="rail-num">02</span><span class="rail-label">Measures</span></div>
+        <div class="rail-item"><span class="rail-num">03</span><span class="rail-label">Financial</span></div>
+        <div class="rail-item"><span class="rail-num">04</span><span class="rail-label">Impact</span></div>
+        <div class="rail-item"><span class="rail-num">05</span><span class="rail-label">Measure Detail</span></div>
+        <div class="rail-item current"><span class="rail-num">06</span><span class="rail-label">Notes</span></div>
+      </div>
+      <div class="rail-brand">Decarbonization Capital Plan</div>
+    </div>
+    <div class="page-body">
+      <div class="page-header-run"><span class="phr-brand"></span><span class="phr-property"><span class="page-prop-name">—</span><span class="phr-address"></span></span></div>
+      <div class="page-content">
+        <div class="section-eyebrow">Section 06</div>
+        <h2 class="section-title">Notes</h2>
+        <div id="implementation-block" style="display:none">
+          <h3 class="subsection-title">Implementation Considerations</h3>
+          <div class="narrative" id="implementation-narrative"></div>
+          <div id="implementation-considerations"></div>
+        </div>
+        <div id="incentives-block" style="display:none">
+          <h3 class="subsection-title">Incentive Programs</h3>
+          <p class="narrative" id="incentives-summary" style="display:none"></p>
+          <div id="incentives-items"></div>
+        </div>
+        <div id="compliance-block" style="display:none">
+          <h3 class="subsection-title">Compliance Notes</h3>
+          <p class="narrative" id="compliance-summary" style="display:none"></p>
+          <div id="compliance-items"></div>
+        </div>
+      </div>
+      <div class="page-footer-run"><span>Confidential</span><span class="page-prop-name">—</span><span class="page-num-run">—</span></div>
+    </div>
+  </div>
+</div>
+
+<script id="report-data" type="application/json">
+{}
+</script>
+
+<script>
+/* ORG BRAND APPLICATOR — standalone so it runs regardless of the main renderer's fate.
+   presentation.brand.tokens is the org design-system overlay injected server-side
+   (portfolios.brand_tokens, imported from the org's Claude Design project). All values
+   are data (colors, font stacks, an inline logo SVG) — never executed.
+   Ported from templates/decarb/layout-agent.html; only the MAP and the logo slot are
+   adapted to THIS template's CSS custom properties. */
+(function () {
+  function apply() {
+    try {
+      var el = document.getElementById('report-data');
+      if (!el) return;
+      var data = JSON.parse(el.textContent || '{}');
+      var brand = (data.presentation && data.presentation.brand) || {};
+      var t = brand.tokens;
+      if (!t || typeof t !== 'object') return;
+      var root = document.documentElement.style;
+      var c = t.colors || {};
+      var MAP = {
+        /* accent — this template's bronze family carries eyebrows, exhibit labels,
+           KPI tile bars, and the net bar in the value bridge */
+        '--bronze': c.accent, '--bronze-mid': c.accent_2 || c.accent,
+        '--bronze-dark': c.accent_2 || c.accent, '--chart-net': c.accent,
+        /* primary — the dark brand surface (cover header + interior-page rail) */
+        '--deep-blue': c.primary,
+        /* page / panel / muted / border equivalents */
+        '--surface-subtle': c.page_bg, '--surface-alt': c.panel,
+        '--text-muted': c.muted,
+        '--border-hairline': c.border, '--border-rule': c.border_soft,
+        /* chart series — the trajectory/waterfall literals were converted to these
+           :root vars (with the original values as defaults) so brand can restyle them */
+        '--chart-series-1': c.plan1, '--chart-series-2': c.plan2,
+        '--chart-bau': c.bau,
+        '--chart-positive': c.positive, '--chart-negative': c.negative
+      };
+      var HEX = /^#[0-9A-Fa-f]{3,8}$|^rgba?\([0-9.,\s%]+\)$/;
+      Object.keys(MAP).forEach(function (k) {
+        var v = MAP[k];
+        if (typeof v === 'string' && HEX.test(v.trim())) root.setProperty(k, v.trim());
+      });
+      var f = t.fonts || {};
+      if (typeof f.import_url === 'string' && /^https:\/\/fonts\.googleapis\.com\//.test(f.import_url)) {
+        var link = document.createElement('link');
+        link.rel = 'stylesheet'; link.href = f.import_url;
+        document.head.appendChild(link);
+      }
+      var FONT = /^[-\w"'(), .]+$/;
+      if (typeof f.body === 'string' && FONT.test(f.body)) {
+        root.setProperty('--font-sans', f.body);
+        root.setProperty('--font-data', f.body);
+      }
+      if (typeof f.display === 'string' && FONT.test(f.display)) root.setProperty('--font-serif', f.display);
+      var logo = t.logo || {};
+      /* Allowlist SVG sanitizer — a denylist is bypassable (any on* attribute,
+         foreignObject, javascript: URLs, CSS url()). Parse, walk, and rebuild:
+         only known-safe shape/gradient elements and presentational attributes
+         survive; anything else is dropped. Parse failure or a non-svg root → no logo. */
+      function sanitizeSvg(src) {
+        if (typeof src !== 'string' || src.length > 200000) return null;
+        var TAGS = { svg:1, g:1, path:1, polygon:1, rect:1, circle:1, ellipse:1, line:1, polyline:1, defs:1, title:1, desc:1, lineargradient:1, radialgradient:1, stop:1, clippath:1 };
+        var ATTRS = { id:1, fill:1, stroke:1, 'stroke-width':1, 'stroke-linecap':1, 'stroke-linejoin':1, viewbox:1, width:1, height:1, points:1, d:1, cx:1, cy:1, r:1, rx:1, ry:1, x:1, y:1, x1:1, x2:1, y1:1, y2:1, transform:1, opacity:1, 'fill-opacity':1, 'stroke-opacity':1, 'fill-rule':1, 'clip-rule':1, 'clip-path':1, offset:1, 'stop-color':1, 'stop-opacity':1, gradientunits:1, gradienttransform:1, xmlns:1 };
+        var docp;
+        try { docp = new DOMParser().parseFromString(src, 'image/svg+xml'); } catch (e) { return null; }
+        var rootEl = docp.documentElement;
+        if (!rootEl || rootEl.nodeName.toLowerCase() !== 'svg' || docp.querySelector('parsererror')) return null;
+        var walk = function (el) {
+          var kids = Array.prototype.slice.call(el.childNodes);
+          for (var i = 0; i < kids.length; i++) {
+            var n = kids[i];
+            if (n.nodeType === 1) {
+              if (!TAGS[n.nodeName.toLowerCase()]) { el.removeChild(n); continue; }
+              var atts = Array.prototype.slice.call(n.attributes);
+              for (var j = 0; j < atts.length; j++) {
+                var an = atts[j].name.toLowerCase(), av = String(atts[j].value);
+                if (!ATTRS[an] || an.indexOf('on') === 0 || /javascript:|url\s*\(/i.test(av)) n.removeAttribute(atts[j].name);
+              }
+              walk(n);
+            } else if (n.nodeType !== 3) { el.removeChild(n); } /* drop comments/CDATA/PIs */
+          }
+        };
+        var rootAtts = Array.prototype.slice.call(rootEl.attributes);
+        for (var k = 0; k < rootAtts.length; k++) {
+          var rn = rootAtts[k].name.toLowerCase(), rv = String(rootAtts[k].value);
+          if (!ATTRS[rn] || rn.indexOf('on') === 0 || /javascript:|url\s*\(/i.test(rv)) rootEl.removeAttribute(rootAtts[k].name);
+        }
+        walk(rootEl);
+        return new XMLSerializer().serializeToString(rootEl);
+      }
+      var cleanSvg = sanitizeSvg(logo.svg);
+      if (cleanSvg && cleanSvg.indexOf('<svg') !== -1) {
+        /* This template's cover logo slot — sits on the dark cover header, so the logo
+           gets a white pill behind it (same treatment decarb uses on its dark header). */
+        var slot = document.querySelector('.cover-logo-slot');
+        if (slot) {
+          var h = Number(logo.height_px) > 0 ? Math.min(Number(logo.height_px), 64) : 32;
+          var pill = logo.background === 'transparent' ? 'background:transparent;padding:0;' : 'background:#FFFFFF;border-radius:4px;padding:5px 10px;';
+          slot.innerHTML = '<span style="display:inline-flex;align-items:center;' + pill + '">'
+            + cleanSvg.replace('<svg', '<svg style="height:' + h + 'px;width:auto;display:block"') + '</span>';
+        }
+      }
+    } catch (e) { console.error('org-brand applicator failed (report renders unbranded):', e && e.message); }
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', apply);
+  else apply();
+})();
+</script>
+
+<script>
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function() { populateReport(); });
+  } else {
+    populateReport();
+  }
+
+  function populateReport() {
+    var dataEl = document.getElementById('report-data');
+    if (!dataEl) return;
+
+    var data;
+    try {
+      data = JSON.parse(dataEl.textContent);
+    } catch (e) {
+      console.error('decarb-capital-plan: failed to parse report-data JSON', e);
+      return;
+    }
+
+    var prop  = data.property || {};
+    var sum   = data.summary || {};
+    var meas  = data.measures || {};
+    var fin   = data.financial || {};
+    var imp   = data.impact || {};
+    var impl  = data.implementation || {};
+    var incentivePrograms = data.incentive_programs || {};
+    var complianceNotes = data.compliance_notes || {};
+
+    /* ── Helpers (verbatim from templates/decarb/layout-agent.html — same
+         data-formatting conventions across every Soapbox report template) ── */
+    function safe(val) { return (val !== undefined && val !== null && val !== '') ? String(val) : '—'; }
+    function esc(val) {
+      var s = (val !== undefined && val !== null && val !== '') ? String(val) : '—';
+      return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+    }
+    function num(v) { return isFinite(Number(v)) ? Number(v) : null; }
+    // report_date arrives as a full ISO timestamp (e.g. "2026-07-27T21:45:18.177Z") — the cover
+    // is a date field, not a timestamp; show just the date, not the time-of-day.
+    function fmtDate(iso) {
+      if (!iso) return '—';
+      var d = new Date(iso);
+      if (isNaN(d.getTime())) return String(iso).slice(0, 10);
+      return d.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' });
+    }
+    function fmtCurrency(n) {
+      if (typeof n !== 'number' || !isFinite(n)) return '—';
+      var sign = n < 0 ? '−' : '';
+      var a = Math.abs(n);
+      if (a >= 1000000) { var m = a / 1000000; return sign + '$' + (m >= 10 ? Math.round(m) : parseFloat(m.toFixed(1))) + 'M'; }
+      if (a >= 1000) { var k = a / 1000; return sign + '$' + (k >= 100 ? Math.round(k) : parseFloat(k.toFixed(1))) + 'K'; }
+      return sign + '$' + Math.round(a);
+    }
+    function fmt2sig(n) {
+      if (typeof n !== 'number' || !isFinite(n)) return '—';
+      if (n === 0) return '0';
+      var neg = n < 0, a = Math.abs(n);
+      var mag = Math.floor(Math.log10(a));
+      var round = Math.pow(10, mag - 1);
+      var r = Math.round(a / round) * round;
+      var out = (r >= 1000) ? Math.round(r).toLocaleString('en-US') : parseFloat(r.toPrecision(2)).toString();
+      return (neg ? '−' : '') + out;
+    }
+    function fmtPct(dec) {
+      if (typeof dec !== 'number' || !isFinite(dec)) return '—';
+      var p = dec * 100;
+      return (Math.abs(p) >= 10 ? Math.round(p) : parseFloat(p.toFixed(1))) + '%';
+    }
+    // fmtPct (above) expects a FRACTION in [0,1] (occasionally slightly negative for an increase),
+    // e.g. 0.70 for "70%". A reduction-percentage field like carbon.reduction_pct reads, by its own
+    // name, as "the percent value itself" to whoever populates it (e.g. 70) — and 70 fed straight
+    // into fmtPct prints "7000%" (confirmed from a real report: reduction_pct: 70, derived from
+    // baseline/post-retrofit tCO2e that itself implies ~70%, i.e. 0.70 was intended). A genuine
+    // fraction for a reduction is never > 1 in magnitude, so any |v| > 1 arriving here is
+    // unambiguously an already-scaled whole-number percent, never a valid fraction — normalize it
+    // once, right where the raw field is read, rather than guessing at every fmtPct call site
+    // downstream (user, 2026-08-15).
+    function toFraction(v) {
+      return (typeof v === 'number' && isFinite(v) && Math.abs(v) > 1) ? v / 100 : v;
+    }
+    function formatEnergyKwh(kwh) {
+      if (typeof kwh !== 'number' || !isFinite(kwh)) return { value: '—', unit: 'kWh/yr' };
+      var a = Math.abs(kwh);
+      if (a >= 1e6) return { value: fmt2sig(kwh / 1e6), unit: 'GWh/yr' };
+      if (a >= 1e3) return { value: fmt2sig(kwh / 1e3), unit: 'MWh/yr' };
+      return { value: fmt2sig(kwh), unit: 'kWh/yr' };
+    }
+    /* Chart series colors resolve from :root custom properties (brand-overridable via the
+       org brand applicator above); the pre-conversion literal values remain the fallbacks. */
+    var rootCS = null;
+    try { rootCS = getComputedStyle(document.documentElement); } catch (e) { rootCS = null; }
+    function chartColor(name, fallback) {
+      var v = rootCS ? rootCS.getPropertyValue(name) : '';
+      if (!v) { try { v = document.documentElement.style.getPropertyValue(name); } catch (e2) { v = ''; } }
+      v = v ? String(v).trim() : '';
+      return v || fallback;
+    }
+    var COLOR_POS = chartColor('--chart-positive', '#004F31');
+    // The reduction figures cover the MODELLED window — first trajectory year to exit — not a
+    // boilerplate decade. This report is a 3-year hold (2026-2029) and both impact panels claimed
+    // "10-year reduction" (user, 2026-08-03).
+    function horizonLabel() {
+      var tr = ((data.impact || {}).trajectory) || [];
+      var y0 = tr.length ? num(tr[0].year) : null;
+      var y1 = (data.financial && data.financial.exit_year != null) ? num(data.financial.exit_year)
+             : (tr.length ? num(tr[tr.length - 1].year) : null);
+      if (y0 == null || y1 == null || y1 <= y0) return '';
+      return (y1 - y0) + '-year';
+    }
+    var HORIZON = horizonLabel();
+    var COLOR_NEG = chartColor('--chart-negative', '#C00000');
+    var COLOR_S1  = chartColor('--chart-series-1', '#00458A');
+    var COLOR_S2  = chartColor('--chart-series-2', '#0092F9');
+    var COLOR_BAU = chartColor('--chart-bau', '#989CA0');
+    var COLOR_NET = chartColor('--chart-net', '#8F5A39');
+    function setText(id, val) { var el = document.getElementById(id); if (el) el.textContent = val; }
+    function setHtml(id, val) { var el = document.getElementById(id); if (el) el.innerHTML = val; }
+    function showEl(id) { var el = document.getElementById(id); if (el) el.style.display = ''; }
+    function capitalise(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : ''; }
+
+    /* ════════════════════════════════
+       COVER
+    ════════════════════════════════ */
+    /* De-branded identity: the client name comes ONLY from the data (prepared_for) —
+       no hardcoded firm name anywhere. Fallback is empty, never a placeholder brand. */
+    var preparedFor = (data.prepared_for != null && String(data.prepared_for).trim()) ? String(data.prepared_for).trim() : '';
+    // Cover eyebrow labels the DELIVERABLE, not the client — the client identity comes from the
+    // brand logo injected into the cover-logo-slot. (Previously showed prepared_for, which
+    // duplicated the logo, e.g. Bain logo + "Bain Capital" eyebrow.)
+    setText('cover-for', 'Decarbonization Capital Plan');
+    // Running header keeps the client name on the left of every interior page.
+    document.querySelectorAll('.phr-brand').forEach(function(el) { el.textContent = preparedFor; });
+    setText('cover-property-name', safe(prop.name));
+    setText('cover-property-address', safe(prop.address));
+    // Humanize the raw property-type token (e.g. "Medical_office" -> "Medical Office"):
+    // underscores to spaces, title-case each word. capitalise() only touched the first letter.
+    var typeStr = prop.type ? String(prop.type).replace(/_/g, ' ').replace(/\b\w/g, function(c) { return c.toUpperCase(); }) : '—';
+    setText('cover-meta-type', typeStr);
+    var sizeStr = prop.units ? (prop.units + ' units')
+                : prop.gfa_sqft ? (prop.gfa_sqft.toLocaleString('en-US') + ' sqft')
+                : '—';
+    setText('cover-meta-size', sizeStr);
+    setText('cover-meta-built', prop.year_built ? String(prop.year_built) : '—');
+    setText('cover-meta-by', safe(data.prepared_by || 'Soapbox'));
+    setText('cover-meta-date', fmtDate(data.report_date));
+
+    /* Running header/footer property name — every interior page shares this class. */
+    var propNameRunning = safe(prop.name);
+    document.querySelectorAll('.page-prop-name').forEach(function(el) { el.textContent = propNameRunning; });
+    /* Address under the building name in each interior-page header (empty until the property
+       model / PCA supplies prop.address — never a placeholder). */
+    var propAddrRunning = (prop.address != null && String(prop.address).trim()) ? String(prop.address).trim() : '';
+    document.querySelectorAll('.phr-address').forEach(function(el) { el.textContent = propAddrRunning; });
+
+    /* ════════════════════════════════
+       01. SUMMARY
+    ════════════════════════════════ */
+    // ── Executive summary ────────────────────────────────────────────────────────────────────
+    // Authored interactively with the user as the LAST step of the workflow, then persisted on the
+    // record. Rendered only when it exists — an empty shell is worse than no section, and the client
+    // asked for something punchy they can read in ten seconds.
+    var xs = data.executive_summary_block;
+    var xsParaList = (xs && Array.isArray(xs.paragraphs))
+      ? xs.paragraphs.filter(function(p){ return p != null && String(p).trim(); }) : [];
+    // The engine's deterministic narrative (sum.narrative), split into paragraphs on blank lines.
+    // Falls back to the whole string as one paragraph when the author wrote it without blank-line
+    // breaks (still renders as prose, just one block instead of several).
+    var narrativeRaw = (sum.narrative != null && String(sum.narrative).trim()) ? String(sum.narrative).trim() : '';
+    var narrativeParaList = narrativeRaw ? narrativeRaw.split(/\n\s*\n/).map(function(p){ return p.trim(); }).filter(function(p){ return p; }) : [];
+    if (!narrativeParaList.length && narrativeRaw) narrativeParaList = [narrativeRaw];
+    // PREFERRED, in this order: xs.paragraphs, then sum.narrative. Both render as uniform
+    // plain-prose paragraphs (.exec-summary-para) — every paragraph the same size and weight, no
+    // headline callout, no bold labels, no CRREM emphasis (user, 2026-08-03). The structured
+    // eyebrow/headline/labelled-row rendering below is a LEGACY fallback only — it was winning
+    // over an already-correct sum.narrative whenever xs carried ANY of headline/crrem_status/
+    // recommendation, which is almost always, silently reintroducing the boxed/labelled format
+    // this exact request already rejected once (user, 2026-08-15).
+    if (xsParaList.length) {
+      var xsParas = xsParaList.map(function(p){ return '<p class="exec-summary-para">' + esc(String(p).trim()) + '</p>'; }).join('');
+      setHtml('exec-summary', '<div class="exec-summary">' + xsParas + '</div>');
+      showEl('exec-summary');
+    } else if (narrativeParaList.length) {
+      var narParas = narrativeParaList.map(function(p){ return '<p class="exec-summary-para">' + esc(p) + '</p>'; }).join('');
+      setHtml('exec-summary', '<div class="exec-summary">' + narParas + '</div>');
+      showEl('exec-summary');
+    } else if (xs && (xs.headline || xs.crrem_status || xs.recommendation)) {
+      // LEGACY structured summary (headline + labelled rows) — kept so engagements authored before
+      // the paragraphs field still render, and reached now ONLY when neither paragraph source above
+      // supplied anything.
+      var xsRows = '';
+      if (xs.crrem_status) {
+        xsRows += '<div class="exec-summary-row"><strong>Compliance:</strong> ' + esc(xs.crrem_status)
+          + '</div>';
+      }
+      // Neutral label: "crossed in X" asserts a crossing, which is wrong for an asset that stays
+      // below the pathway for the whole hold. The agent supplies this ONLY when there is a real
+      // divergence to name, and the wording stays true either way.
+      if (xs.divergence_year != null) {
+        xsRows += '<div class="exec-summary-row"><strong>Pathway divergence:</strong> <strong>' + esc(xs.divergence_year) + '</strong></div>';
+      }
+      if (xs.recommendation) xsRows += '<div class="exec-summary-row"><strong>Recommendation:</strong> ' + esc(xs.recommendation) + '</div>';
+      if (Array.isArray(xs.limitations) && xs.limitations.length) {
+        // One line per limitation. Joining with '; ' produced ".; " wherever a limitation already
+        // ended in a full stop, which it usually does — visible in the first delivered report.
+        xsRows += '<div class="exec-summary-row"><strong>Data limitations:</strong></div>'
+          + xs.limitations.filter(function(l) { return l != null && String(l).trim(); })
+              .map(function(l) {
+                var t = String(l).trim();
+                if (!/[.!?]$/.test(t)) t += '.';
+                return '<div class="exec-summary-row" style="margin-left:var(--space-4)">' + esc(t) + '</div>';
+              }).join('');
+      }
+      setHtml('exec-summary', '<div class="exec-summary">'
+        + '<div class="exec-summary-eyebrow">Executive Summary</div>'
+        + (xs.headline ? '<div class="exec-summary-headline">' + esc(xs.headline) + '</div>' : '')
+        + xsRows + '</div>');
+      showEl('exec-summary');
+    }
+    // #summary-narrative is now dead: sum.narrative renders (as plain paragraphs, above) INSIDE
+    // #exec-summary whenever it's the winning source, so there is never a second copy of the same
+    // content to show separately. Keep the element for older cached renders that may still
+    // reference the id, but it never gets populated or shown from this path.
+    var _sn = document.getElementById('summary-narrative');
+    if (_sn) { _sn.style.display = 'none'; _sn.innerHTML = ''; }
+    var kpiTiles = [];
+    if (fin.total_investment != null) kpiTiles.push({ label: 'Total Incremental Investment', value: fmtCurrency(num(fin.total_investment)) });
+    if (fin.total_incentives != null) kpiTiles.push({ label: 'Incentives', value: fmtCurrency(num(fin.total_incentives)) });
+    if (fin.net_investment != null) kpiTiles.push({ label: 'Net Investment', value: fmtCurrency(num(fin.net_investment)), sublabel: 'after incentives' });
+    var carbonPctForKpi = (imp.carbon && imp.carbon.reduction_pct != null) ? toFraction(num(imp.carbon.reduction_pct))
+      : (imp.carbon && imp.carbon.baseline_tco2e != null && imp.carbon.post_retrofit_tco2e != null)
+        ? (num(imp.carbon.baseline_tco2e) - num(imp.carbon.post_retrofit_tco2e)) / num(imp.carbon.baseline_tco2e)
+        : null;
+    // ── Impact KPIs as ONE cumulative ladder, identical in shape for carbon and energy ──────────
+    // Each tile adds the next contribution rather than reporting a standalone slice: efficiency,
+    // then + solar, then + grid (carbon only). The grid tile previously showed the grid's own 30.5%
+    // beside a 75% measures figure, which read as a separate, unrelated number — and the two do not
+    // add anyway, they compound. It now shows the CUMULATIVE reduction against today's baseline,
+    // matching how the energy tiles already step (user, 2026-07-30).
+    var effCarbonPct = (imp.carbon && imp.carbon.efficiency_reduction_pct != null) ? toFraction(num(imp.carbon.efficiency_reduction_pct)) : null;
+    var cumCarbonPct = (imp.carbon && imp.carbon.baseline_tco2e != null && imp.carbon.combined_post_retrofit_tco2e != null && num(imp.carbon.baseline_tco2e) > 0)
+      ? (num(imp.carbon.baseline_tco2e) - num(imp.carbon.combined_post_retrofit_tco2e)) / num(imp.carbon.baseline_tco2e)
+      : null;
+    var effEnergyPct = (imp.energy && imp.energy.baseline_kwh != null && imp.energy.post_retrofit_kwh != null && num(imp.energy.baseline_kwh) > 0)
+      ? (num(imp.energy.baseline_kwh) - num(imp.energy.post_retrofit_kwh)) / num(imp.energy.baseline_kwh) : null;
+    var netEnergyPct = (imp.energy && imp.energy.baseline_kwh != null && imp.energy.net_purchased_kwh != null && num(imp.energy.baseline_kwh) > 0)
+      ? (num(imp.energy.baseline_kwh) - num(imp.energy.net_purchased_kwh)) / num(imp.energy.baseline_kwh) : null;
+
+    // ── ONE energy tile and ONE emissions tile — the fullest figure of each ─────────────────────
+    // The ladder version (efficiency / + solar / + grid) put five near-identical percentages on the
+    // cover and the reader had to work out which was the headline. Show the totals that answer the
+    // question being asked — how much less energy does the building buy, and how much less carbon
+    // does it emit — and leave the decomposition to the Impact section, where the bars carry it
+    // (user, 2026-08-03). Sublabels state what each figure INCLUDES so neither can be misread.
+    var totalEnergyPct = (netEnergyPct != null) ? netEnergyPct : effEnergyPct;
+    if (totalEnergyPct != null) {
+      kpiTiles.push({ label: 'Energy Reduction', value: fmtPct(totalEnergyPct),
+        sublabel: (netEnergyPct != null) ? 'incl. on-site solar' : 'efficiency measures' });
+    }
+    // Emissions: the cumulative figure vs TODAY, which includes both the measures and projected grid
+    // decarbonization. That is the number a reader means by "how much less carbon", and the Impact
+    // section separates the grid's contribution from the asset's own.
+    var totalCarbonPct = (cumCarbonPct != null) ? cumCarbonPct : carbonPctForKpi;
+    if (totalCarbonPct != null) {
+      kpiTiles.push({ label: 'Emissions Reduction', value: fmtPct(totalCarbonPct),
+        sublabel: (cumCarbonPct != null) ? 'incl. solar + grid decarb., vs today' : 'incl. on-site solar' });
+    }
+    // The hurdle is the client's own screen, so the verdict belongs on the cover next to the spend.
+    // Simple payback was dropped: on an exit-framed plan it is the least meaningful of the returns
+    // (this plan's payback is 6.2 yrs while the exit-inclusive IRR clears 15% comfortably).
+    var irrForKpi = (fin.irr_incl_exit_pct != null) ? num(fin.irr_incl_exit_pct)
+      : (fin.irr_pct != null) ? num(fin.irr_pct) : null;
+    if (fin.irr_hurdle_pct != null) {
+      var hurdle = num(fin.irr_hurdle_pct);
+      if (irrForKpi != null) {
+        kpiTiles.push({ label: 'IRR vs Hurdle', value: fmt2sig(irrForKpi) + '%',
+          sublabel: 'vs ' + fmt2sig(hurdle) + '% hurdle — ' + (irrForKpi >= hurdle ? 'clears' : 'misses')
+            + (fin.irr_incl_exit_pct != null ? ' (incl. exit)' : '') });
+      } else {
+        kpiTiles.push({ label: 'IRR Hurdle', value: fmt2sig(hurdle) + '%', sublabel: 'client screen' });
+      }
+    } else if (irrForKpi != null) {
+      kpiTiles.push({ label: fin.irr_incl_exit_pct != null ? 'IRR (incl. exit)' : 'IRR', value: fmt2sig(irrForKpi) + '%' });
+    }
+    if (fin.exit_year != null) kpiTiles.push({ label: 'Presumed Exit Year', value: String(fin.exit_year) });
+    if (fin.exit_cap != null) kpiTiles.push({ label: 'Presumed Exit Cap', value: fmtPct(num(fin.exit_cap)) });
+    if (kpiTiles.length) {
+      setHtml('summary-kpi-grid', kpiTiles.map(function(k) {
+        return '<div class="kpi-tile">'
+          + '<div class="kpi-label">' + esc(k.label) + '</div>'
+          + '<div class="kpi-value">' + esc(k.value) + '</div>'
+          + (k.sublabel ? '<div class="kpi-sublabel">' + esc(k.sublabel) + '</div>' : '')
+          + '</div>';
+      }).join(''));
+    }
+
+    /* ════════════════════════════════
+       02. MEASURES — combined Cost + Impact table, borrowed field-for-field from
+       decarb's own two-table roadmap (Cost & Capital / Impact & Return), merged
+       into one wide table since this single-package report has no plan-vs-plan comparison to keep them
+       apart for. Return on Cost = (landlord savings + ancillary revenue) / net
+       total cost — same definition decarb uses.
+    ════════════════════════════════ */
+    var items = meas.items || [];
+    var considered = data.measures_considered || [];
+    if (items.length || considered.length) {
+      var TLfL = 0, TIncr = 0, TIncent = 0, TNet = 0, TEnergy = 0, TCO2 = 0, TLL = 0, TTen = 0, TAnc = 0;
+      var html = '<table class="data-table measures-fixed">'
+        // Fixed column widths (must sum to 100): a wide Measure column so names wrap in ~2 lines
+        // rather than stretching rows tall, then Status/Year. Status was 8% — too narrow for
+        // "Recommended", which wrapped and collided with the 4% Year column (Bain/Evergreen
+        // 2026-07-30). Status now 11% (fits "Recommended" on one line) and Year 6%; the 10 numeric
+        // columns absorb the difference at 6.6% each.
+        + '<colgroup>'
+        + '<col style="width:15%"><col style="width:9%"><col style="width:5%">'
+        + '<col style="width:5.9%"><col style="width:5.9%"><col style="width:5.9%"><col style="width:5.9%">'
+        + '<col style="width:5.9%"><col style="width:5.9%"><col style="width:5.9%"><col style="width:5.9%"><col style="width:5.9%">'
+        + '<col style="width:5.9%"><col style="width:6.5%"><col style="width:5.9%">'
+        + '</colgroup>'
+        + '<thead><tr>'
+        + '<th>Measure</th><th>Status</th><th class="num">Year</th>'
+        + '<th class="num">Like-for-Like Cost</th><th class="num">Incremental Cost</th><th class="num">Incentives</th><th class="num">Net Total Cost</th>'
+        + '<th class="num">Energy Savings (MWh)</th><th class="num">Emissions Savings (tCO2e)</th><th class="num">Landlord Utility Savings</th><th class="num">Tenant Utility Savings</th><th class="num">Revenue</th><th class="num">Payback (yrs)</th><th class="num">Marginal Abatement Cost ($/annual tCO2e)</th><th class="num">Return on Cost</th>'
+        + '</tr></thead><tbody>';
+      items.forEach(function(m) {
+        var lfl = num(m.like_for_like_cost), incr = num(m.incremental_cost);
+        var incent = num(m.incentives) || 0;
+        var netCost = incr != null ? incr - incent : null;
+        var energyMwh = num(m.energy_savings_kwh) != null ? num(m.energy_savings_kwh) / 1000 : null;
+        var co2 = num(m.emissions_savings_tco2e), ll = num(m.landlord_utility_savings);
+        var ten = num(m.tenant_utility_savings), anc = num(m.ancillary_revenue);
+        var roc = (netCost && netCost !== 0) ? ((ll || 0) + (anc || 0)) / netCost : null;
+        // Tenant-paid measure: the owner captures no utility saving (elec_capture 0), so owner-side
+        // payback and return-on-cost are not applicable — "n/a" is honest, "—" reads as missing and
+        // "0%" reads as a bad return the owner never faced.
+        var tenantPaid = (ll == null || ll === 0) && ten != null && ten > 0;
+        // Generation measure (e.g. solar): produces energy rather than saving it, so it has no
+        // "energy savings" figure — show the generation instead of a blank cell.
+        var genMwh = num(m.generation_kwh) != null ? num(m.generation_kwh) / 1000 : null;
+        if (lfl != null) TLfL += lfl; if (incr != null) TIncr += incr;
+        if (incent != null) TIncent += incent; if (netCost != null) TNet += netCost;
+        if (energyMwh != null) TEnergy += energyMwh;
+        if (co2 != null) TCO2 += co2; if (ll != null) TLL += ll;
+        if (ten != null) TTen += ten; if (anc != null) TAnc += anc;
+        html += '<tr>'
+          + '<td><strong>' + esc(m.name) + '</strong></td>'
+          + '<td>' + esc(m.status || 'Recommended') + '</td>'
+          + '<td class="num">' + (m.install_year != null ? String(m.install_year) : '—') + '</td>'
+          + '<td class="num">' + (lfl != null ? fmtCurrency(lfl) : '—') + '</td>'
+          + '<td class="num">' + (incr != null ? fmtCurrency(incr) : '—') + '</td>'
+          + '<td class="num">' + (incent ? fmtCurrency(incent) : '—') + '</td>'
+          + '<td class="num">' + (netCost != null ? fmtCurrency(netCost) : '—') + '</td>'
+          // num(null) is 0 (Number(null)===0), so test the RAW field for absence: a generation
+          // measure has no energy-saving figure and should show its generation, not a spurious 0.
+          + '<td class="num">' + ((m.energy_savings_kwh == null && genMwh != null)
+              ? fmt2sig(genMwh) + ' <span style="font-size:9px;color:var(--text-muted)">gen</span>'
+              : (m.energy_savings_kwh != null ? fmt2sig(energyMwh) : '—')) + '</td>'
+          + '<td class="num">' + (co2 != null ? fmt2sig(co2) : '—') + '</td>'
+          + '<td class="num">' + (ll != null ? fmtCurrency(ll) : '—') + '</td>'
+          + '<td class="num">' + (ten != null ? fmtCurrency(ten) : '—') + '</td>'
+          + '<td class="num">' + (anc ? fmtCurrency(anc) : '—') + '</td>'
+          // Plain number. The 5-year screen used to bold it and append a checkmark, which read as a
+          // stray UI artifact in a client document — a tick in a numeric column implies a checkbox,
+          // not a threshold, and the reader has the number and the Return on Cost column already
+          // (user, 2026-08-03). meets_five_year_screen is still on the record for whoever wants it.
+          + '<td class="num">' + (tenantPaid ? 'n/a' : (m.simple_payback_years != null ? fmt2sig(num(m.simple_payback_years)) : '—')) + '</td>'
+          // MAC = net capex per ANNUAL tonne abated (user directive, 2026-08-03). One basis, no
+          // footnote, no exit dependency — the hold/life variants needed a marker per row to say
+          // which denominator they used, which is worse than a single honest number.
+          + '<td class="num">' + (m.marginal_abatement_cost != null ? fmtCurrency(num(m.marginal_abatement_cost)) : '—') + '</td>'
+          + '<td class="num">' + (tenantPaid ? 'n/a' : (roc != null ? fmtPct(roc) : '—')) + '</td>'
+          + '</tr>';
+      });
+      // Totals row must live in the SAME <table> as the measure rows, not a second
+      // independent <table> — two separate tables each auto-size their own column
+      // widths from their own content, so a short totals row ("Total", blank year
+      // cell) renders with different column widths than the real rows above it and
+      // the columns visually drift out of alignment. A trailing <tr> inside the same
+      // <tbody> shares one column-width calculation, guaranteeing alignment.
+      if (items.length) {
+        var TRoc = (TNet && TNet !== 0) ? (TLL + TAnc) / TNet : null;
+        html += '<tr class="totals-row">'
+          + '<td>Total</td><td></td><td></td>'
+          + '<td class="num">' + fmtCurrency(TLfL) + '</td>'
+          + '<td class="num">' + fmtCurrency(TIncr) + '</td>'
+          + '<td class="num">' + fmtCurrency(TIncent) + '</td>'
+          + '<td class="num">' + fmtCurrency(TNet) + '</td>'
+          + '<td class="num">' + fmt2sig(TEnergy) + '</td>'
+          + '<td class="num">' + fmt2sig(TCO2) + '</td>'
+          + '<td class="num">' + fmtCurrency(TLL) + '</td>'
+          + '<td class="num">' + fmtCurrency(TTen) + '</td>'
+          + '<td class="num">' + fmtCurrency(TAnc) + '</td>'
+          // Blank on purpose: payback and MAC are per-measure decisions, and a bundle average
+          // would reintroduce exactly the aggregate-only reading the client asked us to drop.
+          + '<td class="num">—</td><td class="num">—</td>'
+          + '<td class="num">' + (TRoc != null ? fmtPct(TRoc) : '—') + '</td>'
+          + '</tr>';
+      }
+      // Considered-but-not-recommended measures are NO LONGER appended here. They render as
+      // their own two-column table on a separate page (see the not-recommended block below),
+      // so the recommended table carries only the recommended package + its totals.
+      html += '</tbody></table>';
+      setHtml('measures-groups', html);
+
+      // ── Measures considered but NOT recommended ──────────────────────────────────────────
+      // Own page, own two-column (measure + reason) table — never mixed into the recommended
+      // table's financial columns. Measures that are inapplicable because of the building's
+      // characteristics (not_applicable === true: no gas, no elevators, all-electric, and so on)
+      // are dropped entirely and never appear anywhere in the report. Hidden when nothing remains.
+      var notRec = considered.filter(function(cm) {
+        return cm && !cm.not_applicable && (cm.name || cm.reason);
+      });
+      if (notRec.length) {
+        var nrHtml = '<table class="data-table">'
+          + '<colgroup><col style="width:34%"><col style="width:66%"></colgroup>'
+          + '<thead><tr><th>Measure</th><th>Reason not recommended</th></tr></thead><tbody>';
+        notRec.forEach(function(cm) {
+          nrHtml += '<tr>'
+            + '<td><strong>' + esc(cm.name || '—') + '</strong></td>'
+            + '<td>' + esc(cm.reason || '—') + '</td>'
+            + '</tr>';
+        });
+        nrHtml += '</tbody></table>';
+        setHtml('measures-nr-groups', nrHtml);
+        showEl('measures-nr-section');
+      }
+      // One line stating the definition, since "$/tCO2e" alone is ambiguous about whether it is
+      // per tonne per year or over some horizon.
+      (function() {
+        var items = (data.measures && data.measures.items) || [];
+        var parts = [];
+        if (items.some(function(x) { return x.marginal_abatement_cost != null; })) {
+          parts.push('Marginal abatement cost is net capital cost after incentives \u00f7 annual tCO2e abated \u2014 dollars per tonne per year, independent of the hold period and of measure life.');
+        }
+        // Explain the two non-numeric markers the rows can carry, only when they actually appear.
+        if (items.some(function(x) { var l = num(x.landlord_utility_savings), t = num(x.tenant_utility_savings); return (l == null || l === 0) && t != null && t > 0; })) {
+          parts.push('\u201cn/a\u201d on payback and return-on-cost marks a tenant-paid measure: the utility saving accrues to residents, not the owner, so an owner-side payback does not apply.');
+        }
+        if (items.some(function(x) { return x.generation_kwh != null && x.energy_savings_kwh == null; })) {
+          parts.push('\u201cgen\u201d marks on-site generation (e.g. solar) \u2014 energy produced rather than saved.');
+        }
+        if (parts.length) {
+          setText('measures-basis-note', parts.join(' '));
+          showEl('measures-basis-note');
+        }
+      })();
+    }
+
+    /* ════════════════════════════════
+       03. FINANCIAL (single package — no A/B comparison)
+    ════════════════════════════════ */
+    // KPI tiles removed per request — Total Incremental Investment/Incentives/Net
+    // Investment/Simple Payback already live in the Summary KPI grid; IRR (the one figure
+    // unique to this section) is folded into the cashflow table's note line below instead.
+    var cashflow = fin.cashflow || [];
+    if (cashflow.length >= 1) {
+      showEl('exhibit-cashflow');
+      // Annual Cashflow — a full table, not a chart+collapsible: every real per-year figure
+      // the engine produced, shown directly. The Fine Avoidance column only appears when at
+      // least one year actually carries a non-zero fine_avoidance_usd; Implied Value Uplift
+      // is always shown (— when the engine didn't produce it for a year).
+      var hasFineCol = cashflow.some(function(c) { var fv = num(c.fine_avoidance_usd); return fv != null && fv !== 0; });
+      // Ancillary revenue (EV charging fees, roof-lease rent) was inside the Cumulative column with
+      // no column of its own, so the table did not foot: cumulative moved by $10,350/yr more than
+      // the visible columns explained and a reader could not reconcile it (Evergreen, 2026-08-03).
+      var hasAncCol = cashflow.some(function(c) { var av = num(c.ancillary_revenue_usd); return av != null && av !== 0; });
+      setHtml('cashflow-thead', '<tr>'
+        + '<th class="num">Year</th><th class="num">Incremental Capex</th><th class="num">Incentives</th><th class="num">Utility Savings</th>'
+        + (hasAncCol ? '<th class="num">Revenue</th>' : '')
+        + '<th class="num">Cumulative</th>'
+        + (hasFineCol ? '<th class="num">Fine Avoidance</th>' : '')
+        + '<th class="num">Implied Value Uplift</th>'
+        + '</tr>');
+      setHtml('cashflow-tbody', cashflow.map(function(c) {
+        function cell(v) {
+          if (v == null) return '<td class="num">—</td>';
+          var n = num(v);
+          return '<td class="num">' + (n != null ? fmtCurrency(n) : '—') + '</td>';
+        }
+        return '<tr><td class="num">' + esc(String(c.year)) + '</td>'
+          + cell(c.incremental_capex_usd) + cell(c.incentives_usd) + cell(c.utility_savings_usd)
+          + (hasAncCol ? cell(c.ancillary_revenue_usd) : '')
+          + cell(c.cumulative_usd)
+          + (hasFineCol ? cell(c.fine_avoidance_usd) : '')
+          + cell(c.value_uplift_usd)
+          + '</tr>';
+      }).join(''));
+      var noteParts = [];
+      if (cashflow.length === 1) {
+        // Single-point series: today's engine collapses every measure to one install year,
+        // so there's no real multi-year curve yet — say so rather than imply a full 10-year run.
+        noteParts.push('Single-year figure — the underlying engagement model does not yet stage this package across multiple install years.');
+      }
+      if (fin.simple_payback_years != null) noteParts.push('Simple payback ' + fmt2sig(num(fin.simple_payback_years)) + ' yrs');
+      if (fin.irr_pct != null) {
+        var irrVal = num(fin.irr_pct);
+        // A high, unstable-looking rate here is a real feature of small, unevenly-spaced
+        // operating cashflows (capex-heavy years far apart), not a computation error — but an
+        // unqualified triple-digit IRR reads as implausible. Caveat rather than hide it.
+        var irrNote = 'IRR (excl. exit) ' + fmt2sig(irrVal) + '%' + (Math.abs(irrVal) >= 75 ? ' — sparse, unevenly-staged cashflow, treat as directional' : '');
+        noteParts.push(irrNote);
+      }
+      // BOTH IRRs, always. Excluding exit alone is misleading on an exit-framed deliverable: this
+      // plan reads -3.5% on operating cashflow but +31% once the capitalized exit uplift is
+      // included, and the uplift is where the return actually is. Showing one without the other
+      // invites the wrong conclusion (user directive, 2026-07-30).
+      if (fin.irr_incl_exit_pct != null) {
+        // State the client's hurdle alongside their own rate, with an explicit verdict — Bain asked
+        // to screen on 15%, and a bare rate leaves the reader to do the comparison.
+        var inclTxt = 'IRR (incl. exit) ' + fmt2sig(num(fin.irr_incl_exit_pct)) + '%';
+        if (fin.irr_hurdle_pct != null) {
+          inclTxt += ' vs ' + fmt2sig(num(fin.irr_hurdle_pct)) + '% hurdle'
+            + (fin.meets_irr_hurdle === true ? ' — clears' : fin.meets_irr_hurdle === false ? ' — below' : '');
+        }
+        noteParts.push(inclTxt);
+      }
+      if (fin.npv != null) noteParts.push('NPV ' + fmtCurrency(num(fin.npv)));
+      noteParts.push('Implied value uplift = that year’s NOI impact ÷ presumed exit cap.');
+      setText('cashflow-note', noteParts.join(' · '));
+      document.getElementById('cashflow-note').style.display = noteParts.length ? '' : 'none';
+    }
+
+    var bridge = fin.bridge;
+    var wf = fin.waterfall;
+    var bridgeNetNote = '';
+    if (bridge || wf) {
+      showEl('exhibit-waterfall');
+      var steps = [], net, netLabel;
+      if (bridge) {
+        // Value Creation Bridge — cumulative operating flows over the hold plus the
+        // capitalized exit value uplift at the presumed exit cap. Fixed bar order;
+        // Fine Avoidance only appears when it's actually non-zero.
+        if (num(bridge.incremental_capex) != null) steps.push({ label: 'Incremental Capex', v: num(bridge.incremental_capex) });
+        // Incentives before Cumulative Energy Savings — the capital offset lands right after the
+        // capex outlay (what comes back immediately), then the recurring operating savings. An
+        // explicit $0 incentives bar is honest (no program applies), never hidden.
+        if (num(bridge.incentives) != null) steps.push({ label: 'Incentives', v: num(bridge.incentives) });
+        if (num(bridge.cumulative_utility_savings) != null) steps.push({ label: 'Cumulative Energy Savings', v: num(bridge.cumulative_utility_savings) });
+        if (num(bridge.fine_avoidance)) steps.push({ label: 'Fine Avoidance', v: num(bridge.fine_avoidance) });
+        if (num(bridge.exit_value_uplift) != null) steps.push({ label: 'Exit Value Uplift', v: num(bridge.exit_value_uplift) });
+        net = num(bridge.net);
+        netLabel = 'Net';
+        // The bridge's Net counts BOTH interim operating cash and the capitalized exit uplift; the
+        // engine's plan-level net_value_creation counts the uplift against capital alone. The two
+        // legitimately differ, and when the executive summary quotes the engine's number while this
+        // exhibit shows the bridge's, the document contradicts itself with no explanation
+        // (Evergreen: $564K vs $729K, 2026-08-03). State both.
+        var planNet = num(bridge.plan_net_value_creation);
+        if (planNet != null && net != null && Math.abs(planNet - net) > 1) {
+          bridgeNetNote = ' Net counts operating cash received over the hold plus the capitalized exit uplift; '
+            + 'the plan\'s net value creation of ' + fmtCurrency(planNet) + ' counts the uplift against capital alone.';
+        }
+        setText('waterfall-note', 'Cumulative operating flows over the hold plus capitalized exit value uplift at the presumed exit cap.' + bridgeNetNote);
+      } else {
+        // Backward compat: the pre-bridge operating-basis waterfall shape.
+        // Order: capital outlay first, then incentives as a positive capital impact offsetting it,
+        // then the recurring operating savings — reads as "what it costs, what comes back
+        // immediately, what it earns over time." Incentives always included when the field is
+        // present at all (even $0) — an explicit $0 bar is honest information (no program
+        // currently applies), not something to hide the way an absent field would be.
+        if (wf.incremental_capex) steps.push({ label: 'Incremental Capex', v: num(wf.incremental_capex) });
+        if (wf.incentives != null) steps.push({ label: 'Incentives', v: num(wf.incentives) });
+        if (wf.cumulative_utility_savings) steps.push({ label: 'Cumulative Utility Savings', v: num(wf.cumulative_utility_savings) });
+        // Real final-year cumulative cash position from the modelled cashflow series — NOT a sum
+        // of the steps above (the engine's cashflow reflects year-by-year timing the simple
+        // sum can't capture) and never an exit-capitalized figure.
+        net = num(wf.net_position);
+        netLabel = 'Net Position';
+        setText('waterfall-note', 'Operating basis — no disposition or exit value assumed.');
+      }
+      var W2 = 800, H2 = 260, PADX = 56, PADXR = 16, PADY = 40, barGap = 14;
+      var n = steps.length + 1;
+      var barW = (W2 - PADX - PADXR - barGap * (n - 1)) / n;
+      var running = 0, ranges = [];
+      steps.forEach(function(s) {
+        var start = running; running += s.v;
+        ranges.push({ label: s.label, from: start, to: running, v: s.v });
+      });
+      var allVals = ranges.reduce(function(acc, r) { return acc.concat([r.from, r.to]); }, [0, net]);
+      var minV2 = Math.min.apply(null, allVals), maxV2 = Math.max.apply(null, allVals);
+      var pad2 = (maxV2 - minV2) * 0.15 || 1;
+      minV2 -= pad2; maxV2 += pad2;
+      var range2 = (maxV2 - minV2) || 1;
+      function yv(v) { return H2 - PADY - ((v - minV2) / range2) * (H2 - 2 * PADY); }
+      // Gridlines + y-axis labels, borrowed from decarb's floating-bar waterfall.
+      var grid2 = '', yLabs2 = '';
+      for (var gi = 0; gi <= 4; gi++) {
+        var gv = minV2 + range2 * gi / 4;
+        grid2 += '<line x1="' + PADX + '" y1="' + yv(gv).toFixed(1) + '" x2="' + (W2 - PADXR) + '" y2="' + yv(gv).toFixed(1) + '" stroke="#F1F1EC" stroke-width="1"/>';
+        yLabs2 += '<text x="' + (PADX - 6) + '" y="' + (yv(gv) + 3).toFixed(1) + '" font-size="9" fill="#989CA0" text-anchor="end">' + fmtCurrency(gv) + '</text>';
+      }
+      var bars = grid2 + yLabs2, conn = '';
+      ranges.forEach(function(r, i) {
+        var bx = PADX + i * (barW + barGap);
+        var top = yv(Math.max(r.from, r.to)), bot = yv(Math.min(r.from, r.to));
+        var color = r.v >= 0 ? COLOR_POS : COLOR_NEG;
+        bars += '<rect x="' + bx + '" y="' + top + '" width="' + barW + '" height="' + Math.max(1, bot - top) + '" fill="' + color + '" />';
+        bars += '<text x="' + (bx + barW / 2) + '" y="' + (H2 - 12) + '" font-size="11" fill="#565A5D" text-anchor="middle">' + r.label + '</text>';
+        bars += '<text x="' + (bx + barW / 2) + '" y="' + (Math.min(top, bot) - 6) + '" font-size="13" fill="#231F20" text-anchor="middle" font-weight="bold">' + fmtCurrency(r.v) + '</text>';
+        // Dashed connector from this bar's running level to the next bar's start.
+        if (i < ranges.length - 1) {
+          var yl = yv(r.to);
+          conn += '<line x1="' + (bx + barW).toFixed(1) + '" y1="' + yl.toFixed(1) + '" x2="' + (bx + barW + barGap).toFixed(1) + '" y2="' + yl.toFixed(1) + '" stroke="#989CA0" stroke-width="1" stroke-dasharray="2,2"/>';
+        }
+      });
+      var lastX = PADX + steps.length * (barW + barGap);
+      var lastLevel = ranges.length ? ranges[ranges.length - 1].to : 0;
+      conn += '<line x1="' + (PADX + (steps.length - 1) * (barW + barGap) + barW).toFixed(1) + '" y1="' + yv(lastLevel).toFixed(1) + '" x2="' + lastX.toFixed(1) + '" y2="' + yv(lastLevel).toFixed(1) + '" stroke="#989CA0" stroke-width="1" stroke-dasharray="2,2"/>';
+      var netTop = yv(Math.max(0, net)), netBot = yv(Math.min(0, net));
+      bars += conn;
+      bars += '<rect x="' + lastX + '" y="' + netTop + '" width="' + barW + '" height="' + Math.max(1, netBot - netTop) + '" fill="' + COLOR_NET + '" />';
+      bars += '<text x="' + (lastX + barW / 2) + '" y="' + (H2 - 12) + '" font-size="11" fill="#565A5D" text-anchor="middle">' + netLabel + '</text>';
+      bars += '<text x="' + (lastX + barW / 2) + '" y="' + (Math.min(netTop, netBot) - 6) + '" font-size="13" fill="#231F20" text-anchor="middle" font-weight="bold">' + fmtCurrency(net) + '</text>';
+      bars += '<line x1="' + PADX + '" y1="' + yv(0) + '" x2="' + (W2 - PADXR) + '" y2="' + yv(0) + '" stroke="#C5C7C9" stroke-width="1" />';
+      document.getElementById('waterfall-chart').innerHTML = bars;
+    }
+
+    /* ════════════════════════════════
+       04. IMPACT (carbon, energy, trajectory, regulatory)
+    ════════════════════════════════ */
+    var carbon = imp.carbon || {};
+    if (carbon.baseline_tco2e != null && carbon.post_retrofit_tco2e != null) {
+      var cBase = num(carbon.baseline_tco2e), cPost = num(carbon.post_retrofit_tco2e);
+      // Headline is measured VS TODAY, so it uses the same denominator as the energy panel and
+      // reconciles with this panel's own ladder (baseline -> + solar reads as the same percentage).
+      // It therefore INCLUDES projected grid decarbonization, which is not the plan's own achievement
+      // — so the note names both the inclusion and the measures-only figure beneath it. Chosen by the
+      // user 2026-08-03 over the alternative of labelling the measures-only denominator, because two
+      // panels on one page disagreeing on what "reduction" is measured against is the worse failure.
+      var cCombined = (carbon.combined_post_retrofit_tco2e != null) ? num(carbon.combined_post_retrofit_tco2e) : cPost;
+      var cPctToday = (cBase && cCombined != null) ? (cBase - cCombined) / cBase : null;
+      var cPctMeasures = carbon.reduction_pct != null ? toFraction(num(carbon.reduction_pct)) : null;
+      var cPct = (cPctToday != null) ? cPctToday : (cPctMeasures != null ? cPctMeasures : (cBase ? (cBase - cPost) / cBase : null));
+      var cMax = Math.max(cBase, cPost) || 1;
+      // Headline is MEASURES-ONLY. When the projector also supplies the grid-decarbonized figure,
+      // it renders as its OWN labeled bar underneath — the two contributions stay visibly
+      // separate rather than compounding into one inflated headline (Bain/Evergreen 2026-07-30).
+      // BAU at the exit year: what emissions would be with grid decarbonization ALONE and no
+      // measures. This is the counterfactual the measures reduction is taken against, so it sits
+      // between Baseline and the measure rows. combined_post_retrofit_tco2e is NOT used here — on a
+      // same-year basis it equals post_retrofit_tco2e and printed the same number twice.
+      var cBauExit = carbon.bau_exit_tco2e != null ? num(carbon.bau_exit_tco2e) : null;
+      var cEff = carbon.post_retrofit_efficiency_tco2e != null ? num(carbon.post_retrofit_efficiency_tco2e) : null;
+      var cMaxAll = Math.max(cBase, cPost, cBauExit != null ? cBauExit : 0, cEff != null ? cEff : 0) || 1;
+      setHtml('impact-carbon',
+        '<div class="impact-metric-title">Carbon (tCO2e/yr)</div>'
+        + (cPct != null ? '<div class="impact-reduction-pct">' + fmtPct(cPct) + '</div><div class="exhibit-note">'
+            + (HORIZON ? HORIZON + ' ' : '') + 'reduction vs today, incl. on-site solar and projected grid decarbonization'
+            + ((cPctMeasures != null && cPctToday != null && Math.abs(cPctToday - cPctMeasures) > 0.005)
+                ? ' \u00b7 measures alone account for ' + fmtPct(cPctMeasures) + ' against business-as-usual at exit'
+                : '')
+            + '</div>' : '')
+        + '<div style="margin-top:12px">'
+        + '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:12px"><div style="width:90px;flex-shrink:0;color:#707477">Baseline</div><div style="flex:1;height:14px;background:#E2E4E5;position:relative"><div style="height:100%;background:var(--chart-bau);width:' + ((cBase / cMaxAll) * 100) + '%"></div></div><div style="width:90px;text-align:right;font-family:Arial;font-weight:600">' + fmt2sig(cBase) + '</div></div>'
+        + (cBauExit != null ? '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:12px"><div style="width:90px;flex-shrink:0;color:#707477">+ grid decarb.</div><div style="flex:1;height:14px;background:#E2E4E5;position:relative"><div style="height:100%;background:var(--chart-bau);opacity:0.55;width:' + ((cBauExit / cMaxAll) * 100) + '%"></div></div><div style="width:90px;text-align:right;font-family:Arial;font-weight:600">' + fmt2sig(cBauExit) + '</div></div>' : '')
+        + (cEff != null ? '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:12px"><div style="width:90px;flex-shrink:0;color:#707477">After efficiency</div><div style="flex:1;height:14px;background:#E2E4E5;position:relative"><div style="height:100%;background:var(--chart-positive);opacity:0.75;width:' + ((cEff / cMaxAll) * 100) + '%"></div></div><div style="width:90px;text-align:right;font-family:Arial;font-weight:600">' + fmt2sig(cEff) + '</div></div>' : '')
+        + '<div style="display:flex;align-items:center;gap:8px;font-size:12px"><div style="width:90px;flex-shrink:0;color:#707477">+ solar</div><div style="flex:1;height:14px;background:#E2E4E5;position:relative"><div style="height:100%;background:var(--chart-positive);width:' + ((cPost / cMaxAll) * 100) + '%"></div></div><div style="width:90px;text-align:right;font-family:Arial;font-weight:600">' + fmt2sig(cPost) + '</div></div>'
+        + '</div>'
+        // When on-site solar earns no carbon reduction (e.g. a VOST/REC-retention tariff), the
+        // "+ solar" bar equals "after efficiency" and looks like a rendering error. Explain it.
+        // Prefer an authored note from the data; fall back to a generic, accurate statement.
+        + ((cEff != null && Math.abs(cPost - cEff) < 0.01 * cMaxAll)
+            ? '<div class="exhibit-note">' + esc(carbon.solar_carbon_note || 'On-site solar earns no Scope 2 carbon reduction under the applicable utility tariff — the renewable energy credits are retained by the utility — so the “+ solar” bar matches “after efficiency.” See Compliance Notes.') + '</div>'
+            : '')
+        + (cBauExit != null ? '<div class="exhibit-note">Grid decarbonization (Cambium projection) is shown separately — it is a projection of the regional grid, not an action taken at this asset.</div>' : ''));
+    }
+    var energy = imp.energy || {};
+    if (energy.baseline_kwh != null && energy.post_retrofit_kwh != null) {
+      var eBase = num(energy.baseline_kwh), ePost = num(energy.post_retrofit_kwh);
+      var eMax = Math.max(eBase, ePost) || 1;
+      var eBaseF = formatEnergyKwh(eBase), ePostF = formatEnergyKwh(ePost);
+      var eNet = energy.net_purchased_kwh != null ? num(energy.net_purchased_kwh) : null;
+      var showNet = eNet != null && Math.abs(eNet - ePost) > 1;
+      var ePct = eBase ? (eBase - (showNet ? eNet : ePost)) / eBase : null;
+      // The headline is the TOTAL energy saving including on-site solar — the reduction in what the
+      // building actually buys (user, 2026-08-03). It previously showed efficiency ONLY, so the panel
+      // led with 4.3% while its own bottom bar showed a 66% fall in purchased energy and the cover
+      // KPI said 66% — three numbers for one question. The decomposition stays in the bars below,
+      // where "After efficiency" and "+ solar" carry it explicitly, and the earlier concern still
+      // holds: generation offsets purchased energy rather than reducing consumption, which is why
+      // the sublabel names what the figure includes rather than calling it a consumption cut.
+      var eMaxAll = Math.max(eBase, ePost, eNet != null ? eNet : 0) || 1;
+      var eNetF = eNet != null ? formatEnergyKwh(eNet) : null;
+      var euiLine = (energy.eui_baseline != null && energy.eui_target != null)
+        ? '<div class="exhibit-note">EUI: ' + fmt2sig(num(energy.eui_baseline)) + ' → ' + fmt2sig(num(energy.eui_target)) + ' kWh/m²/yr'
+          + (showNet && energy.net_purchased_eui != null ? ' · net of on-site solar ' + fmt2sig(num(energy.net_purchased_eui)) + ' kWh/m²/yr' : '')
+          + '</div>' : '';
+      setHtml('impact-energy',
+        '<div class="impact-metric-title">Energy (site)</div>'
+        // Same basis rule as carbon: only claim "efficiency measures only" when the projector says
+        // the figure actually excludes on-site generation.
+        + (ePct != null ? '<div class="impact-reduction-pct">' + fmtPct(ePct) + '</div><div class="exhibit-note">'
+            + (HORIZON ? HORIZON + ' ' : '')
+            + (showNet ? 'reduction in purchased energy, incl. on-site solar'
+                       : (energy.basis === 'efficiency_only' ? 'consumption reduction, efficiency measures only' : 'reduction'))
+            + '</div>' : '')
+        + '<div style="margin-top:12px">'
+        + '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:12px"><div style="width:90px;flex-shrink:0;color:#707477">Baseline</div><div style="flex:1;height:14px;background:#E2E4E5;position:relative"><div style="height:100%;background:var(--chart-bau);width:' + ((eBase / eMaxAll) * 100) + '%"></div></div><div style="width:90px;text-align:right;font-family:Arial;font-weight:600">' + eBaseF.value + ' ' + eBaseF.unit + '</div></div>'
+        + '<div style="display:flex;align-items:center;gap:8px;font-size:12px' + (showNet ? ';margin-bottom:6px' : '') + '"><div style="width:90px;flex-shrink:0;color:#707477">After efficiency</div><div style="flex:1;height:14px;background:#E2E4E5;position:relative"><div style="height:100%;background:var(--chart-positive);width:' + ((ePost / eMaxAll) * 100) + '%"></div></div><div style="width:90px;text-align:right;font-family:Arial;font-weight:600">' + ePostF.value + ' ' + ePostF.unit + '</div></div>'
+        + (showNet
+            ? '<div style="display:flex;align-items:center;gap:8px;font-size:12px"><div style="width:90px;flex-shrink:0;color:#707477">+ solar</div><div style="flex:1;height:14px;background:#E2E4E5;position:relative"><div style="height:100%;background:var(--chart-positive);opacity:0.55;width:' + ((eNet / eMaxAll) * 100) + '%"></div></div><div style="width:90px;text-align:right;font-family:Arial;font-weight:600">' + eNetF.value + ' ' + eNetF.unit + '</div></div>'
+            : '')
+        + '</div>'
+        + euiLine
+        + '');
+    }
+
+    /* Shared axis-chart builder — gridlines, y-axis tick labels, x-axis year labels,
+       one or more polylines, a legend row, and notes — borrowed directly from decarb's
+       drawTrajectory() grid/axis/legend treatment, generalized so both the EUI chart
+       (single series) and the GHGi chart (BAU/Planned/CRREM) share the same visual
+       grammar rather than looking like two different chart styles on one exhibit. */
+    function buildAxisChart(containerId, series, opts) {
+      opts = opts || {};
+      var W = opts.W || 760, H = opts.H || 210;
+      var X1 = 46, X2 = W - 16, Y1 = 14, Y2 = H - 30;
+      var years = opts.years || [];
+      var yMin = years.length ? years[0] : 0, yMax = years.length ? years[years.length - 1] : 1;
+      function px(yr) { return X1 + (yMax === yMin ? 0 : (yr - yMin) / (yMax - yMin)) * (X2 - X1); }
+
+      // Domain from points INSIDE the chart's own year window only. The CRREM pathway arrives as a
+      // full 2020-2050 curve while the chart draws just the hold (here 2026-2029), and those
+      // off-screen early years are the tallest values in the series — 87 kgCO2e/m² in 2020 against a
+      // 50 max on screen, which pushed the axis to 100 and squashed every visible line into the
+      // bottom 40% of the frame. A real 13% decline then reads as a flat line (user, 2026-08-03).
+      var allV = [];
+      series.forEach(function(s) {
+        s.points.forEach(function(p) {
+          if (p.y == null) return;
+          if (p.x != null && (p.x < yMin || p.x > yMax)) return;
+          allV.push(p.y);
+        });
+      });
+      if (!allV.length) { setHtml(containerId, ''); return; }
+      // BPS thresholds participate in the y-domain so a limit above/below every plotted
+      // series still lands inside the frame (never clipped off the top or bottom).
+      var thresholds = (opts.thresholds || []).filter(function(t) { return t && num(t.value) != null; });
+      thresholds.forEach(function(t) { allV.push(num(t.value)); });
+      var vMin, vMax;
+      if (opts.zeroBased) { vMin = 0; vMax = Math.max.apply(null, allV) * 1.15 || 1; }
+      else {
+        // Zoomed to the modelled range (NOT forced to include zero) — this is a trend line,
+        // not a bar chart, and a real ~15-20% intensity decline reads as visually flat if
+        // the axis spans down to 0. Padded 15% each side so no line ever touches the frame.
+        var raw0 = Math.min.apply(null, allV), raw1 = Math.max.apply(null, allV);
+        var pad = (raw1 - raw0) * 0.15 || Math.abs(raw0 || 1) * 0.05;
+        vMin = raw0 - pad; vMax = raw1 + pad;
+      }
+      var vRange = (vMax - vMin) || 1;
+      function py(v) { return Y2 - (v - vMin) / vRange * (Y2 - Y1); }
+
+      var grid = '', yLabs = '';
+      for (var i = 0; i <= 4; i++) {
+        var gy = vMin + vRange * i / 4;
+        grid += '<line x1="' + X1 + '" y1="' + py(gy).toFixed(1) + '" x2="' + X2 + '" y2="' + py(gy).toFixed(1) + '" stroke="#F1F1EC" stroke-width="1"/>';
+        yLabs += '<text x="' + (X1 - 6) + '" y="' + (py(gy) + 3).toFixed(1) + '" font-size="9" fill="#989CA0" text-anchor="end">' + fmt2sig(gy) + '</text>';
+      }
+      var xLabs = '';
+      var skip = years.length > 10 ? 2 : 1;
+      years.forEach(function(y, idx) {
+        if (idx % skip !== 0 && y !== yMax) return;
+        xLabs += '<text x="' + px(y).toFixed(1) + '" y="' + (Y2 + 14) + '" font-size="9" fill="#989CA0" text-anchor="middle">' + y + '</text>';
+      });
+
+      var lines = '';
+      series.forEach(function(s) {
+        // Clamp to the chart's own year domain (yMin/yMax, from the trajectory horizon) — a
+        // series that spans a wider range (e.g. CRREM's pathway commonly runs 2020-2050, far
+        // beyond a ~10-year trajectory horizon) would otherwise project points way outside
+        // X1..X2 via px()'s unclamped linear extrapolation, drawing lines that bled off the
+        // page edge (found live on a client report — the CRREM dashed line ran off both charts).
+        var pts = s.points.filter(function(p) { return p.y != null && p.x >= yMin && p.x <= yMax; });
+        if (pts.length < 2) return;
+        var poly = pts.map(function(p) { return px(p.x).toFixed(1) + ',' + py(p.y).toFixed(1); }).join(' ');
+        lines += '<polyline points="' + poly + '" fill="none" stroke="' + s.color + '" stroke-width="' + (s.width || 2.25) + '"' + (s.dash ? ' stroke-dasharray="' + s.dash + '"' : '') + '/>';
+        if (s.dots !== false) {
+          pts.forEach(function(p) { lines += '<circle cx="' + px(p.x).toFixed(1) + '" cy="' + py(p.y).toFixed(1) + '" r="3" fill="' + s.color + '"/>'; });
+        }
+      });
+
+      // Stranding-year overlay: opts.strandingYear is computed by the caller from the two REAL
+      // series (first year the planned/actual line crosses above the CRREM target — see
+      // computeStrandingYear below), never estimated here. Only drawn when it falls inside the
+      // chart's own plotted horizon; a crossing outside that range is silently omitted rather
+      // than drawn off-frame (same overflow bug this clamp is fixing above).
+      var stranding = '';
+      if (opts.strandingYear != null && opts.strandingYear >= yMin && opts.strandingYear <= yMax) {
+        var sx = px(opts.strandingYear).toFixed(1);
+        stranding = '<line x1="' + sx + '" y1="' + Y1 + '" x2="' + sx + '" y2="' + Y2 + '" stroke="' + COLOR_NEG + '" stroke-width="1.25" stroke-dasharray="3,3"/>'
+          + '<text x="' + sx + '" y="' + (Y1 + 9) + '" font-size="9" fill="' + COLOR_NEG + '" text-anchor="middle" font-weight="bold">Stranding ' + opts.strandingYear + '</text>';
+      }
+
+      // BPS threshold overlays — horizontal dashed line at the threshold value (already
+      // folded into the y-domain above) with a small right-aligned label. The value arrives
+      // in the SAME unit the chart already plots — never converted here.
+      var thrSvg = '';
+      thresholds.forEach(function(t) {
+        var tv = num(t.value);
+        var ty = py(tv);
+        thrSvg += '<line x1="' + X1 + '" y1="' + ty.toFixed(1) + '" x2="' + X2 + '" y2="' + ty.toFixed(1) + '" stroke="' + COLOR_NEG + '" stroke-width="1" stroke-dasharray="6,3"/>';
+        if (t.label) {
+          thrSvg += '<text x="' + X2 + '" y="' + (ty - 4).toFixed(1) + '" font-size="9" fill="' + COLOR_NEG + '" text-anchor="end">' + esc(t.label) + '</text>';
+        }
+      });
+
+      var svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" style="display:block;overflow:hidden">'
+        + grid + yLabs + xLabs + lines + thrSvg + stranding
+        + '<line x1="' + X1 + '" y1="' + Y2 + '" x2="' + X2 + '" y2="' + Y2 + '" stroke="#C5C7C9" stroke-width="1"/>'
+        + (opts.yAxisLabel ? '<text x="12" y="' + ((Y1 + Y2) / 2).toFixed(0) + '" font-size="9" fill="#707477" text-anchor="middle" transform="rotate(-90,12,' + ((Y1 + Y2) / 2).toFixed(0) + ')">' + esc(opts.yAxisLabel) + '</text>' : '')
+        + '</svg>';
+
+      var leg = series.map(function(s) {
+        var swatch = s.dash
+          ? 'background:repeating-linear-gradient(90deg,' + s.color + ' 0 5px,transparent 5px 9px)'
+          : 'background:' + s.color;
+        return '<div class="legend-item"><span class="legend-swatch line" style="' + swatch + '"></span>' + esc(s.label) + '</div>';
+      }).join('');
+
+      var notesHtml = (opts.notes || []).map(function(n) { return '<div class="exhibit-note">' + n + '</div>'; }).join('');
+
+      setHtml(containerId, svg + '<div class="chart-legend">' + leg + '</div>' + notesHtml);
+    }
+
+    // First year the real (planned/actual) series exceeds the real CRREM target series, matched
+    // by exact year — deterministic from the two fetched series, never an estimate. Returns null
+    // when no matched-year crossing exists (compliant throughout, or CRREM has no value at any
+    // year the actual series covers).
+    function computeStrandingYear(actualPts, crremPts) {
+      var crremByYear = {};
+      (crremPts || []).forEach(function(p) { if (p.y != null) crremByYear[p.x] = p.y; });
+      for (var i = 0; i < actualPts.length; i++) {
+        var yr = actualPts[i].x, av = actualPts[i].y, cv = crremByYear[yr];
+        if (av != null && cv != null && av > cv) return yr;
+      }
+      return null;
+    }
+
+    var traj = imp.trajectory || [];
+    var bpsThresholds = Array.isArray(imp.bps_thresholds) ? imp.bps_thresholds : [];
+    if (traj.length >= 1) {
+      var tYears = traj.map(function(t) { return t.year; });
+
+      var crremPath = (imp.crrem && imp.crrem.pathway) ? imp.crrem.pathway : null;
+      var crremLabel = 'CRREM pathway' + (imp.crrem && imp.crrem.meta && imp.crrem.meta.region ? ' (' + imp.crrem.meta.region + ')' : '');
+
+      // Mirror the GHGi exhibit: Business-as-Usual / Planned / compliance pathway. One planned
+      // line — the with-vs-without-solar split belonged on the KPI panel, not here, and two nearly
+      // parallel lines made the exhibit harder to read for no decision value (user, 2026-07-30).
+      //
+      // BAU is FLAT, unlike the GHGi exhibit's declining BAU. That difference is the point: the grid
+      // cleaning up lowers a building's carbon on its own, but nothing lowers its energy use without
+      // intervention. Drawn from the baseline EUI, held across the horizon.
+      var euiBaseline = (imp.energy && imp.energy.eui_baseline != null) ? num(imp.energy.eui_baseline) : null;
+      var euiSeries = [];
+      if (euiBaseline != null) {
+        euiSeries.push({ label: 'Business-as-Usual', color: COLOR_BAU, dash: '4,3', dots: false,
+          points: traj.map(function(t) { return { x: t.year, y: euiBaseline }; }) });
+      }
+      // Planned = the building's actual energy position under the plan: net of on-site generation
+      // where there is any, otherwise the consumption line.
+      var hasNetEui = traj.some(function(t) { return num(t.net_purchased_eui_kwh_m2) != null; });
+      euiSeries.push({ label: 'Recommended (EUI)', color: COLOR_S1,
+        points: traj.map(function(t) {
+          var v = hasNetEui ? num(t.net_purchased_eui_kwh_m2) : num(t.eui_kwh_m2);
+          return { x: t.year, y: v != null ? v : num(t.eui_kwh_m2) };
+        }) });
+      var euiPlannedIdx = euiSeries.length - 1;
+      var euiPathwayPoints = null;
+      if (crremPath && crremPath.length && crremPath.some(function(p) { return p.eui_kwh_m2yr != null; })) {
+        euiPathwayPoints = crremPath.filter(function(p) { return num(p.eui_kwh_m2yr) != null; }).map(function(p) { return { x: p.year, y: num(p.eui_kwh_m2yr) }; });
+        euiSeries.push({ label: crremLabel, color: ((COLOR_NET === COLOR_S1) ? (COLOR_NEG !== COLOR_S1 ? COLOR_NEG : '#A8322A') : COLOR_NET), dash: '5,4', dots: false, points: euiPathwayPoints });
+      }
+      if (euiSeries[euiPlannedIdx].points.some(function(p) { return p.y != null; })) {
+        showEl('exhibit-eui');
+        // Stranding compares PLANNED against the pathway — index 0 is now the BAU line.
+        var euiStranding = euiPathwayPoints ? computeStrandingYear(euiSeries[euiPlannedIdx].points, euiPathwayPoints) : null;
+        buildAxisChart('eui-chart-block', euiSeries, { years: tYears, yAxisLabel: 'kWh/m²/yr', H: 190, zeroBased: true, strandingYear: euiStranding, thresholds: bpsThresholds.filter(function(t) { return t.metric === 'eui'; }) });
+      }
+
+      // "Business-as-Usual" alone invites the reader to see the building improving on its own — but
+      // nothing changes in BAU, so its entire decline IS projected grid decarbonization. Say so in
+      // the legend, the way the carbon ladder already does with its "+ grid decarb." row.
+      var ghgiSeries = [
+        { label: 'Business-as-Usual', color: COLOR_BAU, dash: '4,3', points: traj.map(function(t) { return { x: t.year, y: num(t.ghgi_bau_kgco2_m2) }; }) },
+        { label: 'Recommended (GHGi)', color: COLOR_S1, points: traj.map(function(t) { return { x: t.year, y: num(t.ghgi_kgco2_m2) }; }) }
+      ];
+      if (crremPath && crremPath.length && crremPath.some(function(p) { return p.carbon_kgco2_m2yr != null; })) {
+        // The compliance pathway must not share the planned line's hue — an org brand overlay can
+        // collapse --chart-net onto --chart-series-1, which is exactly what happened here: two blue
+        // lines separated only by a dash pattern (Bain, 2026-08-03).
+        var pathColor = (COLOR_NET === COLOR_S1) ? (COLOR_NEG !== COLOR_S1 ? COLOR_NEG : '#A8322A') : COLOR_NET;
+        ghgiSeries.push({ label: crremLabel, color: pathColor, dash: '5,4', dots: false,
+          points: crremPath.filter(function(p) { return num(p.carbon_kgco2_m2yr) != null; }).map(function(p) { return { x: p.year, y: num(p.carbon_kgco2_m2yr) }; }) });
+      }
+      if (ghgiSeries[1].points.some(function(p) { return p.y != null; })) {
+        showEl('exhibit-ghgi');
+        var ghgiStranding = ghgiSeries[2] ? computeStrandingYear(ghgiSeries[1].points, ghgiSeries[2].points) : null;
+        buildAxisChart('ghgi-chart-block', ghgiSeries, { years: tYears, yAxisLabel: 'kgCO2e/m²/yr', H: 210, zeroBased: true, strandingYear: ghgiStranding, thresholds: bpsThresholds.filter(function(t) { return t.metric === 'ghgi'; }) });
+      }
+
+      // Flag a degenerate (all-same-year) trajectory honestly rather than let it pass as a
+      // real staged curve — today's engine stages every measure to a single install year.
+      var uniqueYearsWithChange = traj.filter(function(t, i) { return i === 0 || t.ghgi_kgco2_m2 !== traj[0].ghgi_kgco2_m2; }).length;
+      if (traj.length > 1 && uniqueYearsWithChange <= 1) {
+        setText('trajectory-flag', 'Flat across the modelled horizon — this reflects the current engagement model staging every measure to a single install year, not a real multi-year rollout curve.');
+        document.getElementById('trajectory-flag').style.display = '';
+      }
+    }
+
+    var reg = imp.regulatory;
+    if (reg && (reg.applicable_standard || reg.note)) {
+      var statusClass = reg.compliance_status || 'not-applicable';
+      showEl('impact-regulatory');
+      if (statusClass === 'not-applicable') {
+        // No BPS applies. Just say so once — no "not applicable" badge stacked on a
+        // "Not applicable" title stacked on the sentence that already says it.
+        setHtml('impact-regulatory',
+          '<div class="impact-metric-title">Building Performance Standard</div>'
+          + '<div class="narrative" style="margin-top:8px;font-size:12px">'
+          + esc(reg.note || 'Not subject to a Building Performance Standard as of the report date.')
+          + '</div>');
+      } else {
+        var fineLine = reg.annual_fine_avoided_usd != null
+          ? '<div class="exhibit-note"><strong>Annual fine avoided: ' + fmtCurrency(num(reg.annual_fine_avoided_usd)) + '/yr</strong></div>' : '';
+        setHtml('impact-regulatory',
+          '<span class="regulatory-badge ' + esc(statusClass) + '">' + esc((statusClass || '').replace(/-/g, ' ')) + '</span>'
+          + '<div class="impact-metric-title" style="margin-top:8px">' + esc(reg.applicable_standard) + '</div>'
+          + fineLine
+          + (reg.note ? '<div class="narrative" style="margin-top:8px;font-size:12px">' + esc(reg.note) + '</div>' : ''));
+      }
+    }
+
+    /* ════════════════════════════════
+       05. MEASURE DESCRIPTIONS — the plain-language scope of each recommended measure, agreed with
+       the user after Gate 2 (bundle + strategy settled) and BEFORE the report is produced, so it
+       ships with the first render. Purely agent-authored content: the engine knows a measure's
+       economics, not what the work is. Hidden entirely when absent, so every report that predates
+       this section renders exactly as before rather than gaining a blank page.
+       A description whose measure is no longer in the recommended plan (an Audette edit after the
+       conversation) is LABELLED, not dropped — presenting it as current scope would be a lie, and
+       silently dropping content the user approved is how we lose their edits.
+    ════════════════════════════════ */
+    var measureDescItems = (data.measure_descriptions || {}).items || [];
+    if (measureDescItems.length) {
+      showEl('measure-descriptions-section');
+      showEl('measure-descriptions-block');
+      setHtml('measure-descriptions-items', measureDescItems.map(function(it) {
+        // Two different situations, two different notes. Describing an ALTERNATIVE measure is
+        // legitimate — it just isn't part of the recommended ask, so say that in the same language
+        // the measures table uses. A description matching NO measure at all is the actual problem
+        // (renamed in Audette, or dropped after the conversation), and matching is by name only, so
+        // word it as something to check rather than a claim about removal.
+        var stale = '';
+        if (it.in_alternative_plan) {
+          stale = '<div class="consideration-detail" style="color:var(--text-muted);font-style:italic">Alternative — not modelled in financials.</div>';
+        } else if (it.unmatched_measure) {
+          stale = '<div class="consideration-detail" style="color:var(--bronze-mid);font-style:italic">No measure of this name in the recommended plan — confirm this scope is current.</div>';
+        }
+        return '<div class="consideration-item"><div class="consideration-title">' + esc(it.measure || '') + '</div>'
+          + '<div class="consideration-detail">' + esc(it.description || '').replace(/\n/g, '<br>') + '</div>' + stale + '</div>';
+      }).join(''));
+    }
+
+    /* ════════════════════════════════
+       06. NOTES — implementation considerations, incentive programs, and compliance notes.
+       Each sub-block (and the section itself) only shows when its data is actually present —
+       never fabricated. Incentive programs are sourced from real, cited incentive-rule matches
+       (see derive-decarb-engagement.ts's incentive_programs aggregation) — never hand-estimated
+       here. Data Quality was dropped as its own subsection (client preference); any estimate/
+       ambiguity caveat that used to live there is now folded into the relevant incentive
+       program's own description instead, so it's still disclosed, just not in its own section.
+    ════════════════════════════════ */
+    var hasNarrative = impl.narrative && String(impl.narrative).trim();
+    var considerations = impl.considerations || [];
+    var incentiveItems = incentivePrograms.items || [];
+    var hasIncentivePrograms = incentivePrograms.summary || incentiveItems.length;
+    var complianceItems = complianceNotes.items || [];
+    var hasImpl = hasNarrative || considerations.length;
+    var hasCompliance = complianceNotes.summary || complianceItems.length;
+    if (hasImpl || hasIncentivePrograms || hasCompliance) {
+      showEl('notes-section');
+      if (hasImpl) {
+        showEl('implementation-block');
+        if (hasNarrative) setHtml('implementation-narrative', esc(impl.narrative).replace(/\n/g, '<br>'));
+        if (considerations.length) {
+          setHtml('implementation-considerations', considerations.map(function(c) {
+            return '<div class="consideration-item"><div class="consideration-title">' + esc(c.title) + '</div><div class="consideration-detail">' + esc(c.detail) + '</div></div>';
+          }).join(''));
+        }
+      }
+      if (hasIncentivePrograms) {
+        showEl('incentives-block');
+        if (incentivePrograms.summary) { setHtml('incentives-summary', esc(incentivePrograms.summary)); showEl('incentives-summary'); }
+        if (incentiveItems.length) {
+          setHtml('incentives-items', incentiveItems.map(function(it) {
+            var ref = it.reference || it.citation || it.source || '';
+            return '<div class="consideration-item"><div class="consideration-title">' + esc(it.program || it.title || '') + '</div>'
+              + '<div class="consideration-detail">' + esc(it.description || it.detail || '') + '</div>'
+              + (ref ? '<div class="consideration-detail" style="margin-top:3px;color:var(--text-muted);font-size:10px">Reference: ' + esc(ref) + '</div>' : '')
+              + '</div>';
+          }).join(''));
+        }
+      }
+      if (hasCompliance) {
+        showEl('compliance-block');
+        if (complianceNotes.summary) { setHtml('compliance-summary', esc(complianceNotes.summary)); showEl('compliance-summary'); }
+        if (complianceItems.length) {
+          setHtml('compliance-items', complianceItems.map(function(it) {
+            return '<div class="consideration-item"><div class="consideration-title">' + esc(it.program || it.title || '') + '</div><div class="consideration-detail">' + esc(it.description || it.detail || '') + '</div></div>';
+          }).join(''));
+        }
+      }
+    }
+
+    /* ════════════════════════════════
+       FLOW-SECTION PAGINATION — most of this template is fixed one-div-per-page, and a single .page
+       div is print-locked (break-inside:avoid), so an over-long page CLIPS rather than flows. Two
+       sections are genuinely variable-length: Measure Descriptions (one prose item per recommended
+       measure) and Notes (implementation considerations + incentive programs + compliance notes).
+       Both are flattened into atomic units (subsection titles + each item), then reflowed across as
+       many cloned pages as needed, measuring real rendered height so each page stays within 11in.
+       Runs BEFORE page numbering so continuation pages are counted.
+    ════════════════════════════════ */
+    // Two variable-length sections now flow: Measure Descriptions (one item per measure — a 7-measure
+    // plan overflows a single page on its own) and Notes. Same machinery for both.
+    // Every paginator measures RENDERED TEXT, so it must not run on fallback font metrics.
+    // DOMContentLoaded fires before the web face arrives; the Summary page paginated to 1056px in
+    // the fallback and then grew to 1080 — 24px over frame — when Inter swapped in (2026-08-04).
+    // So the whole reflow runs twice: once now (so a no-webfont viewer still gets real pages) and
+    // again on fonts.ready, where each paginator re-measures, tops up its existing continuation
+    // page, and page numbers are recomputed over the final set.
+    var reflowPages = function() {
+    paginateFlowSection('measure-descriptions-section', 'Measure Descriptions (continued)', ['measure-descriptions-items']);
+    paginateFlowSection('notes-section', 'Notes (continued)', ['implementation-considerations', 'incentives-items', 'compliance-items']);
+    // The measures TABLE is variable-length too — one row per measure plus a totals row plus an
+    // alternative row per non-recommended measure. It had no pagination at all, so a long roster
+    // simply stretched its page taller than the sheet instead of flowing onto a second one
+    // (user, 2026-08-03). Rows are the atomic units; the colgroup and header repeat on each page.
+    paginateTableSection('measures-section', 'Measures (continued)');
+    // Two pages carry fixed BLOCKS rather than a list of items, and both ran past their frame: the
+    // cover/Summary page (exec summary + narrative + KPI grid) and Impact (two panels + two charts).
+    // Neither can use the item-level flow — splitting a KPI grid or a chart mid-element is worse than
+    // a long page — so they flow at BLOCK granularity: whole children move to a continuation page.
+    // A cover cannot repeat its header, so the continuation is the same page with the cover band
+    // stripped (user, 2026-08-03: "either fit on singular pages or expand on to more pages").
+    paginateBlockPage('cover', 'Summary (continued)');
+    paginateBlockPage('impact-section', 'Impact (continued)');
+    function paginateBlockPage(pageId, contTitle) {
+      var page = document.getElementById(pageId);
+      if (!page || page.style.display === 'none') return;
+      var probe = document.createElement('div');
+      probe.style.cssText = 'width:1in;height:1in;position:absolute;visibility:hidden;left:-9999px';
+      document.body.appendChild(probe);
+      var pxIn = probe.getBoundingClientRect().width || 96; probe.remove();
+      var MAXH = (page.classList.contains('landscape') ? 8.5 : 11) * pxIn + 3;
+      if (page.getBoundingClientRect().height <= MAXH) return;
+      var content = page.querySelector('.page-content');
+      if (!content) return;
+      var blocks = Array.prototype.slice.call(content.children).filter(function(el) {
+        if (el.classList.contains('section-eyebrow') || el.classList.contains('section-title')) return false;
+        return !(el.style && el.style.display === 'none');
+      });
+      // A single oversized block is no longer a dead end: the loop below splits a block by its own
+      // children (paragraph granularity), which is how the second, post-fonts pass tops up a cover
+      // whose only remaining block is the executive summary.
+      if (blocks.length < 1) return;
+
+      var makeCont = function() {
+        var clone = page.cloneNode(true);
+        clone.removeAttribute('id');
+        clone.setAttribute('data-cont-of', pageId);
+        clone.style.display = '';
+        // Keep the page's own classes: the KPI grid's column layout is scoped under .cover-page, and
+        // stripping the class collapsed it to one column 555px tall — a continuation page that
+        // overflowed worse than the page it was relieving. Only the cover BAND is removed; a cover
+        // header never repeats.
+        if (!clone.classList.contains('page')) clone.classList.add('page');
+        var band = clone.querySelector('.cover-header');
+        if (band) band.remove();
+        var t = clone.querySelector('.section-title');
+        if (t) t.textContent = contTitle;
+        var c = clone.querySelector('.page-content');
+        Array.prototype.slice.call(c.children).forEach(function(el) {
+          if (!el.classList.contains('section-eyebrow') && !el.classList.contains('section-title')) el.remove();
+        });
+        return clone;
+      };
+
+      // Reuse the continuation this page already has, if a first pass made one. The second pass runs
+      // after web fonts load (see reflowPages) and only needs to shed the extra few lines the real
+      // face added — a fresh continuation page for two orphan paragraphs is worse than none.
+      var cont = page.parentNode.querySelector('[data-cont-of="' + pageId + '"]');
+      // Move trailing blocks off the page until it fits, newest-first so document order is preserved.
+      for (var guard = 0; guard < 20 && page.getBoundingClientRect().height > MAXH; guard++) {
+        var remaining = Array.prototype.slice.call(content.children).filter(function(el) {
+          return !el.classList.contains('section-eyebrow') && !el.classList.contains('section-title')
+            && !(el.style && el.style.display === 'none');
+        });
+        var last;
+        if (remaining.length < 2) {
+          // A single block taller than the frame on its own — the cover, whose header band eats 3.7in
+          // before the executive summary starts. Moving whole blocks can no longer help, so split the
+          // block by its OWN children into a same-class shell on the continuation, which keeps the
+          // paragraph/tile styling (a bare div loses .kpi-grid's columns and .exec-summary's spacing).
+          var solo = remaining[0];
+          var visKids = function(el) {
+            return Array.prototype.slice.call(el.children).filter(function(c) {
+              return !(c.style && c.style.display === 'none');
+            });
+          };
+          // Descend through single-child wrappers — #exec-summary holds one inner div that holds the
+          // paragraphs, so splitting at the top level finds "one child" and gives up.
+          var parts = visKids(solo);
+          for (var d = 0; d < 4 && parts.length === 1 && visKids(parts[0]).length > 1; d++) {
+            solo = parts[0]; parts = visKids(solo);
+          }
+          if (parts.length < 2) break; // genuinely unsplittable — better long than lost
+          if (!cont) { cont = makeCont(); page.parentNode.insertBefore(cont, page.nextSibling); }
+          var cc0 = cont.querySelector('.page-content');
+          var shell = cc0.querySelector('[data-split-shell="' + solo.className + '"]');
+          if (!shell) {
+            shell = document.createElement(solo.tagName);
+            shell.className = solo.className;
+            shell.setAttribute('data-split-shell', solo.className);
+            var a0 = Array.prototype.slice.call(cc0.children).filter(function(el) {
+              return !el.classList.contains('section-eyebrow') && !el.classList.contains('section-title');
+            })[0];
+            if (a0) cc0.insertBefore(shell, a0); else cc0.appendChild(shell);
+          }
+          shell.insertBefore(parts[parts.length - 1], shell.firstChild);
+          continue;
+        }
+        last = remaining[remaining.length - 1];
+        if (!cont) { cont = makeCont(); page.parentNode.insertBefore(cont, page.nextSibling); }
+        var cc = cont.querySelector('.page-content');
+        var anchor = Array.prototype.slice.call(cc.children).filter(function(el) {
+          return !el.classList.contains('section-eyebrow') && !el.classList.contains('section-title');
+        })[0];
+        if (anchor) cc.insertBefore(last, anchor); else cc.appendChild(last);
+        // If the continuation itself overflows, start another one next round.
+        if (cont.getBoundingClientRect().height > MAXH) {
+          var next = makeCont();
+          cont.parentNode.insertBefore(next, cont.nextSibling);
+          var overflowBlocks = Array.prototype.slice.call(cc.children).filter(function(el) {
+            return !el.classList.contains('section-eyebrow') && !el.classList.contains('section-title');
+          });
+          if (overflowBlocks.length > 1) next.querySelector('.page-content').appendChild(overflowBlocks[overflowBlocks.length - 1]);
+          cont = next;
+        }
+      }
+    }
+    function paginateTableSection(pageId, contTitle) {
+      var page = document.getElementById(pageId);
+      if (!page || page.style.display === 'none') return;
+      var probe = document.createElement('div');
+      probe.style.cssText = 'width:1in;height:1in;position:absolute;visibility:hidden;left:-9999px';
+      document.body.appendChild(probe);
+      var pxIn = probe.getBoundingClientRect().width || 96; probe.remove();
+      var MAXH = (page.classList.contains('landscape') ? 8.5 : 11) * pxIn + 3;
+      if (page.getBoundingClientRect().height <= MAXH) return; // already fits — leave it alone
+      var table = page.querySelector('.data-table');
+      var tbody = table && table.querySelector('tbody');
+      if (!tbody) return;
+      var rows = Array.prototype.slice.call(tbody.children).map(function(r) { return r.outerHTML; });
+      if (rows.length < 2) return;
+
+      var makePage = function(isCont) {
+        var clone = page.cloneNode(true);
+        clone.removeAttribute('id');
+        clone.style.display = '';
+        if (isCont) {
+          var t = clone.querySelector('.section-title');
+          if (t) t.textContent = contTitle;
+        }
+        clone.querySelector('.data-table tbody').innerHTML = '';
+        return clone;
+      };
+      var cur = makePage(false);
+      var curBody = cur.querySelector('.data-table tbody');
+      page.parentNode.insertBefore(cur, page);
+      for (var i = 0; i < rows.length; i++) {
+        curBody.insertAdjacentHTML('beforeend', rows[i]);
+        if (cur.getBoundingClientRect().height > MAXH && curBody.children.length > 1) {
+          curBody.removeChild(curBody.lastElementChild);
+          var carry = [rows[i]];
+          // Never let a totals row open a page on its own — it reads as a stray number with nothing
+          // above it. Carry the preceding row forward with it.
+          var tail = curBody.lastElementChild;
+          if (/totals-row/.test(rows[i]) && tail) { carry.unshift(tail.outerHTML); curBody.removeChild(tail); }
+          cur = makePage(true); curBody = cur.querySelector('.data-table tbody');
+          page.parentNode.insertBefore(cur, page);
+          carry.forEach(function(r) { curBody.insertAdjacentHTML('beforeend', r); });
+        }
+      }
+      page.parentNode.removeChild(page);
+    }
+    function paginateFlowSection(pageId, contTitle, itemContainerIds) {
+      var page = document.getElementById(pageId);
+      if (!page || page.style.display === 'none') return;
+      // px-per-inch probe (zoom/DPI-robust) — the portrait page cap is 11in tall.
+      var probe = document.createElement('div');
+      probe.style.cssText = 'width:1in;height:1in;position:absolute;visibility:hidden;left:-9999px';
+      document.body.appendChild(probe);
+      var pxIn = probe.getBoundingClientRect().width || 96; probe.remove();
+      // The cap is the PAGE's own height, not a constant: the measures page is landscape and only
+      // 8.5in tall, so an 11in cap would let it grow half a page past its own frame before splitting.
+      var MAXH = (page.classList.contains('landscape') ? 8.5 : 11) * pxIn + 3;
+      var content = page.querySelector('.page-content');
+      if (!content) return;
+
+      // Flatten: keep the leading eyebrow + section title as page-1 chrome; collect every other
+      // renderable node (subsection titles, narratives, and each .consideration-item pulled out of
+      // its items container) as an ordered list of atomic units to reflow.
+      var leadingHTML = '';
+      var units = [];
+      Array.prototype.slice.call(content.children).forEach(function(child) {
+        if (child.classList.contains('section-eyebrow') || child.classList.contains('section-title')) { leadingHTML += child.outerHTML; return; }
+        if (child.style && child.style.display === 'none') return; // hidden block (no data)
+        if (itemContainerIds.indexOf(child.id) !== -1) {
+          Array.prototype.slice.call(child.children).forEach(function(item) { units.push(item.outerHTML); });
+          return;
+        }
+        if (!child.children.length) { units.push(child.outerHTML); return; }
+        Array.prototype.slice.call(child.children).forEach(function(el) {
+          if (itemContainerIds.indexOf(el.id) !== -1) {
+            Array.prototype.slice.call(el.children).forEach(function(item) { units.push(item.outerHTML); });
+          } else if (!(el.style && el.style.display === 'none')) {
+            units.push(el.outerHTML);
+          }
+        });
+      });
+      if (!units.length) return;
+
+      var makePage = function(isCont) {
+        var clone = page.cloneNode(true);
+        clone.removeAttribute('id');
+        clone.style.display = '';
+        var c = clone.querySelector('.page-content');
+        c.innerHTML = leadingHTML;
+        if (isCont) { var t = c.querySelector('.section-title'); if (t) t.textContent = contTitle; }
+        return clone;
+      };
+      var isTitle = function(html) { return /class="[^"]*subsection-title/.test(html); };
+
+      var firstTitle = (function() { var t = page.querySelector('.section-title'); return t ? t.textContent : ''; })();
+      var cur = makePage(false), curContent = cur.querySelector('.page-content');
+      page.parentNode.insertBefore(cur, page);
+      for (var i = 0; i < units.length; i++) {
+        curContent.insertAdjacentHTML('beforeend', units[i]);
+        // A unit that overflows moves to a fresh page — but only if the current page already holds
+        // more than just the leading chrome, otherwise a single oversized unit would loop forever.
+        var flowCount = curContent.querySelectorAll('.consideration-item, .subsection-title, .narrative').length;
+        if (cur.getBoundingClientRect().height > MAXH && flowCount > 1) {
+          curContent.removeChild(curContent.lastElementChild);
+          var carry = [units[i]];
+          // Don't strand a subsection title alone at the bottom of a page — carry it forward too.
+          var tail = curContent.lastElementChild;
+          if (tail && tail.classList.contains('subsection-title')) { carry.unshift(tail.outerHTML); curContent.removeChild(tail); }
+          cur = makePage(true); curContent = cur.querySelector('.page-content');
+          page.parentNode.insertBefore(cur, page);
+          carry.forEach(function(h) { curContent.insertAdjacentHTML('beforeend', h); });
+        }
+      }
+      page.parentNode.removeChild(page); // drop the original single-page section; the clones replace it
+
+      // CONVERGENCE PASS. The per-insertion check can still leave a page over the cap: heights are
+      // measured as units are appended, but carrying a stranded subsection title forward reflows the
+      // page that keeps it, and a unit that fitted at measure time can end up over once its
+      // neighbours move. Sweep the finished pages and push the last unit of any over-tall page onto
+      // the next one until everything fits. Bounded so a single oversized unit cannot spin.
+      var pagesOf = function() {
+        return Array.prototype.slice.call(document.querySelectorAll('.page')).filter(function(pg) {
+          var t = pg.querySelector('.section-title');
+          return t && (t.textContent === contTitle || t.textContent === firstTitle);
+        });
+      };
+      for (var guard = 0; guard < 40; guard++) {
+        var pgs = pagesOf(), moved = false;
+        for (var k = 0; k < pgs.length; k++) {
+          var pc = pgs[k].querySelector('.page-content');
+          var flow = pc.querySelectorAll('.consideration-item, .subsection-title, .narrative');
+          if (pgs[k].getBoundingClientRect().height <= MAXH || flow.length < 2) continue;
+          var last = pc.lastElementChild;
+          if (!last) continue;
+          var next = pgs[k + 1];
+          if (!next) { next = makePage(true); pgs[k].parentNode.insertBefore(next, pgs[k].nextSibling); }
+          var nc = next.querySelector('.page-content');
+          // Insert after this page's leading chrome (eyebrow + title), before its existing units.
+          var anchor = nc.querySelector('.subsection-title, .consideration-item, .narrative');
+          if (anchor) nc.insertBefore(last, anchor); else nc.appendChild(last);
+          moved = true;
+        }
+        if (!moved) break;
+      }
+    }
+
+    /* ════════════════════════════════
+       RUNNING PAGE NUMBERS — computed last, over whatever pages ended up visible
+       (Implementation/Compliance Notes are conditional on the data actually having them).
+    ════════════════════════════════ */
+    var visiblePages = Array.prototype.filter.call(document.querySelectorAll('.page, .cover-page'), function(p) { return p.style.display !== 'none'; });
+    visiblePages.forEach(function(p, i) {
+      var el = p.querySelector('.page-num-run');
+      if (el) el.textContent = 'Page ' + (i + 1) + ' of ' + visiblePages.length;
+    });
+    }; // end reflowPages
+    reflowPages();
+    if (document.fonts && document.fonts.ready && typeof document.fonts.ready.then === 'function') {
+      document.fonts.ready.then(function() { requestAnimationFrame(function() {
+        try { reflowPages(); } catch (e) { /* a failed top-up must never blank the report */ }
+        window.__reportReady = true;
+      }); });
+    } else { window.__reportReady = true; }
+  }
+</script>
+
+</body>
+</html>

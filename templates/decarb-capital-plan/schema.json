@@ -1,0 +1,802 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Decarbonization Capital Plan Report Data",
+  "description": "Data contract for the decarb-capital-plan template — a fork of the decarb-plan report for a single already-decided measures package (no multi-option/plan-A-vs-B analysis). Five sections: Summary, Measures, Financial, and Impact are populated from the engine-derived engagement record; Implementation Considerations is optional and only appears when supplied.",
+  "type": "object",
+  "required": [
+    "property",
+    "summary",
+    "measures",
+    "financial",
+    "impact"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "property": {
+      "type": "object",
+      "description": "Core property identification. Required — an omitted or empty block renders literal placeholder text on the cover (known failure mode, see decarb template history). Renders the cover header and meta bar.",
+      "required": [
+        "name",
+        "address",
+        "type",
+        "year_built"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Property / asset name."
+        },
+        "address": {
+          "type": "string",
+          "description": "Full street address including city, state."
+        },
+        "type": {
+          "type": "string",
+          "description": "Asset class.",
+          "enum": [
+            "multifamily",
+            "office",
+            "industrial",
+            "retail",
+            "hotel",
+            "senior-living",
+            "student-housing",
+            "mixed-use"
+          ]
+        },
+        "units": {
+          "type": "integer",
+          "description": "Unit count. For multifamily/senior-living/student-housing.",
+          "minimum": 1
+        },
+        "gfa_sqft": {
+          "type": "integer",
+          "description": "Gross floor area in square feet.",
+          "minimum": 1
+        },
+        "gfa_m2": {
+          "type": "number",
+          "description": "Gross floor area in m². Optional; supports kWh·m⁻² derivations.",
+          "minimum": 1
+        },
+        "year_built": {
+          "type": "integer",
+          "description": "Year of original construction.",
+          "minimum": 1800,
+          "maximum": 2100
+        }
+      }
+    },
+    "prepared_by": {
+      "type": "string",
+      "description": "Author/firm line on the cover."
+    },
+    "prepared_for": {
+      "type": "string",
+      "description": "Client the plan is prepared for — renders on the cover eyebrow and as the running-header brand on every interior page (no client name is hardcoded in the template)."
+    },
+    "report_date": {
+      "type": "string",
+      "format": "date",
+      "description": "ISO 8601 date shown on the cover."
+    },
+    "summary": {
+      "type": "object",
+      "description": "Section 1 — Summary. Narrative overview.",
+      "required": [
+        "narrative"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "narrative": {
+          "type": "string",
+          "description": "Prose summary of the decided measures package and expected outcomes (2-4 paragraphs)."
+        }
+      }
+    },
+    "measures": {
+      "type": "object",
+      "description": "Section 2 — Measures. The decided measures package (already selected — no option comparison).",
+      "required": [
+        "items"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "items": {
+          "type": "array",
+          "description": "Each decided measure. Engine-sourced financial/emissions fields — never LLM-computed.",
+          "items": {
+            "type": "object",
+            "required": [
+              "name",
+              "type"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "name": {
+                "type": "string",
+                "description": "Measure name (e.g. 'Air-source heat pump conversion')."
+              },
+              "type": {
+                "type": "string",
+                "description": "Measure family (e.g. 'Electrification', 'Envelope', 'Solar PV'). Used as the roadmap group header."
+              },
+              "install_year": {
+                "type": "integer",
+                "description": "Staged install year."
+              },
+              "total_cost": {
+                "type": "number",
+                "description": "Total installed cost in USD.",
+                "minimum": 0
+              },
+              "like_for_like_cost": {
+                "type": "number",
+                "description": "Like-for-like replacement cost in USD (0 for pure add-ons).",
+                "minimum": 0
+              },
+              "incremental_cost": {
+                "type": "number",
+                "description": "Incremental cost over like-for-like.",
+                "minimum": 0
+              },
+              "incentives": {
+                "type": "number",
+                "description": "Rebates/incentives applied to this measure in USD.",
+                "minimum": 0
+              },
+              "energy_savings_kwh": {
+                "type": "number",
+                "description": "Annual electric energy savings in kWh/yr — Audette's own real per-measure figure (energy_consumption_savings_electricity), never an engineering estimate. Omit rather than estimate when Audette has no figure for this measure."
+              },
+              "emissions_savings_tco2e": {
+                "type": "number",
+                "description": "Annual emissions reduction in tCO2e/yr (engine-computed)."
+              },
+              "landlord_utility_savings": {
+                "type": "number",
+                "description": "Stabilized annual owner-share utility $ savings (engine-computed)."
+              },
+              "tenant_utility_savings": {
+                "type": "number",
+                "description": "Stabilized annual tenant-share utility $ savings (engine-computed, shown separately, never merged with landlord savings)."
+              },
+              "ancillary_revenue": {
+                "type": "number",
+                "description": "Stabilized annual ancillary revenue (e.g. EV charging, solar export)."
+              },
+              "status": {
+                "type": "string",
+                "description": "Measure status shown in the roadmap's Status column. Defaults to 'Recommended' when omitted."
+              },
+              "simple_payback_years": {
+                "type": "number",
+                "description": "Simple payback in years on the LANDLORD-side benefit only (owner utility savings + ancillary revenue). Omitted when there is no owner-side benefit."
+              },
+              "meets_five_year_screen": {
+                "type": "boolean",
+                "description": "Whether the measure clears the client's simple 5-year payback screen."
+              },
+              "marginal_abatement_cost": {
+                "type": "number",
+                "description": "Net marginal abatement cost in $/tCO2e over the hold to exit: (net capex - owner benefit x hold years) / (annual tCO2e x hold years). NEGATIVE means the measure pays for itself while abating."
+              },
+              "abatement_tco2e_to_exit": {
+                "type": "number",
+                "description": "Total tCO2e abated between install year and exit year."
+              }
+            }
+          }
+        }
+      }
+    },
+    "measures_considered": {
+      "type": "array",
+      "description": "Measures analyzed during the engagement but NOT recommended into the package. Rendered at the bottom of the Section 2 roadmap table in muted styling with status 'Analyzed — not recommended'; absent fields render as em-dashes, never estimated.",
+      "items": {
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Measure name."
+          },
+          "emissions_savings_tco2e": {
+            "type": "number",
+            "description": "Annual emissions reduction in tCO2e/yr, if computed during screening."
+          },
+          "incremental_cost": {
+            "type": "number",
+            "description": "Incremental cost over like-for-like, USD, if computed during screening.",
+            "minimum": 0
+          },
+          "reason": {
+            "type": "string",
+            "description": "Why the measure was not recommended (shown as a sub-line under the name)."
+          }
+        }
+      }
+    },
+    "financial": {
+      "type": "object",
+      "description": "Section 3 — Financial. Single-package investment summary (no A/B plan comparison).",
+      "required": [
+        "total_investment",
+        "net_investment"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "total_investment": {
+          "type": "number",
+          "description": "Sum of all measures' total_cost, USD.",
+          "minimum": 0
+        },
+        "total_incentives": {
+          "type": "number",
+          "description": "Sum of all measures' incentives, USD.",
+          "minimum": 0
+        },
+        "net_investment": {
+          "type": "number",
+          "description": "total_investment minus total_incentives, USD."
+        },
+        "annual_savings": {
+          "type": "number",
+          "description": "Total stabilized annual owner-share savings + ancillary revenue, USD/yr."
+        },
+        "simple_payback_years": {
+          "type": "number",
+          "description": "net_investment / annual_savings, years."
+        },
+        "npv": {
+          "type": "number",
+          "description": "Net present value of the package, USD, if computed."
+        },
+        "irr_pct": {
+          "type": "number",
+          "description": "Internal rate of return, percent, if computed."
+        },
+        "exit_year": {
+          "type": "integer",
+          "description": "Presumed exit (disposition) year used for the value bridge and implied value uplift."
+        },
+        "exit_cap": {
+          "type": "number",
+          "description": "Presumed exit capitalization rate as a decimal (e.g. 0.0625 = 6.25%)."
+        },
+        "bridge": {
+          "type": "object",
+          "description": "Value Creation Bridge (Exhibit 3.1) — cumulative operating flows over the hold plus the capitalized exit value uplift at the presumed exit cap. Preferred over the legacy operating-basis 'waterfall' shape; when present it replaces it. All figures engine-computed — omit entirely rather than estimate any field.",
+          "additionalProperties": false,
+          "required": [
+            "incremental_capex",
+            "incentives",
+            "cumulative_utility_savings",
+            "exit_value_uplift",
+            "net"
+          ],
+          "properties": {
+            "incremental_capex": {
+              "type": "number",
+              "description": "Negative — capital outlay."
+            },
+            "cumulative_utility_savings": {
+              "type": "number",
+              "description": "Sum of realized annual energy/utility savings across the modeled hold, USD."
+            },
+            "incentives": {
+              "type": "number"
+            },
+            "fine_avoidance": {
+              "type": "number",
+              "description": "Cumulative BPS fines avoided over the hold, USD. Bar only drawn when non-zero."
+            },
+            "exit_value_uplift": {
+              "type": "number",
+              "description": "Capitalized exit value uplift at the presumed exit cap, USD."
+            },
+            "net": {
+              "type": "number",
+              "description": "Net value creation across the bridge, USD."
+            }
+          }
+        },
+        "cashflow": {
+          "type": "array",
+          "description": "Optional year-by-year cashflow series — powers both the cumulative-line chart and the detailed Annual Cashflow table (borrowed from decarb's own collapsible per-plan table).",
+          "items": {
+            "type": "object",
+            "required": [
+              "year",
+              "cumulative_usd"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "year": {
+                "type": "integer"
+              },
+              "cumulative_usd": {
+                "type": "number",
+                "description": "Cumulative net cashflow at this year, USD (negative = still in payback)."
+              },
+              "incremental_capex_usd": {
+                "type": "number",
+                "description": "This year's capital outlay, USD (0 in years with no install)."
+              },
+              "incentives_usd": {
+                "type": "number",
+                "description": "This year's incentives received, USD."
+              },
+              "utility_savings_usd": {
+                "type": "number",
+                "description": "This year's recurring operating utility savings, USD — the real, engine-computed annual figure, not capitalized to any exit."
+              },
+              "fine_avoidance_usd": {
+                "type": "number",
+                "description": "This year's avoided BPS fines, USD. The Fine Avoidance column only renders when at least one year is non-zero."
+              },
+              "value_uplift_usd": {
+                "type": "number",
+                "description": "Implied value uplift = this year's NOI impact ÷ presumed exit cap, USD. Omit rather than estimate; renders as — when absent."
+              }
+            }
+          }
+        },
+        "waterfall": {
+          "type": "object",
+          "description": "LEGACY operating cost/savings bridge shape — superseded by financial.bridge (which, when present, is rendered instead). This shape models no disposition — it must NEVER contain an exit-capitalized figure (no exit_value_uplift / capitalized_utility_savings / net_value_creation). incentives and incremental_capex are plan-level, exit-free sums; cumulative_utility_savings is REALIZED savings summed across the modeled cashflow years (no capitalization); net_position is the real final-year cumulative cash position from that same series. Omit entirely rather than estimate any field.",
+          "additionalProperties": false,
+          "properties": {
+            "incentives": {
+              "type": "number"
+            },
+            "incremental_capex": {
+              "type": "number",
+              "description": "Negative — capital outlay."
+            },
+            "cumulative_utility_savings": {
+              "type": "number",
+              "description": "Sum of realized annual utility savings across the modeled cashflow years — not capitalized to any exit event."
+            },
+            "net_position": {
+              "type": "number",
+              "description": "The modeled cashflow series' real final-year cumulative value (negative = still in payback at that point)."
+            }
+          }
+        },
+        "irr_incl_exit_pct": {
+          "type": "number",
+          "description": "Incremental IRR INCLUDING the capitalized exit value uplift, as a percentage. Always report alongside irr_pct (which excludes exit) — on an exit-framed plan the two can differ in sign."
+        },
+        "irr_hurdle_pct": {
+          "type": "number",
+          "description": "Client's IRR hurdle as a percent."
+        },
+        "meets_irr_hurdle": {
+          "type": "boolean",
+          "description": "Whether the incl.-exit incremental IRR clears the hurdle."
+        }
+      }
+    },
+    "impact": {
+      "type": "object",
+      "description": "Section 4 — Impact (carbon, energy, regulatory).",
+      "required": [
+        "carbon",
+        "energy"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "carbon": {
+          "type": "object",
+          "required": [
+            "baseline_tco2e",
+            "post_retrofit_tco2e"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "baseline_tco2e": {
+              "type": "number",
+              "description": "Baseline annual emissions, tCO2e/yr."
+            },
+            "post_retrofit_tco2e": {
+              "type": "number",
+              "description": "Projected post-retrofit annual emissions, tCO2e/yr."
+            },
+            "reduction_pct": {
+              "type": "number",
+              "minimum": -1,
+              "maximum": 1,
+              "description": "FRACTION in [0,1] (occasionally slightly negative for an increase), e.g. 0.70 for a 70% reduction, computed as (baseline - post) / baseline if omitted. NOT a whole-number percent — a value like 70 belongs here as 0.70. The template's renderer multiplies this by 100 when displaying it (a raw 70 would print as \"7000%\"; a real Crystal View Apartments report shipped exactly that bug, 2026-08-15)."
+            },
+            "combined_post_retrofit_tco2e": {
+              "type": "number",
+              "description": "Post-retrofit annual emissions (tCO2e/yr) after measures AND grid decarbonization combined."
+            },
+            "grid_decarb_reduction_pct": {
+              "type": "number",
+              "minimum": -1,
+              "maximum": 1,
+              "description": "Additional emissions-reduction fraction (0-1) attributable to grid decarbonization beyond the measures-only headline."
+            },
+            "basis": {
+              "type": "string",
+              "enum": [
+                "measures_only"
+              ],
+              "description": "Marks post_retrofit_tco2e/reduction_pct as measures-only (grid decarbonization reported separately). Absent => legacy combined figure."
+            },
+            "efficiency_reduction_pct": {
+              "type": "number",
+              "minimum": -1,
+              "maximum": 1,
+              "description": "Emissions-reduction fraction (0-1) from efficiency + electrification measures ONLY, excluding on-site generation. The like-for-like partner of impact.energy.post_retrofit_kwh, so the carbon and energy panels can be compared on the same measure set."
+            },
+            "post_retrofit_efficiency_tco2e": {
+              "type": "number",
+              "description": "Annual emissions (tCO2e/yr) after efficiency + electrification measures only, excluding on-site generation."
+            }
+          }
+        },
+        "energy": {
+          "type": "object",
+          "required": [
+            "baseline_kwh",
+            "post_retrofit_kwh"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "baseline_kwh": {
+              "type": "number",
+              "description": "Baseline annual energy use, kWh/yr."
+            },
+            "post_retrofit_kwh": {
+              "type": "number",
+              "description": "Projected post-retrofit annual energy use, kWh/yr. Approximated by applying the engine's overall emissions_reduction_pct ratio to the kWh baseline (no independently modeled per-fuel kWh projection exists yet) — not an exact figure."
+            },
+            "eui_baseline": {
+              "type": "number",
+              "description": "Baseline EUI, kWh/m²/yr, if available."
+            },
+            "eui_target": {
+              "type": "number",
+              "description": "Post-retrofit EUI, kWh/m²/yr, if available."
+            },
+            "net_purchased_kwh": {
+              "type": "number",
+              "description": "Post-retrofit purchased energy net of on-site generation (kWh/yr). Includes solar PV offset — the second, generation-inclusive figure."
+            },
+            "net_purchased_eui": {
+              "type": "number",
+              "description": "Net purchased EUI (kWh/m2/yr) net of on-site generation."
+            },
+            "basis": {
+              "type": "string",
+              "enum": [
+                "efficiency_only"
+              ],
+              "description": "Marks post_retrofit_kwh as excluding on-site generation. Absent => legacy figure that may include generation; the template then uses a neutral label."
+            }
+          }
+        },
+        "regulatory": {
+          "type": "object",
+          "description": "Building performance standard (BPS) compliance context, if applicable to this asset's jurisdiction.",
+          "additionalProperties": false,
+          "properties": {
+            "applicable_standard": {
+              "type": "string",
+              "description": "e.g. 'NYC LL97', 'Boston BERDO', or 'Not applicable' if none."
+            },
+            "compliance_status": {
+              "type": "string",
+              "enum": [
+                "compliant",
+                "non-compliant",
+                "not-applicable"
+              ]
+            },
+            "annual_fine_avoided_usd": {
+              "type": "number",
+              "description": "Estimated annual fine avoided by the decided package, USD/yr, if applicable."
+            },
+            "note": {
+              "type": "string",
+              "description": "Free-text regulatory context (e.g. covered-buildings registry citation)."
+            }
+          }
+        },
+        "trajectory": {
+          "type": "array",
+          "description": "Optional year-by-year EUI and GHG intensity series (engine-derived from aggregateTrajectory; EUI is a ratio-derived projection off the same reduction curve — see projector notes). Powers the EUI/GHGi vs. compliance-threshold exhibit. Omit entirely if the engine trajectory isn't available rather than estimate one.",
+          "items": {
+            "type": "object",
+            "required": [
+              "year"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "year": {
+                "type": "integer"
+              },
+              "eui_kwh_m2": {
+                "type": "number",
+                "description": "Projected EUI, kWh/m²/yr."
+              },
+              "ghgi_kgco2_m2": {
+                "type": "number",
+                "description": "Projected (planned-package) GHG intensity, kgCO2e/m²/yr."
+              },
+              "ghgi_bau_kgco2_m2": {
+                "type": "number",
+                "description": "Business-as-usual GHG intensity, kgCO2e/m²/yr, for reference."
+              },
+              "net_purchased_eui_kwh_m2": {
+                "type": "number",
+                "description": "Net purchased EUI for that year (kWh/m2/yr) after on-site generation offsets grid draw. Omitted when the plan has no on-site generation."
+              }
+            }
+          }
+        },
+        "bps_thresholds": {
+          "type": "array",
+          "description": "Optional building-performance-standard threshold lines drawn on the EUI (metric 'eui') and GHGi (metric 'ghgi') trajectory charts as horizontal dashed limits with a right-aligned label. Values must be in the chart's own unit (EUI: kWh/m²/yr; GHGi: kgCO2e/m²/yr) — never converted at render time. Real, cited thresholds only — omit rather than estimate.",
+          "items": {
+            "type": "object",
+            "required": [
+              "metric",
+              "value",
+              "label"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "metric": {
+                "type": "string",
+                "enum": [
+                  "eui",
+                  "ghgi"
+                ],
+                "description": "Which trajectory chart the threshold belongs to."
+              },
+              "value": {
+                "type": "number",
+                "description": "Threshold value, in the chart's own unit."
+              },
+              "label": {
+                "type": "string",
+                "description": "Short label drawn right-aligned above the line (e.g. 'LL97 2030 limit')."
+              },
+              "source": {
+                "type": "string",
+                "description": "Citation for the threshold (program document, statute, registry)."
+              }
+            }
+          }
+        },
+        "crrem": {
+          "type": "object",
+          "description": "Real CRREM compliance pathway, only present when the engagement was derived with a crrem_region. NEVER hand-drawn or estimated — must come from the engine's fetched pathway verbatim, or be omitted.",
+          "additionalProperties": false,
+          "properties": {
+            "pathway": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": [
+                  "year",
+                  "carbon_kgco2_m2yr"
+                ],
+                "additionalProperties": false,
+                "properties": {
+                  "year": {
+                    "type": "integer"
+                  },
+                  "carbon_kgco2_m2yr": {
+                    "type": "number"
+                  },
+                  "eui_kwh_m2yr": {
+                    "type": "number",
+                    "description": "CRREM's own real EUI-native target for this year, if the fetched pathway includes one. Never derived from the carbon figure via a grid factor — omit rather than approximate."
+                  }
+                }
+              }
+            },
+            "meta": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "country": {
+                  "type": "string"
+                },
+                "property_type": {
+                  "type": "string"
+                },
+                "region": {
+                  "type": "string"
+                },
+                "blend": {
+                  "type": "array",
+                  "description": "Per-property-type GFA blend used to build a mixed-use CRREM pathway.",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "gfa_m2": {
+                        "type": "number"
+                      },
+                      "property_type": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "measure_descriptions": {
+      "type": "object",
+      "description": "Section 5 — Measure Descriptions. The plain-language scope of each recommended measure, developed with the client after the bundle and strategy are agreed and BEFORE the report is produced. Server-projected from the engagement record; omit entirely when there are none (the section is then hidden).",
+      "additionalProperties": false,
+      "properties": {
+        "items": {
+          "type": "array",
+          "description": "One entry per recommended measure, ordered to match the measures table.",
+          "items": {
+            "type": "object",
+            "required": [
+              "measure",
+              "description"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "measure": {
+                "type": "string",
+                "description": "Measure name as it appears in the measures table."
+              },
+              "description": {
+                "type": "string",
+                "description": "What the work actually is, in the client's terms — equipment, location, dependencies. Not the economics."
+              },
+              "unmatched_measure": {
+                "type": "boolean",
+                "description": "Set by the projector when NO measure of this name exists in the record at all (renamed in Audette, or dropped after the description was agreed). Rendered as a \"confirm this scope is current\" note, not dropped."
+              },
+              "in_alternative_plan": {
+                "type": "boolean",
+                "description": "Set by the projector when this measure exists but sits in a non-recommended plan. Rendered as \"Alternative — not part of the recommended plan\"; not an error."
+              }
+            }
+          }
+        }
+      }
+    },
+    "implementation": {
+      "type": "object",
+      "description": "Section 6 — Implementation Considerations.",
+      "additionalProperties": false,
+      "properties": {
+        "narrative": {
+          "type": "string",
+          "description": "Prose discussion of sequencing, tenant/owner coordination, permitting, or other execution considerations."
+        },
+        "considerations": {
+          "type": "array",
+          "description": "Discrete implementation items (risks, dependencies, timing notes).",
+          "items": {
+            "type": "object",
+            "required": [
+              "title",
+              "detail"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "title": {
+                "type": "string"
+              },
+              "detail": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    },
+    "incentive_programs": {
+      "type": "object",
+      "description": "Section 6 — Incentive Programs. Real, sourced incentive/rebate/financing research applicable to this asset (from the incentive research agent, when available). Omit entirely rather than hand-estimate a program.",
+      "additionalProperties": false,
+      "properties": {
+        "summary": {
+          "type": "string"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "program",
+              "description"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "program": {
+                "type": "string",
+                "description": "Program/incentive name and authority."
+              },
+              "description": {
+                "type": "string",
+                "description": "What the program offers and how it applies to this asset/measures."
+              },
+              "reference": {
+                "type": "string",
+                "description": "Grounded citation for the program — administering authority + program/statute (e.g. 'Austin Energy — Multifamily HVAC Rebate' or 'IRC §168(k)'). From the incentives research agent; a dollar figure with no reference is not defensible."
+              }
+            }
+          }
+        }
+      }
+    },
+    "compliance_notes": {
+      "type": "object",
+      "description": "Section 6 — Compliance Notes. How this building performs against real building-performance-standard/compliance programs applicable to its jurisdiction (e.g. WA Clean Buildings Act, Seattle BEPS) — real, sourced status only. Omit entirely rather than fabricate a compliance status or target; this section is intentionally unpopulated until a real, cited compliance-rules data source exists (mirroring the rigor of CRREM region / incentive-rules.json).",
+      "additionalProperties": false,
+      "properties": {
+        "summary": {
+          "type": "string"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "program",
+              "description"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "program": {
+                "type": "string",
+                "description": "Compliance program name and jurisdiction/authority."
+              },
+              "description": {
+                "type": "string",
+                "description": "How this building performs against the program's real, cited target/threshold."
+              }
+            }
+          }
+        }
+      }
+    },
+    "executive_summary_block": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Executive summary, authored interactively with the user as the final workflow step. Rendered above the Summary narrative on page 1.",
+      "properties": {
+        "headline": {
+          "type": "string"
+        },
+        "crrem_status": {
+          "type": "string"
+        },
+        "divergence_year": {
+          "type": "number"
+        },
+        "recommendation": {
+          "type": "string"
+        },
+        "limitations": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

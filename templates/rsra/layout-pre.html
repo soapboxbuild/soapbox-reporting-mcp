@@ -1,0 +1,740 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Rapid Sustainability Risk Assessment</title>
+  <style>
+    /* ─── DESIGN TOKENS ─── */
+    :root {
+      --navy:   #12253A;
+      --stone:  #2C3E50;
+      --ink:    #1A1A2E;
+      --sage:   #1F6B45;
+      --cloud:  #F8F9FB;
+      --card:   #FFFFFF;
+      --muted:  #64748B;
+      --border: #CBD5E1;
+      --rule:   #E2E8EF;
+
+      --signal-low-bg:      #EDF7F2;
+      --signal-low-fg:      #0D5C39;
+      --signal-low-border:  #1F6B45;
+      --signal-opp-bg:      #EDF7F2;
+      --signal-opp-fg:      #0D5C39;
+      --signal-opp-border:  #1F6B45;
+      --signal-capex-bg:    #FEF9EC;
+      --signal-capex-fg:    #7A4F00;
+      --signal-capex-border:#B8860B;
+      --signal-high-bg:     #FEF2F2;
+      --signal-high-fg:     #7F1D1D;
+      --signal-high-border: #B91C1C;
+    }
+
+    /* ─── RESET ─── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      background: #F8F9FB;
+      margin: 0;
+      font-family: -apple-system, 'Helvetica Neue', Arial, sans-serif;
+      font-size: 13px;
+      color: var(--ink);
+      line-height: 1.6;
+    }
+
+    /* ─── REPORT WRAPPER ─── */
+    .report {
+      max-width: 780px;
+      margin: 0 auto;
+      padding: 40px 0 80px;
+    }
+
+    /* ─────────────────────────────────
+       1. DOCUMENT HEADER
+    ───────────────────────────────── */
+    /* NOTE: id="signal-hero-wrapper" gets class="signal-hero <signal>" written by JS.
+       We do NOT style by .signal-hero class — we style the doc-header child by ID.
+       The outer wrapper is intentionally unstyled so JS className overwrite is harmless. */
+    #signal-hero-wrapper {
+      /* outer wrapper — JS sets class="signal-hero signal-xxx", we ignore that */
+    }
+
+    .doc-header {
+      background: #12253A;
+      color: white;
+      padding: 32px 40px 0;
+    }
+
+    .doc-header-eyebrow {
+      font-size: 8px;
+      font-weight: 600;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: #4CAF82;
+      margin-bottom: 8px;
+      font-family: -apple-system, 'Helvetica Neue', Arial, sans-serif;
+    }
+
+    .doc-header-property-name {
+      font-family: -apple-system, 'Helvetica Neue', Arial, sans-serif;
+      font-size: 28px;
+      font-weight: 700;
+      color: #ffffff;
+      margin: 8px 0 4px;
+      line-height: 1.2;
+    }
+
+    .doc-header-address {
+      font-size: 13px;
+      font-weight: 300;
+      color: rgba(255,255,255,0.65);
+      margin-bottom: 24px;
+    }
+
+    /* ─── Meta bar (light strip at base of header) ─── */
+    .meta-bar {
+      display: flex;
+      gap: 32px;
+      padding: 14px 40px;
+      background: #F1F4F8;
+      border-top: 1px solid #CBD5E1;
+      font-size: 11px;
+    }
+
+    .meta-bar-right {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+    }
+
+    .meta-item {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .meta-item .meta-label {
+      color: #64748B;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      font-size: 9px;
+      font-family: -apple-system, 'Helvetica Neue', Arial, sans-serif;
+    }
+
+    .meta-item .meta-value {
+      color: #12253A;
+      font-weight: 600;
+      font-size: 12px;
+      font-family: -apple-system, 'Helvetica Neue', Arial, sans-serif;
+    }
+
+    .meta-confidential {
+      font-size: 9px;
+      font-weight: 600;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: #64748B;
+      font-variant: small-caps;
+    }
+
+    /* Prepared-for strip (bottom of header) */
+    .doc-header-meta-strip {
+      background: #1A3550;
+      padding: 8px 40px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 11px;
+      color: rgba(255,255,255,0.5);
+    }
+
+    .doc-header-meta-strip span {
+      color: rgba(255,255,255,0.5);
+    }
+
+    #cover-meta-date {
+      white-space: nowrap;
+    }
+
+    /* ─────────────────────────────────
+       2. EXECUTIVE SUMMARY
+       NOTE: id="cover-signal-row" gets className wiped by JS to
+       "cover-signal-row signal-xxx". We style by #id + .signal-xxx combinators
+       so our rules survive the JS overwrite.
+    ───────────────────────────────── */
+    #cover-signal-row {
+      background: white;
+      padding: 20px 40px;
+      margin: 0;
+      display: block;
+      border-left: 4px solid #1F6B45; /* default; overridden below */
+    }
+
+    /* Signal color variants — border + text colors */
+    #cover-signal-row.signal-low,
+    #cover-signal-row.signal-opportunity {
+      border-left-color: #1F6B45;
+      background: #EDF7F2;
+    }
+    #cover-signal-row.signal-capex {
+      border-left-color: #B8860B;
+      background: #FEF9EC;
+    }
+    #cover-signal-row.signal-high {
+      border-left-color: #B91C1C;
+      background: #FEF2F2;
+    }
+
+    .exec-summary-label {
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: #64748B;
+      margin-bottom: 8px;
+      font-family: -apple-system, 'Helvetica Neue', Arial, sans-serif;
+      display: block;
+    }
+
+    /* .signal-badge is written by JS */
+    #cover-signal-row .signal-badge {
+      display: block;
+      font-family: -apple-system, 'Helvetica Neue', Arial, sans-serif;
+      font-size: 20px;
+      font-weight: 700;
+      margin-bottom: 8px;
+      line-height: 1.2;
+    }
+
+    #cover-signal-row.signal-low    .signal-badge,
+    #cover-signal-row.signal-opportunity .signal-badge { color: #0D5C39; }
+    #cover-signal-row.signal-capex  .signal-badge { color: #7A4F00; }
+    #cover-signal-row.signal-high   .signal-badge { color: #7F1D1D; }
+
+    /* .signal-narrative is written by JS */
+    #cover-signal-row .signal-narrative {
+      display: block;
+      font-size: 13px;
+      line-height: 1.65;
+      color: #2C3E50;
+      max-width: 680px;
+    }
+
+    /* ─────────────────────────────────
+       SECTIONS — white cards with 2px gap
+    ───────────────────────────────── */
+    .section {
+      padding: 32px 40px;
+      background: white;
+      margin-bottom: 2px;
+      border-radius: 0;
+    }
+
+    .section-label {
+      font-size: 9px;
+      font-weight: 600;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: #1F6B45;
+      margin-bottom: 4px;
+      font-family: -apple-system, 'Helvetica Neue', Arial, sans-serif;
+    }
+
+    .section-title {
+      font-family: -apple-system, 'Helvetica Neue', Arial, sans-serif;
+      font-size: 18px;
+      font-weight: 700;
+      color: #12253A;
+      margin-bottom: 16px;
+      border-bottom: 1.5px solid #12253A;
+      padding-bottom: 8px;
+    }
+
+    /* ─────────────────────────────────
+       3. CAPEX CARDS — styled tabular, consulting look
+       (JS populates #capex-cards-list with .capex-card divs;
+        we cannot use a real <table> because JS fills cards not tbody)
+    ───────────────────────────────── */
+    .capex-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+    }
+
+    .capex-card {
+      background: var(--card);
+      padding: 10px 12px;
+      border-bottom: 1px solid #E2E8EF;
+      border-left: none;
+      border-radius: 0;
+      box-shadow: none;
+    }
+
+    .capex-card:nth-child(even) {
+      background: #F8F9FB;
+    }
+
+    /* Faux table header — above the card list */
+    .capex-table-head {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: #12253A;
+      color: white;
+      padding: 10px 12px;
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      font-family: -apple-system, 'Helvetica Neue', Arial, sans-serif;
+    }
+
+    .capex-table-head .col-measure { flex: 1; }
+    .capex-table-head .col-timing  { width: 90px; text-align: center; }
+    .capex-table-head .col-amount  { width: 90px; text-align: right; }
+
+    .capex-card-top {
+      display: flex;
+      align-items: baseline;
+      gap: 12px;
+      margin-bottom: 4px;
+    }
+
+    .capex-measure {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--ink);
+      flex: 1;
+      line-height: 1.4;
+    }
+
+    .timing-badge {
+      display: inline-block;
+      font-size: 10px;
+      font-weight: 600;
+      padding: 2px 7px;
+      border-radius: 0;
+      white-space: nowrap;
+      flex-shrink: 0;
+      font-family: -apple-system, 'Helvetica Neue', Arial, sans-serif;
+      letter-spacing: 0.04em;
+    }
+
+    .timing-early  { background: #EDF3FF; color: #1E3A8A; }
+    .timing-mid    { background: #FEF9EC; color: #7A4F00; }
+    .timing-late   { background: #FDF2F8; color: #701A4A; }
+    .timing-ongoing{ background: #F1F5F9; color: #475569; }
+
+    .capex-incentives {
+      margin-bottom: 6px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+    }
+
+    .incentive-pill {
+      display: inline-block;
+      font-size: 10px;
+      font-weight: 500;
+      padding: 1px 7px;
+      border: 1px solid #CBD5E1;
+      color: #1F6B45;
+      background: #F8FBF9;
+      white-space: nowrap;
+      border-radius: 0;
+    }
+
+    .capex-amounts {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      font-size: 11px;
+      margin-top: 4px;
+    }
+
+    .capex-fin-impact {
+      color: var(--muted);
+      font-size: 11px;
+      font-style: italic;
+    }
+
+    .capex-co2 {
+      font-weight: 600;
+      color: #1F6B45;
+    }
+
+    .capex-per-unit {
+      color: var(--muted);
+      font-family: 'Courier New', monospace;
+      font-size: 11px;
+    }
+
+    .capex-total {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--ink);
+      margin-left: auto;
+      font-family: 'Courier New', monospace;
+    }
+
+    /* Total row */
+    .capex-total-card {
+      background: #1A3550;
+      color: white;
+      padding: 12px 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 0;
+      border-radius: 0;
+    }
+
+    .capex-total-card .label {
+      font-size: 11px;
+      font-weight: 600;
+      opacity: 0.75;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      font-family: -apple-system, 'Helvetica Neue', Arial, sans-serif;
+    }
+
+    .capex-total-card .amounts {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+    }
+
+    .capex-total-card .total-amount {
+      font-size: 16px;
+      font-weight: 700;
+      font-family: 'Courier New', monospace;
+    }
+
+    .capex-total-card .per-unit {
+      font-size: 12px;
+      opacity: 0.65;
+      font-family: 'Courier New', monospace;
+    }
+
+    .capex-total-card .co2-total {
+      font-size: 12px;
+      color: #4CAF82;
+      font-weight: 600;
+    }
+
+    /* ─────────────────────────────────
+       4. EMISSIONS PROFILE
+    ───────────────────────────────── */
+    .emissions-card {
+      background: var(--card);
+      padding: 0;
+      margin-bottom: 0;
+      box-shadow: none;
+    }
+
+    /* Emissions profile — table layout avoids grid breakage when JS shows/hides individual dt/dd */
+    .profile-dl {
+      display: table;
+      width: 100%;
+      border-collapse: collapse;
+      border-top: 1px solid #E2E8EF;
+      margin-top: 0;
+    }
+
+    .profile-dt, .profile-dd {
+      display: table-cell;
+      padding: 10px 12px;
+      font-size: 13px;
+      border-bottom: 1px solid #E2E8EF;
+      line-height: 1.5;
+      vertical-align: top;
+    }
+
+    /* Each dt+dd pair is a row — achieved by wrapping in a div that acts as table-row */
+    .profile-row {
+      display: table-row;
+    }
+
+    .profile-row:last-child .profile-dt,
+    .profile-row:last-child .profile-dd {
+      border-bottom: none;
+    }
+
+    .profile-dt {
+      font-weight: 600;
+      font-size: 11px;
+      color: #64748B;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      background: #F8F9FB;
+      font-family: -apple-system, 'Helvetica Neue', Arial, sans-serif;
+      width: 160px;
+    }
+
+    .profile-dd {
+      color: var(--ink);
+      background: var(--card);
+    }
+
+    /* Regulation risk */
+    .reg-high     { color: #B91C1C; font-weight: 600; }
+    .reg-moderate { color: #B45309; font-weight: 600; }
+    .reg-low      { color: #0D5C39; font-weight: 600; }
+
+    /* Benchmark chart */
+    .benchmark-chart {
+      margin-top: 16px;
+      padding: 14px 16px;
+      background: var(--cloud);
+      border: 1px solid var(--border);
+    }
+
+    .benchmark-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 8px;
+    }
+    .benchmark-row:last-of-type { margin-bottom: 0; }
+
+    .benchmark-label {
+      width: 130px;
+      flex-shrink: 0;
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--ink);
+    }
+
+    .benchmark-bar-track {
+      flex: 1;
+      height: 5px;
+      background: var(--border);
+      overflow: hidden;
+    }
+
+    .benchmark-bar {
+      height: 100%;
+    }
+
+    .benchmark-figure {
+      width: 56px;
+      text-align: right;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--ink);
+      flex-shrink: 0;
+      font-family: 'Courier New', monospace;
+    }
+
+    .benchmark-unit {
+      margin-top: 6px;
+      font-size: 11px;
+      color: var(--muted);
+      text-align: right;
+    }
+
+    /* ─────────────────────────────────
+       signal-box: hidden — signal is in exec-summary above
+    ───────────────────────────────── */
+    #signal-box { display: none; }
+
+    /* ─────────────────────────────────
+       5. SELLER QUESTIONS
+    ───────────────────────────────── */
+    .questions-list {
+      list-style: none;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+    }
+
+    /* JS emits .question-card / .seller-q-num / .question-text */
+    .question-card {
+      background: transparent;
+      border-radius: 0;
+      padding: 14px 0;
+      display: flex;
+      gap: 16px;
+      align-items: flex-start;
+      box-shadow: none;
+      border-bottom: 1px solid #E2E8EF;
+      font-size: 13px;
+      line-height: 1.6;
+    }
+
+    .question-card:last-child {
+      border-bottom: none;
+    }
+
+    .seller-q-num {
+      font-family: -apple-system, 'Helvetica Neue', Arial, sans-serif;
+      font-size: 12px;
+      font-weight: 700;
+      color: #1F6B45;
+      flex-shrink: 0;
+      width: 24px;
+      background: transparent;
+      border-radius: 0;
+      height: auto;
+      display: block;
+      text-align: left;
+      line-height: 1.6;
+    }
+
+    .question-text {
+      font-size: 13px;
+      line-height: 1.6;
+      color: var(--ink);
+      padding-top: 0;
+    }
+
+    /* ─────────────────────────────────
+       SHARED TABLE — physical risk, GHG, SDG
+    ───────────────────────────────── */
+    .profile-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+      margin-top: 4px;
+    }
+    .profile-table th {
+      background: #12253A;
+      color: #fff;
+      text-align: left;
+      padding: 8px 12px;
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+    .profile-table td {
+      padding: 8px 12px;
+      border-bottom: 1px solid #E2E8F0;
+      vertical-align: top;
+      color: #334155;
+    }
+    .profile-table tr:nth-child(even) td { background: #F8F9FB; }
+    .risk-high { color: #B91C1C; font-weight: 600; }
+    .risk-moderate { color: #92400E; font-weight: 600; }
+    .risk-low { color: #065F46; font-weight: 600; }
+
+    /* ─────────────────────────────────
+       6. SOURCES (collapsible)
+    ───────────────────────────────── */
+    #sources-section details {
+      background: var(--card);
+      border: 1px solid var(--border);
+      overflow: hidden;
+    }
+
+    #sources-section summary {
+      padding: 12px 16px;
+      font-size: 12px;
+      font-weight: 600;
+      color: #12253A;
+      cursor: pointer;
+      list-style: none;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      font-family: -apple-system, 'Helvetica Neue', Arial, sans-serif;
+    }
+
+    #sources-section summary::before {
+      content: '▶';
+      font-size: 9px;
+      transition: transform 0.15s;
+    }
+
+    #sources-section details[open] summary::before {
+      transform: rotate(90deg);
+    }
+
+    #sources-section .sources-inner {
+      padding: 0 16px 12px;
+    }
+
+    .sources-list {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+    }
+
+    .source-item {
+      display: flex;
+      gap: 10px;
+      padding: 8px 0;
+      border-bottom: 1px solid var(--rule);
+      font-size: 12px;
+      line-height: 1.4;
+    }
+    .source-item:last-child { border-bottom: none; }
+
+    .source-num {
+      flex-shrink: 0;
+      width: 18px;
+      font-weight: 600;
+      color: var(--muted);
+    }
+
+    .source-body { flex: 1; }
+
+    .source-label { font-weight: 500; color: var(--ink); }
+    .source-value { color: var(--muted); }
+    .source-url {
+      font-family: 'Courier New', monospace;
+      font-size: 11px;
+      color: #1F6B45;
+      text-decoration: none;
+      word-break: break-all;
+    }
+
+    /* ─────────────────────────────────
+       7. CONFIDENCE NOTE
+    ───────────────────────────────── */
+    .confidence-note {
+      margin-top: 8px;
+      font-size: 11px;
+      color: var(--muted);
+      line-height: 1.5;
+      font-style: italic;
+      padding: 0 40px;
+    }
+
+    .confidence-note strong {
+      color: var(--ink);
+      font-weight: 600;
+      font-style: normal;
+    }
+
+    /* ─────────────────────────────────
+       DISPOSITION BANNER
+    ───────────────────────────────── */
+    .disposition-banner {
+      background: #12253A;
+      color: #fff;
+      text-align: center;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      padding: 7px 16px;
+      margin-bottom: 2px;
+      border-radius: 0;
+      font-family: -apple-system, 'Helvetica Neue', Arial, sans-serif;
+    }
+
+    /* ─── UTILITY ─── */
+    .sr-only {
+      position: absolute; width: 1px; height: 1px;
+      overflow: hidden; clip: rect(0,0,0,0);
+    }
+  </style>
+</head>
+<body>
+

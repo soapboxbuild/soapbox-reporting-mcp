@@ -1,0 +1,492 @@
+{
+  "$comment": "Portfolio Analysis Excel companion — analyst verification workbook. Structure: (1) Parameters, (2) Source data used in the analysis, (3) Per-measure economics the analyst can audit, (4) Report output tables, (5) Conditional sheets (CRREM/BPS/Below Hurdle/Deferred). Every number in the HTML report should be traceable back to a row in this workbook. Driven by build_xlsx.py --template portfolio-analysis.",
+
+  "filename_pattern": "portfolio-analysis_{client}_{YYYY-MM-DD}.xlsx",
+
+  "sheets": [
+
+    {
+      "id": "inputs",
+      "name": "Inputs",
+      "order": 1,
+      "type": "key_value",
+      "description": "Run parameters — every assumption used in the analysis. An analyst can reproduce any number in the report starting from this sheet.",
+      "rows": [
+        { "label": "Client",                         "data_path": "client_name" },
+        { "label": "Portfolio",                      "data_path": "portfolio_id" },
+        { "label": "Report Date",                    "data_path": "report_date" },
+        { "label": "Prepared By",                    "data_path": "prepared_by" },
+        { "label": "",                               "type": "spacer" },
+        { "label": "IRR Hurdle",                     "data_path": "parameters.irr_hurdle",         "format": "0.0%" },
+        { "label": "Discount Rate",                  "data_path": "parameters.discount_rate",       "format": "0.0%" },
+        { "label": "Utility Escalation (annual)",    "data_path": "parameters.utility_escalation",  "format": "0.0%" },
+        { "label": "Exit Year Floor",                "data_path": "parameters.exit_year_floor" },
+        { "label": "Retrofit Lead Time (months)",    "data_path": "parameters.retrofit_lead_months" },
+        { "label": "Value Method",                   "data_path": "parameters.value_method" },
+        { "label": "",                               "type": "spacer" },
+        { "label": "CRREM Analysis",                 "data_path": "parameters.include_crrem" },
+        { "label": "BPS Analysis",                   "data_path": "parameters.include_bps" },
+        { "label": "Org Goal",                       "data_path": "parameters.org_goal",            "omit_if_null": true },
+        { "label": "",                               "type": "spacer" },
+        { "label": "Audette Account",                "data_path": "parameters.audette_account" },
+        { "label": "Funds Analyzed",                 "data_path": "parameters.fund_filter" },
+        { "label": "Assets Analyzed",                "data_path": "portfolio_kpis.assets_total",    "format": "#,##0" }
+      ],
+      "columns": [
+        { "header": "Parameter", "width": 32 },
+        { "header": "Value",     "width": 40 }
+      ],
+      "style": {
+        "label_column": { "bold": true, "fill": "accent" }
+      }
+    },
+
+    {
+      "id": "asset_source_data",
+      "name": "Asset Source Data",
+      "order": 2,
+      "type": "table",
+      "description": "Raw per-asset data from Audette and uploaded documents — the inputs to the DCF model. An analyst verifies EUI, carbon intensity, and data quality against the source before accepting report outputs.",
+      "data_path": "asset_source_data",
+      "columns": [
+        { "header": "Asset",                   "data_key": "asset_name",            "width": 30 },
+        { "header": "Fund",                    "data_key": "fund",                  "width": 16 },
+        { "header": "Type",                    "data_key": "property_type",         "width": 18 },
+        { "header": "GFA (m²)",               "data_key": "gfa_m2",               "width": 14, "format": "#,##0" },
+        { "header": "Year Built",              "data_key": "year_built",            "width": 12 },
+        { "header": "Exit Year",               "data_key": "exit_year",             "width": 12 },
+        { "header": "Exit Cap Rate",           "data_key": "exit_cap_rate",         "width": 16, "format": "0.00%",   "omit_if_all_null": true },
+        { "header": "GAV ($)",                 "data_key": "gav",                   "width": 18, "format": "$#,##0",  "omit_if_all_null": true },
+        { "header": "Going-In NOI ($)",        "data_key": "going_in_noi",          "width": 18, "format": "$#,##0" },
+        { "header": "EUI (kWh/m²)",           "data_key": "eui_kwh_m2",           "width": 16, "format": "#,##0.0" },
+        { "header": "GHGi (kgCO₂e/m²)",      "data_key": "ghgi_kg_m2",           "width": 20, "format": "#,##0.0" },
+        { "header": "Baseline Emissions (tCO₂e)","data_key": "baseline_emissions_tco2","width": 26, "format": "#,##0" },
+        { "header": "Lease Structure",         "data_key": "lease_structure",       "width": 18 },
+        { "header": "Metering Config",         "data_key": "metering_config",       "width": 18 },
+        { "header": "Jurisdiction",            "data_key": "jurisdiction",          "width": 18 },
+        { "header": "Audette Linked",          "data_key": "audette_linked",        "width": 16 },
+        { "header": "Data Source",             "data_key": "data_source",           "width": 20 },
+        { "header": "Data Quality",            "data_key": "data_quality",          "width": 16 }
+      ],
+      "conditional_formatting": {
+        "data_quality": {
+          "High":   { "fill": "#D1FAE5" },
+          "Medium": { "fill": "#FFFBEB" },
+          "Low":    { "fill": "#FEE2E2" }
+        }
+      },
+      "freeze_panes": "B2",
+      "note": "EUI and GHGi marked Low quality are based on BPD benchmark median — carry ±40% uncertainty. Verify against utility bills before acting on specific assets."
+    },
+
+    {
+      "id": "values_and_cap_rates",
+      "name": "Values & Cap Rates",
+      "order": 3,
+      "type": "table",
+      "description": "Per-asset financial parameters used in DCF — exit year, cap rate, GAV, hold period. Verify against IC memos or fund term sheets.",
+      "data_path": "assets",
+      "columns": [
+        { "header": "Asset",              "data_key": "asset_name",       "width": 30 },
+        { "header": "Fund",               "data_key": "fund",             "width": 18 },
+        { "header": "Exit Year",          "data_key": "exit_year",        "width": 12 },
+        { "header": "Hold Period (yrs)",  "data_key": "hold_period_years","width": 18, "format": "#,##0.0" },
+        { "header": "Exit Cap Rate",      "data_key": "exit_cap_rate",    "width": 16, "format": "0.00%",  "omit_if_all_null": true },
+        { "header": "Going-In NOI ($)",   "data_key": "going_in_noi",     "width": 18, "format": "$#,##0" },
+        { "header": "GAV ($)",            "data_key": "gav",              "width": 18, "format": "$#,##0", "omit_if_all_null": true }
+      ],
+      "freeze_panes": "B2"
+    },
+
+    {
+      "id": "measure_economics",
+      "name": "Measure Economics",
+      "order": 4,
+      "type": "table",
+      "description": "Every measure for every asset — the full IRR calculation inputs and result. This is the primary audit layer: any IRR or value creation number in the report traces back to a row here.",
+      "data_path": "all_measures",
+      "columns": [
+        { "header": "Asset",                  "data_key": "asset_name",          "width": 28 },
+        { "header": "Fund",                   "data_key": "fund",                "width": 14 },
+        { "header": "Measure",                "data_key": "measure",             "width": 30, "wrap": true },
+        { "header": "Category",               "data_key": "category",            "width": 22 },
+        { "header": "Status",                 "data_key": "status",              "width": 14 },
+        { "header": "Install Year",           "data_key": "install_year",        "width": 14 },
+        { "header": "CapEx Gross ($)",        "data_key": "capex_gross",         "width": 18, "format": "$#,##0" },
+        { "header": "IRA Credit",             "data_key": "ira_credit",          "width": 18 },
+        { "header": "CapEx Net ($)",          "data_key": "capex_net",           "width": 16, "format": "$#,##0" },
+        { "header": "Annual Savings ($)",     "data_key": "annual_savings",      "width": 20, "format": "$#,##0" },
+        { "header": "LL Capture %",           "data_key": "ll_capture_pct",      "width": 16, "format": "0.0%" },
+        { "header": "Annual NOI Uplift ($)",  "data_key": "annual_noi_uplift",   "width": 22, "format": "$#,##0" },
+        { "header": "Exit Value Uplift ($)",  "data_key": "exit_value_uplift",   "width": 22, "format": "$#,##0" },
+        { "header": "IRR",                    "data_key": "irr",                 "width": 12, "format": "0.0%" },
+        { "header": "Value Creation ($)",     "data_key": "value_creation",      "width": 20, "format": "$#,##0" },
+        { "header": "tCO₂ Reduced",          "data_key": "emissions_reduction_tco2","width": 16, "format": "#,##0" },
+        { "header": "$ / tCO₂",             "data_key": "value_per_tco2",      "width": 14, "format": "$#,##0", "omit_if_all_null": true },
+        { "header": "Data Confidence",        "data_key": "data_confidence",     "width": 18 }
+      ],
+      "conditional_formatting": {
+        "status": {
+          "recommended": { "fill": "#D1FAE5" },
+          "below hurdle": { "fill": "#FEF3C7" },
+          "deferred":     { "fill": "#EFF6FF" },
+          "mandatory":    { "fill": "#F0FDF4" }
+        },
+        "data_confidence": {
+          "High":   { "fill": "#D1FAE5" },
+          "Medium": { "fill": "#FFFBEB" },
+          "Low":    { "fill": "#FEE2E2" }
+        }
+      },
+      "freeze_panes": "C2",
+      "note": "Status: recommended = above IRR hurdle; below hurdle = IRR < hurdle; deferred = feasible but insufficient hold period; mandatory = compliance-required regardless of IRR. LL Capture % = fraction of energy savings that flows to landlord NOI."
+    },
+
+    {
+      "id": "portfolio_summary",
+      "name": "Portfolio Summary",
+      "order": 5,
+      "type": "key_value",
+      "description": "Top-level KPIs — mirrors the report KPI bar. Verify by summing All Assets sheet.",
+      "rows": [
+        { "label": "Total CapEx (Net of IRA)",               "data_path": "portfolio_kpis.total_capex_net",            "format": "$#,##0" },
+        { "label": "Total Value Creation",                   "data_path": "portfolio_kpis.total_value_creation",        "format": "$#,##0" },
+        { "label": "Total NOI Uplift (Annual)",              "data_path": "portfolio_kpis.total_noi_uplift_annual",     "format": "$#,##0" },
+        { "label": "Total Emissions Reduction (tCO₂e/yr)",  "data_path": "portfolio_kpis.total_emissions_reduction",   "format": "#,##0" },
+        { "label": "",                                       "type": "spacer" },
+        { "label": "Assets Above IRR Hurdle",                "data_path": "portfolio_kpis.assets_above_hurdle",        "format": "#,##0" },
+        { "label": "Total Assets",                           "data_path": "portfolio_kpis.assets_total",               "format": "#,##0" },
+        { "label": "Assets Pathway-Aligned (2035)",          "data_path": "portfolio_kpis.assets_pathway_aligned_2035","format": "#,##0", "omit_if_null": true },
+        { "label": "BPS Compliance Exposure (No Action)",    "data_path": "portfolio_kpis.total_compliance_exposure",  "format": "$#,##0", "omit_if_null": true }
+      ],
+      "columns": [
+        { "header": "KPI",   "width": 42 },
+        { "header": "Value", "width": 30 }
+      ],
+      "style": {
+        "label_column": { "bold": true, "fill": "accent" }
+      }
+    },
+
+    {
+      "id": "fund_summary",
+      "name": "Fund Summary",
+      "order": 6,
+      "type": "table",
+      "description": "Fund-level rollup — mirrors the Fund-Level Summary section in the HTML report.",
+      "data_path": "fund_summary",
+      "columns": [
+        { "header": "Fund",                         "data_key": "fund",                "width": 24 },
+        { "header": "Assets",                       "data_key": "assets",              "width": 10, "format": "#,##0" },
+        { "header": "CapEx Net ($)",                "data_key": "capex_net",           "width": 18, "format": "$#,##0" },
+        { "header": "Value Creation ($)",           "data_key": "value_creation",      "width": 20, "format": "$#,##0" },
+        { "header": "Emissions Reduction (tCO₂e)", "data_key": "emissions_reduction", "width": 28, "format": "#,##0" },
+        { "header": "Avg IRR",                      "data_key": "avg_irr",             "width": 12, "format": "0.0%" }
+      ],
+      "totals_row": {
+        "label_column": "fund",
+        "label": "TOTAL",
+        "sum_columns": ["assets", "capex_net", "value_creation", "emissions_reduction"],
+        "format": "$#,##0",
+        "bold": true,
+        "fill": "primary"
+      },
+      "charts": [
+        {
+          "id": "value_by_fund",
+          "type": "BarChart",
+          "title": "Value Creation by Fund ($)",
+          "x_axis": "fund",
+          "y_axis": "value_creation",
+          "y_axis_label": "Value Creation ($)",
+          "series_color": "primary",
+          "placement": "right_of_table",
+          "width_cols": 10,
+          "height_rows": 16
+        }
+      ],
+      "freeze_panes": "B2"
+    },
+
+    {
+      "id": "prioritization",
+      "name": "Prioritization",
+      "order": 7,
+      "type": "table",
+      "description": "Asset prioritization — mirrors the Top N Assets section in the HTML report. Backward-looking and outcome-focused columns side by side.",
+      "data_path": "top_assets",
+      "header_note": "Backward-looking: Emissions, EUI, GHGi  |  Outcome-focused: Reduction Possible, CapEx Net, Value Created, IRR",
+      "columns": [
+        { "header": "#",                            "type": "row_index",                    "width": 5  },
+        { "header": "Asset",                        "data_key": "asset_name",               "width": 30 },
+        { "header": "Fund",                         "data_key": "fund",                     "width": 16 },
+        { "header": "Exit Year",                    "data_key": "exit_year",                "width": 12 },
+        { "header": "Emissions (tCO₂e)",            "data_key": "emissions_tco2",           "width": 20, "format": "#,##0" },
+        { "header": "EUI (kWh/m²)",                "data_key": "eui_kwh_m2",              "width": 16, "format": "#,##0.0", "omit_if_all_null": true },
+        { "header": "GHGi (kgCO₂e/m²)",           "data_key": "ghgi_kg_m2",              "width": 20, "format": "#,##0.0", "omit_if_all_null": true },
+        { "header": "Reduction Possible (tCO₂e)",  "data_key": "reduction_possible_tco2",  "width": 26, "format": "#,##0" },
+        { "header": "% Reduction Possible",         "data_key": "pct_reduction_possible",   "width": 22, "format": "0.0%" },
+        { "header": "CapEx Net ($)",                "data_key": "capex_net",                "width": 16, "format": "$#,##0" },
+        { "header": "Value Created ($)",            "data_key": "value_created",            "width": 18, "format": "$#,##0" },
+        { "header": "Avg IRR",                      "data_key": "avg_irr",                  "width": 12, "format": "0.0%" },
+        { "header": "$ / tCO₂",                    "data_key": "value_per_tco2",           "width": 14, "format": "$#,##0", "omit_if_all_null": true },
+        { "header": "Lead Measure",                 "data_key": "lead_measure",             "width": 28, "wrap": true }
+      ],
+      "charts": [
+        {
+          "id": "value_by_asset",
+          "type": "BarChart",
+          "title": "Value Created by Asset ($)",
+          "x_axis": "asset_name",
+          "y_axis": "value_created",
+          "y_axis_label": "Value Created ($)",
+          "series_color": "highlight",
+          "placement": "right_of_table",
+          "width_cols": 12,
+          "height_rows": 18
+        }
+      ],
+      "freeze_panes": "C2",
+      "note": "Sorted by Value Created descending. IRR = unlevered value-inclusive IRR on incremental CapEx net of IRA. Trace any row to Measure Economics sheet for full calculation detail."
+    },
+
+    {
+      "id": "all_assets",
+      "name": "All Assets",
+      "order": 8,
+      "type": "table",
+      "description": "All assets including those with no above-hurdle measures — mirrors the Asset-by-Asset Detail section.",
+      "data_path": "assets",
+      "columns": [
+        { "header": "Asset",                  "data_key": "asset_name",    "width": 30 },
+        { "header": "Fund",                   "data_key": "fund",          "width": 16 },
+        { "header": "Exit Year",              "data_key": "exit_year",     "width": 12 },
+        { "header": "CapEx Net ($)",          "data_key": "capex_net",     "width": 16, "format": "$#,##0" },
+        { "header": "Value Created ($)",      "data_key": "value_created", "width": 18, "format": "$#,##0" },
+        { "header": "% Reduction",            "data_key": "pct_reduction", "width": 14, "format": "0.0%" },
+        { "header": "Avg IRR",                "data_key": "avg_irr",       "width": 12, "format": "0.0%" },
+        { "header": "Value Impact % GAV",     "data_key": "value_pct_gav", "width": 20, "format": "0.00%",  "omit_if_all_null": true },
+        { "header": "CRREM Status",           "data_key": "crrem_status",  "width": 16, "omit_if_all_null": true },
+        { "header": "BPS Exposure ($)",       "data_key": "bps_exposure",  "width": 18, "format": "$#,##0", "omit_if_all_null": true }
+      ],
+      "conditional_formatting": {
+        "crrem_status": {
+          "aligned":   { "fill": "#D1FAE5" },
+          "at risk":   { "fill": "#FFFBEB" },
+          "stranded":  { "fill": "#FEE2E2" }
+        }
+      },
+      "freeze_panes": "B2"
+    },
+
+    {
+      "id": "measure_categories",
+      "name": "Measure Categories",
+      "order": 9,
+      "type": "table",
+      "description": "Recommended measures rolled up by category — mirrors the Measure Category Summary section. Verify by pivoting the Measure Economics sheet.",
+      "data_path": "measure_categories",
+      "columns": [
+        { "header": "Category",            "data_key": "category",       "width": 30 },
+        { "header": "Assets",              "data_key": "assets",         "width": 10, "format": "#,##0" },
+        { "header": "CapEx Net ($)",       "data_key": "capex_net",      "width": 18, "format": "$#,##0" },
+        { "header": "Value Creation ($)",  "data_key": "value_creation", "width": 20, "format": "$#,##0" },
+        { "header": "tCO₂ Reduced",       "data_key": "tco2_reduced",   "width": 16, "format": "#,##0" },
+        { "header": "$ / tCO₂",           "data_key": "value_per_tco2", "width": 14, "format": "$#,##0" }
+      ],
+      "totals_row": {
+        "label_column": "category",
+        "label": "TOTAL",
+        "sum_columns": ["assets", "capex_net", "value_creation", "tco2_reduced"],
+        "format": "$#,##0",
+        "bold": true,
+        "fill": "primary"
+      },
+      "charts": [
+        {
+          "id": "capex_by_category",
+          "type": "BarChart",
+          "title": "CapEx Net by Measure Category ($)",
+          "x_axis": "category",
+          "y_axis": "capex_net",
+          "aggregate": "sum",
+          "y_axis_label": "CapEx Net ($)",
+          "series_color": "primary",
+          "placement": "right_of_table",
+          "width_cols": 12,
+          "height_rows": 16
+        }
+      ],
+      "freeze_panes": "B2"
+    },
+
+    {
+      "id": "emissions_trajectory",
+      "name": "Emissions Trajectory",
+      "order": 10,
+      "type": "table",
+      "description": "Year-by-year absolute tCO₂e/yr for three scenarios and CRREM intensity target — the data behind the SVG chart in the HTML report. Omitted when include_crrem is false.",
+      "data_path": "emissions_trajectory",
+      "omit_if_empty": true,
+      "header_note": "Primary axis: absolute tCO₂e/yr (portfolio total). CRREM column is portfolio-weighted intensity (kgCO₂e/m²) — plotted on secondary axis in the HTML report for compliance comparison.",
+      "columns": [
+        { "header": "Year",                           "data_key": "year",         "width": 10 },
+        { "header": "BAU (tCO₂e/yr)",                "data_key": "bau_tco2",     "width": 20, "format": "#,##0" },
+        { "header": "15% IRR Pathway (tCO₂e/yr)",    "data_key": "irr_tco2",     "width": 28, "format": "#,##0" },
+        { "header": "Max Decarb (tCO₂e/yr)",         "data_key": "max_tco2",     "width": 24, "format": "#,##0" },
+        { "header": "CRREM Target (kgCO₂e/m²)",      "data_key": "crrem_target", "width": 28, "format": "#,##0.0", "omit_if_all_null": true }
+      ],
+      "charts": [
+        {
+          "id": "irr_pathway_trajectory",
+          "type": "LineChart",
+          "title": "15% IRR Pathway — Absolute Emissions (tCO₂e/yr)",
+          "x_axis": "year",
+          "y_axis": "irr_tco2",
+          "y_axis_label": "tCO₂e/yr",
+          "series_color": "primary",
+          "placement": "right_of_table",
+          "width_cols": 14,
+          "height_rows": 22
+        }
+      ],
+      "freeze_panes": "B2"
+    },
+
+    {
+      "id": "crrem_pathway",
+      "name": "CRREM Pathway",
+      "order": 11,
+      "type": "table",
+      "description": "Portfolio-weighted intensity vs. CRREM 1.5°C targets — mirrors the CRREM Pathway Analysis section. Omitted when include_crrem is false.",
+      "data_path": "crrem_trajectory",
+      "omit_if_empty": true,
+      "columns": [
+        { "header": "Metric",         "data_key": "metric",       "width": 38 },
+        { "header": "Current",        "data_key": "current",      "width": 16 },
+        { "header": "With Measures",  "data_key": "with_measures","width": 18 },
+        { "header": "CRREM 2030",     "data_key": "crrem_2030",   "width": 16 },
+        { "header": "CRREM 2035",     "data_key": "crrem_2035",   "width": 16 },
+        { "header": "CRREM 2040",     "data_key": "crrem_2040",   "width": 16 }
+      ],
+      "freeze_panes": "B2"
+    },
+
+    {
+      "id": "bps_exposure",
+      "name": "BPS Exposure",
+      "order": 12,
+      "type": "table",
+      "description": "Per-asset BPS liability and fine avoidance — mirrors the Building Performance Standards section. Omitted when include_bps is false.",
+      "data_path": "bps_assets",
+      "omit_if_empty": true,
+      "columns": [
+        { "header": "Asset",                         "data_key": "asset_name",    "width": 30 },
+        { "header": "Fund",                          "data_key": "fund",          "width": 16 },
+        { "header": "Jurisdiction",                  "data_key": "jurisdiction",  "width": 20 },
+        { "header": "BPS Status",                    "data_key": "bps_status",    "width": 14 },
+        { "header": "Annual Fine — No Action ($)",   "data_key": "annual_fine",   "width": 28, "format": "$#,##0" },
+        { "header": "Fine Avoidance — Measures ($)", "data_key": "fine_avoidance","width": 30, "format": "$#,##0" }
+      ],
+      "conditional_formatting": {
+        "bps_status": {
+          "liable":     { "fill": "#FEE2E2" },
+          "not liable": { "fill": "#D1FAE5" },
+          "unknown":    { "fill": "#F3F4F6" }
+        }
+      },
+      "totals_row": {
+        "label_column": "asset_name",
+        "label": "TOTAL",
+        "sum_columns": ["annual_fine", "fine_avoidance"],
+        "format": "$#,##0",
+        "bold": true,
+        "fill": "primary"
+      },
+      "charts": [
+        {
+          "id": "fine_by_asset",
+          "type": "BarChart",
+          "title": "Annual BPS Fine Exposure by Asset ($)",
+          "x_axis": "asset_name",
+          "y_axis": "annual_fine",
+          "y_axis_label": "Annual Fine ($)",
+          "series_color": "text_muted",
+          "placement": "right_of_table",
+          "width_cols": 12,
+          "height_rows": 16
+        }
+      ],
+      "freeze_panes": "B2"
+    },
+
+    {
+      "id": "below_hurdle",
+      "name": "Below Hurdle",
+      "order": 13,
+      "type": "table",
+      "description": "Measures that did not meet the IRR hurdle — shown for transparency and scenario planning. Omitted if none exist.",
+      "data_path": "below_hurdle",
+      "omit_if_empty": true,
+      "columns": [
+        { "header": "Asset",         "data_key": "asset_name", "width": 30 },
+        { "header": "Measure",       "data_key": "measure",    "width": 34, "wrap": true },
+        { "header": "CapEx Net ($)", "data_key": "capex_net",  "width": 16, "format": "$#,##0" },
+        { "header": "IRR",           "data_key": "irr",        "width": 12, "format": "0.0%" },
+        { "header": "Barrier",       "data_key": "barrier",    "width": 34, "wrap": true }
+      ],
+      "footer_note": "These measures do not meet the IRR hurdle at stated assumptions. They may become viable under different hold periods, exit cap rates, or higher utility escalation.",
+      "freeze_panes": "B2"
+    },
+
+    {
+      "id": "deferred",
+      "name": "Deferred",
+      "order": 14,
+      "type": "table",
+      "description": "Measures deferred due to retrofit lead-time constraint relative to hold period. Omitted if none exist.",
+      "data_path": "deferred",
+      "omit_if_empty": true,
+      "columns": [
+        { "header": "Asset",          "data_key": "asset_name",  "width": 30 },
+        { "header": "Measure",        "data_key": "measure",     "width": 34, "wrap": true },
+        { "header": "Install Year",   "data_key": "install_year","width": 14 },
+        { "header": "CapEx Net ($)",  "data_key": "capex_net",   "width": 16, "format": "$#,##0" },
+        { "header": "Reason",         "data_key": "reason",      "width": 36, "wrap": true }
+      ],
+      "footer_note": "Install year shown for planning purposes. Measures were feasible but could not be completed within the hold period given stated lead-time constraints.",
+      "freeze_panes": "B2"
+    }
+
+  ],
+
+  "workbook_style": {
+    "body_font": "Calibri",
+    "header_fill_color": "brand.primary_color",
+    "header_font_color": "#FFFFFF",
+    "header_font_size": 9,
+    "body_font_size": 9,
+    "alternate_row_fill": "#F9FAFB",
+    "tab_colors": {
+      "Inputs":               "brand.secondary_color",
+      "Asset Source Data":    "brand.secondary_color",
+      "Values & Cap Rates":   "brand.secondary_color",
+      "Measure Economics":    "brand.accent_color",
+      "Portfolio Summary":    "brand.primary_color",
+      "Fund Summary":         "brand.primary_color",
+      "Prioritization":       "brand.highlight_color",
+      "All Assets":           "brand.highlight_color",
+      "Measure Categories":   "brand.highlight_color",
+      "Emissions Trajectory": "#6B7280",
+      "CRREM Pathway":        "#6B7280",
+      "BPS Exposure":         "#F59E0B",
+      "Below Hurdle":         "#9CA3AF",
+      "Deferred":             "#9CA3AF"
+    },
+    "print_settings": {
+      "fit_to_page": true,
+      "orientation": "landscape",
+      "repeat_header_rows": 1
+    }
+  }
+}

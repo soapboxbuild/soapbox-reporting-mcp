@@ -1,0 +1,213 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://soapbox.build/templates/delivery-presentation/schema.json",
+  "title": "Delivery Presentation payload",
+  "description": "Deliverable-agnostic client delivery slide deck (decarb, RSRA, portfolio-analysis, retrofit, GRESB, ...). Injected into templates/delivery-presentation/layout-agent.html via <script id=\"report-data\">. Title and Agenda slides are auto-generated from deck meta + section grouping; do NOT author them. Every field is nullable — missing fields hide their element.",
+  "type": "object",
+  "properties": {
+    "deck": {
+      "type": ["object", "null"],
+      "description": "Deck-level metadata. Drives the auto-generated title slide and per-slide footers.",
+      "properties": {
+        "title":           { "type": ["string", "null"], "description": "Deck title, e.g. 'Westminster Decarbonization Plan'" },
+        "subtitle":        { "type": ["string", "null"], "description": "One-line framing under the title" },
+        "client":          { "type": ["string", "null"], "description": "Client organization, e.g. 'Cortland'" },
+        "asset":           { "type": ["string", "null"], "description": "Asset / portfolio name, e.g. 'Cortland Westminster'" },
+        "date":            { "type": ["string", "null"], "description": "Presentation date as display string" },
+        "presenter":       { "type": ["string", "null"], "description": "Presenter name(s)" },
+        "engagement_type": { "type": ["string", "null"], "description": "Eyebrow on the title slide, e.g. 'decarbonization plan delivery'" },
+        "confidential":    { "type": ["boolean", "null"], "description": "true shows a confidentiality mark on the title slide" },
+        "cover_logos": {
+          "type": ["array", "null"],
+          "description": "Partner logomarks on the title slide, by registry name. The Soapbox logomark ALWAYS renders and need not be listed (it is skipped if listed). Unknown names are silently ignored — only baked-in registry SVGs are ever emitted, never payload markup.",
+          "items": { "type": "string", "enum": ["soapbox", "audette"] }
+        },
+        "cover_logos_label": { "type": ["string", "null"], "description": "Mono caption before the partner marks in the title-slide foot, rendered as '// ' + label, e.g. 'analysis powered by'. Default: 'powered by'. Only shown when cover_logos yields at least one partner mark." }
+      },
+      "additionalProperties": false
+    },
+    "slides": {
+      "type": ["array", "null"],
+      "description": "Content slides. Rendered GROUPED in fixed section order (background, methodology, assumptions, results, revisions) regardless of array order; in-section order is preserved. Each section may have multiple slides.",
+      "items": { "$ref": "#/definitions/slide" }
+    }
+  },
+  "additionalProperties": false,
+  "definitions": {
+    "slide": {
+      "type": "object",
+      "properties": {
+        "section": {
+          "type": ["string", "null"],
+          "enum": ["background", "methodology", "assumptions", "results", "revisions", null],
+          "description": "Section this slide belongs to. Fixed render order: background -> methodology -> assumptions -> results -> revisions. Unknown/missing sections render last."
+        },
+        "eyebrow": { "type": ["string", "null"], "description": "Space Mono '// eyebrow' text; defaults to the section name" },
+        "heading": { "type": ["string", "null"], "description": "Slide headline (Bricolage Grotesque 800)" },
+        "sub":     { "type": ["string", "null"], "description": "Supporting sentence under the heading" },
+        "blocks": {
+          "type": ["array", "null"],
+          "description": "Content blocks, rendered top-to-bottom. Keep density modest: ~1-3 blocks per slide.",
+          "items": { "$ref": "#/definitions/block" }
+        }
+      },
+      "additionalProperties": false
+    },
+    "block": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["bullets", "stats", "table", "bars", "trajectory", "waterfall", "questions", "quote", "two_col"]
+        },
+        "items": {
+          "type": ["array", "null"],
+          "description": "For bullets: array of strings. For stats: array of stat items. For bars: array of bar items. For waterfall: array of bridge components. For questions: array of question items."
+        },
+        "headers": {
+          "type": ["array", "null"],
+          "items": { "type": ["string", "null"] },
+          "description": "table only: column headers"
+        },
+        "rows": {
+          "type": ["array", "null"],
+          "items": { "type": "array", "items": { "type": ["string", "null"] } },
+          "description": "table only: rows of cell strings"
+        },
+        "title":      { "type": ["string", "null"], "description": "trajectory / waterfall only: chart title rendered inside the chart card" },
+        "unit_label": { "type": ["string", "null"], "description": "trajectory only: y-axis unit label, e.g. 'kgCO₂e/m²·yr'" },
+        "bps_label":  { "type": ["string", "null"], "description": "trajectory only: legend label for the stepped BPS target line, e.g. 'CO Reg 28 target — fines'. Defaults to 'BPS target — fines'" },
+        "series": {
+          "type": ["array", "null"],
+          "description": "trajectory only: time series of carbon-intensity values. Every value nullable — a series with <2 points is simply not drawn; block hidden if series absent/empty. All values in the same unit (unit_label).",
+          "items": {
+            "type": "object",
+            "properties": {
+              "year":         { "type": ["number", "null"] },
+              "bau":          { "type": ["number", "null"], "description": "business-as-usual intensity" },
+              "planned":      { "type": ["number", "null"], "description": "with-plan intensity (emphasized green line)" },
+              "crrem_target": { "type": ["number", "null"], "description": "CRREM 1.5°C pathway value (dashed orange — drives stranding)" },
+              "bps_target":   { "type": ["number", "null"], "description": "BPS compliance target (stepped dashed ink — drives fines)" }
+            },
+            "additionalProperties": false
+          }
+        },
+        "crrem_meta": {
+          "type": ["object", "null"],
+          "description": "trajectory only: appended to the CRREM legend label",
+          "properties": {
+            "region":        { "type": ["string", "null"] },
+            "property_type": { "type": ["string", "null"] }
+          },
+          "additionalProperties": false
+        },
+        "stranding_year_bau":     { "type": ["number", "null"], "description": "trajectory only: year the BAU line crosses the CRREM pathway — draws an annotation dot on the BAU line" },
+        "stranding_year_planned": { "type": ["number", "null"], "description": "trajectory only: year the planned line strands (omit/null if beyond the modeled horizon)" },
+        "note": { "type": ["string", "null"], "description": "trajectory only: caption line under the chart" },
+        "net": {
+          "type": ["object", "null"],
+          "description": "waterfall only: the net bar, anchored to zero (ink). If amount omitted it is computed as the sum of items.",
+          "properties": {
+            "label":  { "type": ["string", "null"] },
+            "amount": { "type": ["number", "null"] }
+          },
+          "additionalProperties": false
+        },
+        "annotation": { "type": ["string", "null"], "description": "waterfall only: caption line under the chart" },
+        "text":        { "type": ["string", "null"], "description": "quote only: quote text" },
+        "attribution": { "type": ["string", "null"], "description": "quote only: attribution line" },
+        "left":  { "type": ["array", "null"], "items": { "$ref": "#/definitions/block" }, "description": "two_col only: blocks in the left column" },
+        "right": { "type": ["array", "null"], "items": { "$ref": "#/definitions/block" }, "description": "two_col only: blocks in the right column" }
+      },
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": { "properties": { "type": { "const": "stats" } } },
+          "then": {
+            "properties": {
+              "items": {
+                "type": ["array", "null"],
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "label":  { "type": ["string", "null"] },
+                    "value":  { "type": ["string", "null"], "description": "Pre-formatted display value, e.g. '+$3.9M'" },
+                    "sub":    { "type": ["string", "null"] },
+                    "accent": { "type": ["boolean", "null"], "description": "true renders the dark green-gradient money tile (use sparingly: max one per results slide)" }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "type": { "const": "bars" } } },
+          "then": {
+            "properties": {
+              "items": {
+                "type": ["array", "null"],
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "label":   { "type": ["string", "null"] },
+                    "value":   { "type": ["number", "null"], "description": "Numeric magnitude; bars scale to the max absolute value" },
+                    "display": { "type": ["string", "null"], "description": "Pre-formatted value label, e.g. '-42%'" }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "type": { "const": "questions" } } },
+          "then": {
+            "properties": {
+              "items": {
+                "type": ["array", "null"],
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "q":      { "type": ["string", "null"], "description": "The assumption or question" },
+                    "status": { "type": ["string", "null"], "enum": ["open", "resolved", "adjudicated", null], "description": "Renders as a client-facing chip: open→'Open', resolved→'Resolved', adjudicated→'Confirmed'. EXTERNAL DELIVERABLE — the note must not use internal-process terms ('adjudicated', 'Gate', 'verifier', 'locked at gate')." },
+                    "note":   { "type": ["string", "null"], "description": "Client-facing resolution / context note. No internal-process language." }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "type": { "const": "waterfall" } } },
+          "then": {
+            "properties": {
+              "items": {
+                "type": ["array", "null"],
+                "description": "waterfall only: sequential bridge components from 0. Negative amounts render orange (decrement), positive green.",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "label":  { "type": ["string", "null"] },
+                    "amount": { "type": ["number", "null"], "description": "signed dollar amount (e.g. -4200000); labels render compact ($1.3M / −$3.4M)" }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "type": { "const": "bullets" } } },
+          "then": {
+            "properties": {
+              "items": { "type": ["array", "null"], "items": { "type": ["string", "null"] } }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

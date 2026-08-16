@@ -1,0 +1,1386 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Delivery Presentation</title>
+  <!--
+    CLIENT-RENDER TEMPLATE (delivery-presentation / layout-agent.html)
+    ------------------------------------------------------------------
+    fill_report template family (report_type 'delivery-presentation').
+    The server injects a JSON payload into the report-data script block and
+    THIS template's own JavaScript builds every slide from it. The agent
+    writes no HTML — populateReport() does everything.
+    NOTE: never write the literal report-data script open-tag anywhere but
+    the real block — the server's injection regex targets its first match.
+
+    This is an HTML SLIDE DECK in the Soapbox MARKETING brand (the live
+    soapbox.build look): warm paper ground, layered radial washes,
+    Bricolage Grotesque display, Space Mono "//" eyebrows, green/orange
+    accents. Deliverable-agnostic: decarb, RSRA, portfolio-analysis,
+    retrofit, GRESB delivery decks all use the same payload contract.
+
+    Data contract: see templates/delivery-presentation/schema.json.
+    Title + Agenda slides are AUTO-GENERATED. Section order is FIXED:
+    Background -> Methodology -> Assumptions & Questions -> Results ->
+    Revisions & Next Steps; slides render grouped in that order
+    regardless of array order.
+
+    Hard prohibitions (match RSRA/decarb): NO external JS, NO CDN
+    scripts, NO canvas, NO external images. The ONLY external resource
+    is the Google Fonts stylesheet soapbox.build itself uses — and every
+    font-family carries robust system fallbacks, so a blocked font CDN
+    degrades gracefully.
+  -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous" />
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12,400;12,600;12,800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" />
+  <style>
+    /* ─── SOAPBOX MARKETING TOKENS (captured from live soapbox.build) ─── */
+    :root {
+      --green:      #159957;
+      --green-deep: #0c5733;
+      --orange:     #fb6a28;
+      --ink:        #18221c;
+      --paper:      #fbf8f1;
+      --ground:     #f7f4ec;
+      --hline:      #e9e4d8;
+      --muted:      #5c665f;
+      --grad-primary: linear-gradient(140deg, #1aa863, #0c6c3d);
+      --font-display: "Bricolage Grotesque", system-ui, -apple-system, "Segoe UI", Arial, sans-serif;
+      --font-mono: "Space Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      --font-body: system-ui, -apple-system, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      height: 100%;
+      background: #111814;
+      font-family: var(--font-body);
+      color: var(--ink);
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ─── DECK ROOT ─── */
+    #deck {
+      position: fixed;
+      inset: 0;
+      overflow: hidden;
+      background: #111814;
+      outline: none;
+    }
+    #deck:fullscreen { background: #111814; }
+
+    /* ─── 16:9 STAGE — fixed design size, scaled to fit ─── */
+    #stage {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: 1280px;
+      height: 720px;
+      transform: translate(-50%, -50%) scale(1);
+      transform-origin: center center;
+      cursor: pointer;
+    }
+
+    /* ─── SLIDES ─── */
+    .slide {
+      position: absolute;
+      inset: 0;
+      overflow: hidden;
+      border-radius: 6px;
+      padding: 56px 72px 64px;
+      opacity: 0;
+      pointer-events: none;
+      transform: translateX(14px);
+      transition: opacity 0.22s ease, transform 0.22s ease;
+      /* Signature soapbox.build warm ground: layered radial washes over paper */
+      background:
+        radial-gradient(760px 520px at 6% -60px, rgba(21,153,87,.10), transparent 70%),
+        radial-gradient(720px 520px at 95% -30px, rgba(251,106,40,.11), transparent 70%),
+        radial-gradient(640px 480px at 30% 60px, rgba(233,179,74,.09), transparent 70%),
+        radial-gradient(700px 500px at 80% 150px, rgba(241,150,120,.08), transparent 72%),
+        #f7f4ec;
+      background-repeat: no-repeat;
+    }
+    .slide.active {
+      opacity: 1;
+      pointer-events: auto;
+      transform: translateX(0);
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .slide { transition: none; }
+    }
+
+    /* ─── TYPE SYSTEM ─── */
+    .eyebrow {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--green);
+      margin: 0 0 14px;
+    }
+    .slide h2 {
+      font-family: var(--font-display);
+      font-weight: 800;
+      font-size: 34px;
+      line-height: 1.08;
+      letter-spacing: -0.03em;
+      color: var(--ink);
+      margin: 0 0 8px;
+      max-width: 24ch;
+    }
+    .slide-sub {
+      font-size: 17px;
+      line-height: 1.55;
+      color: var(--muted);
+      max-width: 68ch;
+      margin: 0 0 26px;
+    }
+    .slide-head { position: relative; z-index: 2; }
+    .slide-body { position: relative; z-index: 2; }
+
+    /* Slide footer (content slides) */
+    .slide-foot {
+      position: absolute;
+      left: 72px;
+      right: 72px;
+      bottom: 26px;
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      font-family: var(--font-mono);
+      font-size: 10px;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: #9aa39b;
+      z-index: 2;
+    }
+    .slide-foot .foot-section { color: var(--green-deep); }
+
+    /* ─── TITLE SLIDE ─── */
+    .slide-title { padding: 0; }
+    .title-inner {
+      position: absolute;
+      left: 84px;
+      right: 84px;
+      top: 50%;
+      transform: translateY(-52%);
+    }
+    .title-inner h1 {
+      font-family: var(--font-display);
+      font-weight: 800;
+      font-size: 56px;
+      line-height: 1.04;
+      letter-spacing: -0.03em;
+      color: var(--ink);
+      margin: 0;
+      max-width: 18ch;
+    }
+    .title-inner h1 .o { color: var(--orange); }
+    .title-sub {
+      font-size: 20px;
+      line-height: 1.55;
+      color: var(--muted);
+      margin: 20px 0 0;
+      max-width: 52ch;
+    }
+    .title-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 34px;
+    }
+    .meta-chip {
+      display: inline-flex;
+      align-items: baseline;
+      gap: 7px;
+      background: #fff;
+      border: 1px solid var(--hline);
+      border-radius: 999px;
+      padding: 7px 16px;
+      font-size: 13px;
+      color: var(--ink);
+      box-shadow: 0 8px 22px -16px rgba(24,34,28,.5);
+    }
+    .meta-chip .mk {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: #9aa39b;
+    }
+    .title-foot {
+      position: absolute;
+      left: 84px;
+      right: 84px;
+      bottom: 34px;
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+    }
+    .wordmark {
+      display: inline-flex;
+      align-items: center;
+      gap: 9px;
+      font-family: var(--font-display);
+      font-weight: 800;
+      font-size: 18px;
+      letter-spacing: -0.02em;
+      color: var(--ink);
+    }
+    .wordmark svg { display: block; flex-shrink: 0; }
+    .wordmark .o { color: var(--orange); }
+    /* Cover brand row (bottom-left): Soapbox mark + wordmark, then a mono
+       "// powered by" caption and any partner marks, inline. */
+    .foot-brand { display: inline-flex; align-items: center; gap: 14px; }
+    .foot-brand svg { display: block; flex-shrink: 0; }
+    .logo-caption {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+    .confidential {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    /* ─── AGENDA SLIDE ─── */
+    .agenda-list { list-style: none; margin-top: 6px; max-width: 760px; }
+    .agenda-item { border-bottom: 1px solid var(--hline); }
+    .agenda-item:first-child { border-top: 1px solid var(--hline); }
+    .agenda-link {
+      display: flex;
+      align-items: baseline;
+      gap: 22px;
+      width: 100%;
+      padding: 19px 10px;
+      background: none;
+      border: none;
+      cursor: pointer;
+      text-align: left;
+      font: inherit;
+      color: inherit;
+      transition: background 0.15s ease;
+      border-radius: 6px;
+    }
+    .agenda-link:hover { background: rgba(21,153,87,.07); }
+    .agenda-num {
+      font-family: var(--font-mono);
+      font-size: 13px;
+      color: var(--orange);
+      flex-shrink: 0;
+      width: 34px;
+    }
+    .agenda-name {
+      font-family: var(--font-display);
+      font-weight: 600;
+      font-size: 23px;
+      letter-spacing: -0.02em;
+      color: var(--ink);
+      flex: 1;
+    }
+    .agenda-count {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: #9aa39b;
+      flex-shrink: 0;
+    }
+
+    /* ─── BLOCKS ─── */
+    .blocks { display: flex; flex-direction: column; gap: 24px; }
+
+    /* Bullets */
+    .blk-bullets { list-style: none; max-width: 900px; }
+    .blk-bullets li {
+      position: relative;
+      padding: 8px 0 8px 26px;
+      font-size: 17px;
+      line-height: 1.55;
+      color: #2a352e;
+    }
+    .blk-bullets li::before {
+      content: "";
+      position: absolute;
+      left: 2px;
+      top: 17px;
+      width: 8px;
+      height: 8px;
+      border-radius: 2px;
+      background: var(--green);
+    }
+    .blk-bullets.dense li { font-size: 14.5px; padding: 5px 0 5px 24px; }
+    .blk-bullets.dense li::before { top: 12px; width: 7px; height: 7px; }
+
+    /* Stats */
+    .blk-stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+      gap: 14px;
+    }
+    .stat-tile {
+      background: #fff;
+      border: 1px solid var(--hline);
+      border-radius: 16px;
+      padding: 22px 22px 20px;
+      box-shadow: 0 8px 22px -16px rgba(24,34,28,.5);
+      position: relative;
+      overflow: hidden;
+    }
+    .stat-tile::before {
+      content: "";
+      position: absolute;
+      left: 0; top: 0;
+      width: 100%; height: 3px;
+      background: var(--green);
+    }
+    .stat-label {
+      font-family: var(--font-mono);
+      font-size: 10.5px;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 10px;
+    }
+    .stat-value {
+      font-family: var(--font-display);
+      font-weight: 800;
+      font-size: 38px;
+      line-height: 1;
+      letter-spacing: -0.02em;
+      color: var(--ink);
+      font-variant-numeric: tabular-nums;
+    }
+    .stat-sub { font-size: 12.5px; color: var(--muted); margin-top: 8px; line-height: 1.4; }
+    /* Accent = dark gradient money tile (used sparingly — one per results slide) */
+    .stat-tile.accent {
+      background: var(--grad-primary);
+      border: none;
+    }
+    .stat-tile.accent::before { background: rgba(255,255,255,.45); }
+    .stat-tile.accent .stat-label { color: rgba(255,255,255,.75); }
+    .stat-tile.accent .stat-value { color: #ffffff; } /* white number on deep green (no orange on green) */
+    .stat-tile.accent .stat-sub { color: rgba(255,255,255,.82); }
+
+    /* Table */
+    .blk-table-wrap {
+      background: #fff;
+      border: 1px solid var(--hline);
+      border-radius: 14px;
+      overflow: hidden;
+      box-shadow: 0 8px 22px -16px rgba(24,34,28,.5);
+    }
+    .blk-table { width: 100%; border-collapse: collapse; font-size: 15px; }
+    .blk-table th {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--green-deep);
+      text-align: left;
+      padding: 13px 18px;
+      background: var(--paper);
+      border-bottom: 1px solid var(--hline);
+      white-space: nowrap;
+    }
+    .blk-table td {
+      padding: 12px 18px;
+      border-bottom: 1px solid #f1ede2;
+      color: #2a352e;
+      line-height: 1.45;
+      vertical-align: top;
+    }
+    .blk-table tr:last-child td { border-bottom: none; }
+    .blk-table.dense td { padding: 8px 16px; font-size: 13px; }
+    .blk-table.dense th { padding: 10px 16px; }
+
+    /* Bars (SVG) */
+    .blk-bars {
+      background: #fff;
+      border: 1px solid var(--hline);
+      border-radius: 14px;
+      padding: 22px 24px;
+      box-shadow: 0 8px 22px -16px rgba(24,34,28,.5);
+    }
+    .blk-bars svg { display: block; width: 100%; height: auto; }
+
+    /* Chart card (trajectory + waterfall SVG) */
+    .blk-chart {
+      background: #fff;
+      border: 1px solid var(--hline);
+      border-radius: 14px;
+      padding: 20px 24px 16px;
+      box-shadow: 0 8px 22px -16px rgba(24,34,28,.5);
+    }
+    .blk-chart svg { display: block; width: 100%; height: auto; }
+    .chart-title {
+      font-family: var(--font-display);
+      font-weight: 600;
+      font-size: 17px;
+      letter-spacing: -0.01em;
+      color: var(--ink);
+      margin: 0 0 12px;
+    }
+    .chart-legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px 22px;
+      margin-top: 10px;
+    }
+    .chart-legend .leg {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-family: var(--font-mono);
+      font-size: 10.5px;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+    .chart-legend .leg-line { display: inline-block; width: 22px; height: 0; }
+    .chart-note {
+      font-size: 12.5px;
+      line-height: 1.5;
+      color: var(--muted);
+      margin-top: 10px;
+    }
+
+    /* Questions */
+    .blk-questions { display: flex; flex-direction: column; gap: 10px; max-width: 980px; }
+    .q-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 16px;
+      background: #fff;
+      border: 1px solid var(--hline);
+      border-radius: 12px;
+      padding: 14px 18px;
+      box-shadow: 0 6px 18px -14px rgba(24,34,28,.45);
+    }
+    .q-chip {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.07em;
+      text-transform: uppercase;
+      border-radius: 999px;
+      padding: 4px 11px;
+      flex-shrink: 0;
+      margin-top: 2px;
+      white-space: nowrap;
+    }
+    .q-chip.open       { background: rgba(251,106,40,.12); color: #c14a12; border: 1px solid rgba(251,106,40,.4); }
+    .q-chip.resolved   { background: rgba(21,153,87,.12);  color: var(--green-deep); border: 1px solid rgba(21,153,87,.38); }
+    .q-chip.adjudicated{ background: var(--green-deep); color: #fff; border: 1px solid var(--green-deep); }
+    .q-body { flex: 1; }
+    .q-text { font-size: 15.5px; line-height: 1.5; color: var(--ink); font-weight: 600; font-family: var(--font-display); letter-spacing: -0.01em; }
+    .q-note { font-size: 13px; line-height: 1.5; color: var(--muted); margin-top: 3px; }
+
+    /* Quote */
+    .blk-quote {
+      border-left: 3px solid var(--orange);
+      padding: 6px 0 6px 26px;
+      max-width: 820px;
+    }
+    .quote-text {
+      font-family: var(--font-display);
+      font-weight: 600;
+      font-size: 24px;
+      line-height: 1.35;
+      letter-spacing: -0.02em;
+      color: var(--ink);
+    }
+    .quote-attr {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-top: 12px;
+    }
+
+    /* Two columns */
+    .blk-two-col {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 32px;
+      align-items: start;
+    }
+    .blk-two-col .col .blocks { gap: 18px; }
+    /* Inside a two_col column, stat tiles stack one-wide (overrides the
+       per-count inline grid-template-columns set in renderStats). */
+    .blk-two-col .blk-stats { grid-template-columns: 1fr !important; }
+
+    /* ─── PER-SLIDE SHRINK-TO-FIT (PowerPoint autofit) ─── */
+    /* Wraps a content/agenda slide's head+body; JS measures its natural
+       size and applies transform: scale(k) when it overflows the box. */
+    .fit-wrap { transform-origin: top left; }
+
+    /* ─── NAV CHROME ─── */
+    #navbar {
+      position: absolute;
+      right: 18px;
+      bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(24,34,28,.72);
+      border: 1px solid rgba(255,255,255,.12);
+      border-radius: 999px;
+      padding: 5px 8px;
+      z-index: 10;
+      backdrop-filter: blur(4px);
+    }
+    #navbar button {
+      appearance: none;
+      background: none;
+      border: none;
+      color: rgba(255,255,255,.85);
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.15s ease;
+    }
+    #navbar button:hover { background: rgba(255,255,255,.14); }
+    #navbar button svg { width: 15px; height: 15px; display: block; }
+    #counter {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: rgba(255,255,255,.8);
+      padding: 0 6px;
+      white-space: nowrap;
+      user-select: none;
+    }
+    :focus-visible { outline: 2px solid var(--orange); outline-offset: 2px; }
+
+    /* ─── PROGRESS BAR ─── */
+    #progress {
+      position: absolute;
+      left: 0; right: 0; bottom: 0;
+      height: 3px;
+      background: rgba(255,255,255,.08);
+      z-index: 10;
+    }
+    #progress-fill {
+      height: 100%;
+      width: 0%;
+      background: var(--orange);
+      transition: width 0.22s ease;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      #progress-fill { transition: none; }
+    }
+
+    /* ─── PRINT: one slide per page, chrome hidden ─── */
+    @page { size: 1280px 720px; margin: 0; }
+    @media print {
+      html, body { background: #fff; height: auto; }
+      #deck { position: static; overflow: visible; background: #fff; }
+      #stage {
+        position: static;
+        transform: none !important;
+        width: 1280px;
+        height: auto;
+        cursor: default;
+      }
+      .slide {
+        position: relative;
+        opacity: 1 !important;
+        pointer-events: auto;
+        transform: none !important;
+        transition: none;
+        width: 1280px;
+        height: 720px;
+        border-radius: 0;
+        page-break-after: always;
+        break-after: page;
+      }
+      #navbar, #progress { display: none !important; }
+    }
+  </style>
+</head>
+<body>
+
+<div id="deck" tabindex="-1">
+  <div id="stage" aria-live="polite"></div>
+  <div id="navbar">
+    <button id="btn-prev" type="button" aria-label="Previous slide" title="Previous slide">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="10 3 5 8 10 13"/></svg>
+    </button>
+    <span id="counter">– / –</span>
+    <button id="btn-next" type="button" aria-label="Next slide" title="Next slide">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 3 11 8 6 13"/></svg>
+    </button>
+    <button id="btn-fs" type="button" aria-label="Toggle fullscreen" title="Fullscreen (F)">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 6V2h4M14 6V2h-4M2 10v4h4M14 10v4h-4"/></svg>
+    </button>
+  </div>
+  <div id="progress"><div id="progress-fill"></div></div>
+</div>
+
+<script id="report-data" type="application/json">
+{}
+</script>
+
+<script>
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function() { populateReport(); });
+  } else {
+    populateReport();
+  }
+
+  function populateReport() {
+    var dataEl = document.getElementById('report-data');
+    if (!dataEl) return;
+
+    var data;
+    try {
+      data = JSON.parse(dataEl.textContent);
+    } catch (e) {
+      console.error('delivery-presentation: failed to parse report-data JSON', e);
+      return;
+    }
+    if (!data || typeof data !== 'object') data = {};
+
+    var deck = (data.deck && typeof data.deck === 'object') ? data.deck : {};
+    var rawSlides = Array.isArray(data.slides) ? data.slides : [];
+
+    /* ── Helpers ── */
+    function esc(val) {
+      var s = (val !== undefined && val !== null && val !== '') ? String(val) : '';
+      return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+    }
+    function has(v) { return v !== undefined && v !== null && v !== ''; }
+
+    /* ── Fixed section order + display names ── */
+    var SECTION_ORDER = ['background', 'methodology', 'assumptions', 'results', 'revisions'];
+    var SECTION_NAMES = {
+      background:  'Background',
+      methodology: 'Methodology',
+      assumptions: 'Assumptions & Questions',
+      results:     'Results',
+      revisions:   'Revisions & Next Steps'
+    };
+
+    /* Group content slides by section, preserving in-section order.
+       Unknown/missing sections fall to the end, after revisions. */
+    var grouped = {};
+    var unknown = [];
+    var i, s;
+    for (i = 0; i < SECTION_ORDER.length; i++) grouped[SECTION_ORDER[i]] = [];
+    for (i = 0; i < rawSlides.length; i++) {
+      s = rawSlides[i];
+      if (!s || typeof s !== 'object') continue;
+      if (grouped.hasOwnProperty(s.section)) grouped[s.section].push(s);
+      else unknown.push(s);
+    }
+
+    /* Ordered flat list of content slides with resolved section keys. */
+    var contentSlides = [];
+    for (i = 0; i < SECTION_ORDER.length; i++) {
+      var key = SECTION_ORDER[i];
+      for (var j = 0; j < grouped[key].length; j++) {
+        contentSlides.push({ sectionKey: key, def: grouped[key][j] });
+      }
+    }
+    for (i = 0; i < unknown.length; i++) {
+      contentSlides.push({ sectionKey: null, def: unknown[i] });
+    }
+
+    /* ══════════════════════════════════
+       BLOCK RENDERERS
+    ══════════════════════════════════ */
+    var barGradSeq = 0;
+
+    function renderBlocks(blocks) {
+      if (!Array.isArray(blocks) || !blocks.length) return '';
+      var out = '';
+      for (var b = 0; b < blocks.length; b++) out += renderBlock(blocks[b]);
+      if (!out) return '';
+      return '<div class="blocks">' + out + '</div>';
+    }
+
+    function renderBlock(blk) {
+      if (!blk || typeof blk !== 'object') return '';
+      switch (blk.type) {
+        case 'bullets':   return renderBullets(blk);
+        case 'stats':     return renderStats(blk);
+        case 'table':     return renderTable(blk);
+        case 'bars':      return renderBars(blk);
+        case 'trajectory': return renderTrajectory(blk);
+        case 'waterfall':  return renderWaterfall(blk);
+        case 'questions': return renderQuestions(blk);
+        case 'quote':     return renderQuote(blk);
+        case 'two_col':   return renderTwoCol(blk);
+        default:          return '';
+      }
+    }
+
+    function renderBullets(blk) {
+      var items = Array.isArray(blk.items) ? blk.items : [];
+      var lis = '', n = 0;
+      for (var k = 0; k < items.length; k++) {
+        if (!has(items[k])) continue;
+        lis += '<li>' + esc(items[k]) + '</li>';
+        n += 1;
+      }
+      if (!lis) return '';
+      var dense = n > 5 ? ' dense' : '';
+      return '<ul class="blk-bullets' + dense + '">' + lis + '</ul>';
+    }
+
+    function renderStats(blk) {
+      var items = Array.isArray(blk.items) ? blk.items : [];
+      var tiles = '', n = 0;
+      for (var k = 0; k < items.length; k++) {
+        var it = items[k];
+        if (!it || typeof it !== 'object') continue;
+        if (!has(it.value) && !has(it.label)) continue;
+        tiles += '<div class="stat-tile' + (it.accent === true ? ' accent' : '') + '">';
+        if (has(it.label)) tiles += '<div class="stat-label">' + esc(it.label) + '</div>';
+        if (has(it.value)) tiles += '<div class="stat-value">' + esc(it.value) + '</div>';
+        if (has(it.sub))   tiles += '<div class="stat-sub">' + esc(it.sub) + '</div>';
+        tiles += '</div>';
+        n += 1;
+      }
+      if (!tiles) return '';
+      /* Balanced grid keyed to the rendered tile count (top-level slide).
+         Inside a two_col column, .blk-two-col .blk-stats forces 1-wide. */
+      var cols;
+      if (n <= 3) cols = n;
+      else if (n === 4) cols = 2;
+      else cols = 3; /* 5, 6, and 7+ */
+      return '<div class="blk-stats" style="grid-template-columns:repeat(' + cols + ',1fr)">' + tiles + '</div>';
+    }
+
+    function renderTable(blk) {
+      var headers = Array.isArray(blk.headers) ? blk.headers : [];
+      var rows = Array.isArray(blk.rows) ? blk.rows : [];
+      if (!headers.length && !rows.length) return '';
+      var html = '';
+      if (headers.length) {
+        html += '<thead><tr>';
+        for (var h = 0; h < headers.length; h++) html += '<th>' + esc(headers[h]) + '</th>';
+        html += '</tr></thead>';
+      }
+      if (rows.length) {
+        html += '<tbody>';
+        for (var r = 0; r < rows.length; r++) {
+          var row = Array.isArray(rows[r]) ? rows[r] : [];
+          html += '<tr>';
+          for (var c = 0; c < row.length; c++) html += '<td>' + esc(row[c]) + '</td>';
+          html += '</tr>';
+        }
+        html += '</tbody>';
+      }
+      var dense = rows.length > 7 ? ' dense' : '';
+      return '<div class="blk-table-wrap"><table class="blk-table' + dense + '">' + html + '</table></div>';
+    }
+
+    function renderBars(blk) {
+      var items = Array.isArray(blk.items) ? blk.items : [];
+      var pts = [];
+      for (var k = 0; k < items.length; k++) {
+        var it = items[k];
+        if (!it || typeof it !== 'object') continue;
+        var v = Number(it.value);
+        if (!isFinite(v)) continue;
+        pts.push({ label: has(it.label) ? String(it.label) : '', v: v, display: has(it.display) ? String(it.display) : String(it.value) });
+      }
+      if (!pts.length) return '';
+      var vMax = 0;
+      for (k = 0; k < pts.length; k++) if (Math.abs(pts[k].v) > vMax) vMax = Math.abs(pts[k].v);
+      if (vMax === 0) vMax = 1;
+
+      barGradSeq += 1;
+      var gid = 'bar-grad-' + barGradSeq;
+      var rowH = 42, labelW = 250, chartX = labelW + 14, chartW = 560, valPad = 10;
+      var W = 940, H = pts.length * rowH;
+      var svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Horizontal bar chart">';
+      svg += '<defs><linearGradient id="' + gid + '" x1="0" y1="0" x2="1" y2="0">'
+           + '<stop offset="0%" stop-color="#1aa863"/><stop offset="100%" stop-color="#0c6c3d"/>'
+           + '</linearGradient></defs>';
+      for (k = 0; k < pts.length; k++) {
+        var y = k * rowH;
+        var barY = y + (rowH - 18) / 2;
+        var w = Math.max(3, Math.abs(pts[k].v) / vMax * chartW);
+        svg += '<text x="' + (labelW) + '" y="' + (y + rowH / 2 + 4.5) + '" font-size="13.5" fill="#2a352e" text-anchor="end" font-family="Space Mono, ui-monospace, monospace">' + esc(pts[k].label) + '</text>';
+        svg += '<rect x="' + chartX + '" y="' + barY.toFixed(1) + '" width="' + w.toFixed(1) + '" height="18" rx="9" fill="url(#' + gid + ')"/>';
+        svg += '<text x="' + (chartX + w + valPad).toFixed(1) + '" y="' + (y + rowH / 2 + 4.5) + '" font-size="13.5" font-weight="700" fill="#0c5733" text-anchor="start" font-family="Space Mono, ui-monospace, monospace">' + esc(pts[k].display) + '</text>';
+      }
+      svg += '</svg>';
+      return '<div class="blk-bars">' + svg + '</div>';
+    }
+
+    /* ── Chart helpers (trajectory + waterfall) ── */
+    var TICK_FONT = 'Space Mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
+
+    function numOrNull(v) {
+      if (v === undefined || v === null || v === '') return null;
+      var n = Number(v);
+      return isFinite(n) ? n : null;
+    }
+
+    function fmtTick(v) {
+      if (!isFinite(v)) return '';
+      if (Math.abs(v) >= 100) return String(Math.round(v));
+      return String(Math.round(v * 10) / 10);
+    }
+
+    /* Signed compact currency: 1300000 -> "$1.3M", -3400000 -> "−$3.4M" */
+    function moneyCompact(v) {
+      var a = Math.abs(v), s;
+      if (a >= 1e9)      s = String(Math.round(a / 1e8) / 10) + 'B';
+      else if (a >= 1e6) s = String(Math.round(a / 1e5) / 10) + 'M';
+      else if (a >= 1e3) s = String(Math.round(a / 1e3)) + 'k';
+      else               s = String(Math.round(a));
+      return (v < 0 ? '−' : '') + '$' + s;
+    }
+
+    function chartCard(title, svg, legend, note) {
+      var html = '<div class="blk-chart">';
+      if (has(title)) html += '<div class="chart-title">' + esc(title) + '</div>';
+      html += svg;
+      if (legend) html += '<div class="chart-legend">' + legend + '</div>';
+      if (has(note)) html += '<div class="chart-note">' + esc(note) + '</div>';
+      html += '</div>';
+      return html;
+    }
+
+    function legendItem(color, dash, label) {
+      return '<span class="leg"><span class="leg-line" style="border-top:3px ' + (dash ? 'dashed ' : 'solid ') + color + '"></span>' + esc(label) + '</span>';
+    }
+
+    /* ── Trajectory: carbon-intensity time series (BAU / planned / CRREM / BPS) ── */
+    function renderTrajectory(blk) {
+      var raw = Array.isArray(blk.series) ? blk.series : [];
+      var pts = [];
+      for (var k = 0; k < raw.length; k++) {
+        var p = raw[k];
+        if (!p || typeof p !== 'object') continue;
+        var yr = numOrNull(p.year);
+        if (yr === null) continue;
+        pts.push({
+          year: yr,
+          bau: numOrNull(p.bau),
+          planned: numOrNull(p.planned),
+          crrem_target: numOrNull(p.crrem_target),
+          bps_target: numOrNull(p.bps_target)
+        });
+      }
+      pts.sort(function(a, b) { return a.year - b.year; });
+      if (pts.length < 2) return '';
+
+      var meta = (blk.crrem_meta && typeof blk.crrem_meta === 'object') ? blk.crrem_meta : {};
+      var crremLabel = 'CRREM 1.5°C — stranding';
+      var metaBits = [];
+      if (has(meta.region)) metaBits.push(String(meta.region));
+      if (has(meta.property_type)) metaBits.push(String(meta.property_type));
+      if (metaBits.length) crremLabel += ' (' + metaBits.join(' · ') + ')';
+      var bpsLabel = has(blk.bps_label) ? String(blk.bps_label) : 'BPS target — fines';
+
+      var seriesDefs = [
+        { key: 'bau',          label: 'Business-as-usual',    color: '#5c665f', width: 2,   dash: '' },
+        { key: 'planned',      label: 'With-plan trajectory', color: '#159957', width: 3.5, dash: '' },
+        { key: 'crrem_target', label: crremLabel,             color: '#fb6a28', width: 2,   dash: '7,5' },
+        { key: 'bps_target',   label: bpsLabel,               color: '#18221c', width: 2,   dash: '5,5', step: true }
+      ];
+
+      var years = [], vAll = [], sI, vv;
+      for (k = 0; k < pts.length; k++) {
+        years.push(pts[k].year);
+        for (sI = 0; sI < seriesDefs.length; sI++) {
+          vv = pts[k][seriesDefs[sI].key];
+          if (vv !== null) vAll.push(vv);
+        }
+      }
+      if (!vAll.length) return '';
+      var xMin = Math.min.apply(null, years), xMax = Math.max.apply(null, years);
+      if (xMax === xMin) return '';
+      var vMax = Math.max.apply(null, vAll) * 1.12;
+      if (!(vMax > 0)) vMax = 1;
+      var vMin = 0;
+
+      var X1 = 64, X2 = 1056, Y1 = 18, Y2 = 316, W = X2 - X1, H = Y2 - Y1;
+      function px(yr2) { return X1 + (yr2 - xMin) / (xMax - xMin) * W; }
+      function py(v)   { return Y2 - (v - vMin) / (vMax - vMin) * H; }
+
+      /* Grid + y tick labels */
+      var grid = '', yLabs = '', gv, i2;
+      for (i2 = 0; i2 <= 4; i2++) {
+        gv = vMin + (vMax - vMin) * i2 / 4;
+        grid  += '<line x1="' + X1 + '" y1="' + py(gv).toFixed(1) + '" x2="' + X2 + '" y2="' + py(gv).toFixed(1) + '" stroke="#e9e4d8" stroke-width="1"/>';
+        yLabs += '<text x="' + (X1 - 10) + '" y="' + (py(gv) + 4).toFixed(1) + '" font-size="12" fill="#9aa39b" text-anchor="end" font-family="' + TICK_FONT + '">' + fmtTick(gv) + '</text>';
+      }
+      /* X year labels — thin when crowded */
+      var xLabs = '', span = xMax - xMin, skip = span > 12 ? 2 : 1, ly;
+      for (ly = Math.ceil(xMin); ly <= xMax; ly++) {
+        if ((ly - Math.ceil(xMin)) % skip !== 0 && ly !== xMax) continue;
+        xLabs += '<text x="' + px(ly).toFixed(1) + '" y="' + (Y2 + 22) + '" font-size="12" fill="#9aa39b" text-anchor="middle" font-family="' + TICK_FONT + '">' + esc(String(ly)) + '</text>';
+      }
+
+      /* Lines (stepped for BPS: hold prior level to the new year, then drop) */
+      var lines = '', legend = '', sd, sp, poly, m;
+      for (sI = 0; sI < seriesDefs.length; sI++) {
+        sd = seriesDefs[sI];
+        sp = [];
+        for (m = 0; m < pts.length; m++) if (pts[m][sd.key] !== null) sp.push(pts[m]);
+        if (sp.length < 2) continue;
+        poly = [];
+        for (m = 0; m < sp.length; m++) {
+          if (sd.step && m > 0) poly.push(px(sp[m].year).toFixed(1) + ',' + py(sp[m - 1][sd.key]).toFixed(1));
+          poly.push(px(sp[m].year).toFixed(1) + ',' + py(sp[m][sd.key]).toFixed(1));
+        }
+        lines += '<polyline points="' + poly.join(' ') + '" fill="none" stroke="' + sd.color + '" stroke-width="' + sd.width + '"'
+               + (sd.dash ? ' stroke-dasharray="' + sd.dash + '"' : '')
+               + ' stroke-linejoin="round" stroke-linecap="round"/>';
+        legend += legendItem(sd.color, sd.dash, sd.label);
+      }
+      if (!lines) return '';
+
+      /* Stranding annotation dots */
+      function strandDot(yearVal, key, text, below) {
+        var yv = numOrNull(yearVal);
+        if (yv === null) return '';
+        var pt = null;
+        for (var d = 0; d < pts.length; d++) if (pts[d].year === yv && pts[d][key] !== null) pt = pts[d];
+        if (!pt) return '';
+        var cx = px(yv), cy = py(pt[key]);
+        return '<circle cx="' + cx.toFixed(1) + '" cy="' + cy.toFixed(1) + '" r="5" fill="#fb6a28" stroke="#fff" stroke-width="1.5"/>'
+             + '<text x="' + cx.toFixed(1) + '" y="' + (below ? cy + 22 : cy - 12).toFixed(1) + '" font-size="12" font-weight="700" fill="#c14a12" text-anchor="middle" font-family="' + TICK_FONT + '">' + esc(text) + '</text>';
+      }
+      var dots = '';
+      if (numOrNull(blk.stranding_year_bau) !== null)     dots += strandDot(blk.stranding_year_bau, 'bau', 'BAU strands ' + String(numOrNull(blk.stranding_year_bau)), false);
+      if (numOrNull(blk.stranding_year_planned) !== null) dots += strandDot(blk.stranding_year_planned, 'planned', 'Plan strands ' + String(numOrNull(blk.stranding_year_planned)), true);
+
+      var unitLab = '';
+      if (has(blk.unit_label)) {
+        unitLab = '<text x="18" y="' + ((Y1 + Y2) / 2).toFixed(0) + '" font-size="12" fill="#5c665f" text-anchor="middle" font-family="' + TICK_FONT + '" transform="rotate(-90,18,' + ((Y1 + Y2) / 2).toFixed(0) + ')">' + esc(blk.unit_label) + '</text>';
+      }
+
+      var svg = '<svg viewBox="0 0 1090 348" role="img" aria-label="Carbon intensity trajectory chart">'
+              + grid + yLabs + xLabs + unitLab + lines + dots
+              + '<line x1="' + X1 + '" y1="' + Y2 + '" x2="' + X2 + '" y2="' + Y2 + '" stroke="#e9e4d8" stroke-width="1"/>'
+              + '</svg>';
+      return chartCard(blk.title, svg, legend, blk.note);
+    }
+
+    /* ── Waterfall: value bridge (floating bars from 0 to net) ── */
+    function renderWaterfall(blk) {
+      var raw = Array.isArray(blk.items) ? blk.items : [];
+      var items = [];
+      for (var k = 0; k < raw.length; k++) {
+        var it = raw[k];
+        if (!it || typeof it !== 'object') continue;
+        var amt = numOrNull(it.amount);
+        if (amt === null) continue;
+        items.push({ label: has(it.label) ? String(it.label) : '', amount: amt });
+      }
+      if (!items.length) return '';
+
+      var cum = 0, bars = [], b;
+      for (k = 0; k < items.length; k++) {
+        var start = cum;
+        cum += items[k].amount;
+        bars.push({ label: items[k].label, amount: items[k].amount, isNet: false,
+                    lo: Math.min(start, cum), hi: Math.max(start, cum), level: cum });
+      }
+      var netObj = (blk.net && typeof blk.net === 'object') ? blk.net : {};
+      var net = numOrNull(netObj.amount);
+      if (net === null) net = cum;
+      var netLabel = has(netObj.label) ? String(netObj.label) : 'Net';
+      bars.push({ label: netLabel, amount: net, isNet: true,
+                  lo: Math.min(0, net), hi: Math.max(0, net), level: net });
+
+      /* Domain — always includes 0 */
+      var dMin = 0, dMax = 0;
+      for (k = 0; k < bars.length; k++) {
+        if (bars[k].lo < dMin) dMin = bars[k].lo;
+        if (bars[k].hi > dMax) dMax = bars[k].hi;
+      }
+      if (dMin === dMax) dMax = dMin + 1;
+      var pad = (dMax - dMin) * 0.16;
+      dMin -= pad; dMax += pad;
+
+      var n = bars.length;
+      var X1 = 84, X2 = 1062, Y1 = 20, Y2 = 322, W = X2 - X1, H = Y2 - Y1;
+      function Y(v) { return Y2 - (v - dMin) / (dMax - dMin) * H; }
+      var band = W / n, barW = Math.min(band * 0.58, 120);
+      function barX(i3) { return X1 + band * i3 + (band - barW) / 2; }
+
+      /* Grid + y tick labels (compact currency) */
+      var grid = '', yLabs = '', gv, i2;
+      for (i2 = 0; i2 <= 4; i2++) {
+        gv = dMin + (dMax - dMin) * i2 / 4;
+        grid  += '<line x1="' + X1 + '" y1="' + Y(gv).toFixed(1) + '" x2="' + X2 + '" y2="' + Y(gv).toFixed(1) + '" stroke="#e9e4d8" stroke-width="1"/>';
+        yLabs += '<text x="' + (X1 - 10) + '" y="' + (Y(gv) + 4).toFixed(1) + '" font-size="12" fill="#9aa39b" text-anchor="end" font-family="' + TICK_FONT + '">' + esc(moneyCompact(gv)) + '</text>';
+      }
+      /* Zero baseline */
+      var zero = (dMin < 0 && dMax > 0)
+        ? '<line x1="' + X1 + '" y1="' + Y(0).toFixed(1) + '" x2="' + X2 + '" y2="' + Y(0).toFixed(1) + '" stroke="#bcc4bd" stroke-width="1"/>'
+        : '';
+
+      /* Bars + value labels + x labels */
+      var barSvg = '', labSvg = '', xLabs = '';
+      for (k = 0; k < bars.length; k++) {
+        b = bars[k];
+        var color = b.isNet ? '#18221c' : (b.amount < 0 ? '#fb6a28' : '#159957');
+        var x = barX(k), yTop = Y(b.hi), hgt = Math.max(2, Y(b.lo) - Y(b.hi));
+        barSvg += '<rect x="' + x.toFixed(1) + '" y="' + yTop.toFixed(1) + '" width="' + barW.toFixed(1) + '" height="' + hgt.toFixed(1) + '" rx="3" fill="' + color + '"/>';
+        /* Signed compact label: above upward bars, below downward ones */
+        var below = !b.isNet && b.amount < 0;
+        if (b.isNet && b.amount < 0) below = true;
+        var labY = below ? (Y(b.lo) + 20) : (yTop - 9);
+        labSvg += '<text x="' + (x + barW / 2).toFixed(1) + '" y="' + labY.toFixed(1) + '" font-size="13" font-weight="700" fill="' + (b.isNet ? '#18221c' : (b.amount < 0 ? '#c14a12' : '#0c5733')) + '" text-anchor="middle" font-family="' + TICK_FONT + '">' + esc(moneyCompact(b.amount)) + '</text>';
+        /* X label, wrapped to up to 2 lines */
+        var words = String(b.label).split(' ');
+        var l1 = words.slice(0, Math.ceil(words.length / 2)).join(' ');
+        var l2 = words.slice(Math.ceil(words.length / 2)).join(' ');
+        if (words.length < 3) { l1 = String(b.label); l2 = ''; }
+        xLabs += '<text x="' + (x + barW / 2).toFixed(1) + '" y="' + (Y2 + 20) + '" font-size="11.5" fill="#5c665f" text-anchor="middle" font-family="' + TICK_FONT + '">' + esc(l1)
+              +  (l2 ? '<tspan x="' + (x + barW / 2).toFixed(1) + '" dy="14">' + esc(l2) + '</tspan>' : '') + '</text>';
+      }
+
+      /* Dashed connectors at each running level */
+      var conn = '';
+      for (var j2 = 0; j2 < bars.length - 1; j2++) {
+        var yl = Y(bars[j2].level);
+        conn += '<line x1="' + (barX(j2) + barW).toFixed(1) + '" y1="' + yl.toFixed(1) + '" x2="' + barX(j2 + 1).toFixed(1) + '" y2="' + yl.toFixed(1) + '" stroke="#9aa39b" stroke-width="1" stroke-dasharray="3,3"/>';
+      }
+
+      var svg = '<svg viewBox="0 0 1090 366" role="img" aria-label="Value bridge waterfall chart">'
+              + grid + zero + conn + barSvg + labSvg + xLabs
+              + '</svg>';
+      return chartCard(blk.title, svg, '', blk.annotation);
+    }
+
+    function renderQuestions(blk) {
+      var items = Array.isArray(blk.items) ? blk.items : [];
+      var rows = '';
+      for (var k = 0; k < items.length; k++) {
+        var it = items[k];
+        if (!it || typeof it !== 'object' || !has(it.q)) continue;
+        var st = (it.status === 'open' || it.status === 'resolved' || it.status === 'adjudicated') ? it.status : null;
+        // Client-facing chip labels — never surface internal-process jargon ("adjudicated").
+        var stLabel = { open: 'Open', resolved: 'Resolved', adjudicated: 'Confirmed' };
+        rows += '<div class="q-row">';
+        if (st) rows += '<span class="q-chip ' + st + '">' + esc(stLabel[st] || st) + '</span>';
+        rows += '<div class="q-body"><div class="q-text">' + esc(it.q) + '</div>';
+        if (has(it.note)) rows += '<div class="q-note">' + esc(it.note) + '</div>';
+        rows += '</div></div>';
+      }
+      if (!rows) return '';
+      return '<div class="blk-questions">' + rows + '</div>';
+    }
+
+    function renderQuote(blk) {
+      if (!has(blk.text)) return '';
+      var html = '<div class="blk-quote"><div class="quote-text">&ldquo;' + esc(blk.text) + '&rdquo;</div>';
+      if (has(blk.attribution)) html += '<div class="quote-attr">&mdash; ' + esc(blk.attribution) + '</div>';
+      html += '</div>';
+      return html;
+    }
+
+    function renderTwoCol(blk) {
+      var left = renderBlocks(Array.isArray(blk.left) ? blk.left : []);
+      var right = renderBlocks(Array.isArray(blk.right) ? blk.right : []);
+      if (!left && !right) return '';
+      return '<div class="blk-two-col"><div class="col">' + left + '</div><div class="col">' + right + '</div></div>';
+    }
+
+    /* ══════════════════════════════════
+       COVER LOGOMARKS
+       Baked-in inline SVG registry (CSP: no external images). ONLY
+       registry SVGs are ever emitted — payload strings are used solely
+       as lookup keys; unknown names are silently skipped. Gradient ids
+       are prefixed per-emit so multiple copies never collide.
+    ══════════════════════════════════ */
+    var LOGO_REGISTRY = { soapbox: true, audette: true };
+    var logoSeq = 0;
+
+    function logoSvg(name, height) {
+      if (name === 'soapbox') {
+        logoSeq += 1;
+        var tid = 'itile-' + logoSeq, sid = 'isheen-' + logoSeq;
+        return '<svg xmlns="http://www.w3.org/2000/svg" width="' + height + '" height="' + height + '" viewBox="0 0 256 256" fill="none" role="img" aria-label="Soapbox">'
+             + '<defs><linearGradient id="' + tid + '" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#1aa863"/><stop offset="1" stop-color="#0c6c3d"/></linearGradient>'
+             + '<linearGradient id="' + sid + '" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff" stop-opacity="0.4"/><stop offset="0.55" stop-color="#ffffff" stop-opacity="0"/></linearGradient></defs>'
+             + '<rect x="0" y="0" width="256" height="256" rx="59" fill="url(#' + tid + ')"/>'
+             + '<rect x="0" y="0" width="256" height="256" rx="59" fill="url(#' + sid + ')"/>'
+             + '<text x="128" y="182" text-anchor="middle" font-family="&#39;Bricolage Grotesque&#39;,sans-serif" font-weight="800" font-size="156" fill="#ffffff">S</text>'
+             + '</svg>';
+      }
+      if (name === 'audette') {
+        /* Hot-pink Audette mark. Fill inlined (no <style> block) so the
+           embedded class can never leak into the host document. */
+        var w = Math.round(74 / 61 * height);
+        return '<svg xmlns="http://www.w3.org/2000/svg" width="' + w + '" height="' + height + '" viewBox="0 0 74 61" role="img" aria-label="Audette">'
+             + '<rect fill="#eb02ad" x="41.18" y="0.26" width="6.56" height="19.05"/>'
+             + '<circle fill="#eb02ad" cx="62.48" cy="9.78" r="9.52"/>'
+             + '<path fill="#eb02ad" d="M19.65,9.78.12,59.94h9l4.67-12.59H35l4.74,12.59H49L29.48,9.78ZM16.74,39.49,24.38,19,32,39.49Z"/>'
+             + '</svg>';
+      }
+      return '';
+    }
+
+    /* ══════════════════════════════════
+       SLIDE BUILDERS
+    ══════════════════════════════════ */
+    function buildTitleSlide() {
+      var html = '<div class="title-inner">';
+
+      /* Nothing above the title — cover logos live in the bottom-left foot. */
+      var eyebrowText = has(deck.engagement_type) ? deck.engagement_type : 'delivery presentation';
+      html += '<p class="eyebrow">// ' + esc(eyebrowText) + '</p>';
+      if (has(deck.title)) html += '<h1>' + esc(deck.title) + '<span class="o">.</span></h1>';
+      if (has(deck.subtitle)) html += '<p class="title-sub">' + esc(deck.subtitle) + '</p>';
+
+      var chips = '';
+      if (has(deck.client))    chips += '<span class="meta-chip"><span class="mk">client</span>' + esc(deck.client) + '</span>';
+      if (has(deck.asset))     chips += '<span class="meta-chip"><span class="mk">asset</span>' + esc(deck.asset) + '</span>';
+      if (has(deck.date))      chips += '<span class="meta-chip"><span class="mk">date</span>' + esc(deck.date) + '</span>';
+      if (has(deck.presenter)) chips += '<span class="meta-chip"><span class="mk">presented by</span>' + esc(deck.presenter) + '</span>';
+      if (chips) html += '<div class="title-meta">' + chips + '</div>';
+      html += '</div>';
+
+      /* Bottom-left brand row: [Soapbox mark] soapbox.  // powered by [partner marks].
+         Only registry SVGs are emitted; payload strings are lookup keys only. */
+      html += '<div class="title-foot">';
+      html += '<span class="foot-brand">';
+      html += '<span class="wordmark">' + logoSvg('soapbox', 26) + 'soapbox<span class="o">.</span></span>';
+      var partners = Array.isArray(deck.cover_logos) ? deck.cover_logos : [];
+      var pHtml = '';
+      for (var pl = 0; pl < partners.length; pl++) {
+        var pn = partners[pl];
+        if (pn === 'soapbox') continue; /* Soapbox mark is always shown */
+        if (typeof pn !== 'string' || !LOGO_REGISTRY.hasOwnProperty(pn)) continue;
+        pHtml += logoSvg(pn, 22);
+      }
+      if (pHtml) {
+        var logosLabel = has(deck.cover_logos_label) ? deck.cover_logos_label : 'powered by';
+        html += '<span class="logo-caption">// ' + esc(logosLabel) + '</span>' + pHtml;
+      }
+      html += '</span>';
+      if (deck.confidential === true) html += '<span class="confidential">confidential &mdash; prepared for ' + (has(deck.client) ? esc(deck.client) : 'client') + '</span>';
+      html += '</div>';
+      return { cls: 'slide-title', html: html, sectionKey: null };
+    }
+
+    function buildAgendaSlide(sectionsPresent) {
+      var html = '<div class="fit-wrap"><div class="slide-head">';
+      html += '<p class="eyebrow">// agenda</p>';
+      html += '<h2>What we&rsquo;ll cover</h2>';
+      html += '</div><div class="slide-body">';
+      html += '<ul class="agenda-list">';
+      for (var k = 0; k < sectionsPresent.length; k++) {
+        var sec = sectionsPresent[k];
+        var num = (k + 1 < 10 ? '0' : '') + (k + 1);
+        html += '<li class="agenda-item">'
+              + '<button type="button" class="agenda-link" data-jump="' + sec.firstIndex + '">'
+              + '<span class="agenda-num">' + num + '</span>'
+              + '<span class="agenda-name">' + esc(sec.name) + '</span>'
+              + '<span class="agenda-count">' + sec.count + (sec.count === 1 ? ' slide' : ' slides') + '</span>'
+              + '</button></li>';
+      }
+      html += '</ul></div></div>';
+      return { cls: 'slide-agenda', html: html, sectionKey: null };
+    }
+
+    function buildContentSlide(entry) {
+      var def = entry.def;
+      var secName = entry.sectionKey ? SECTION_NAMES[entry.sectionKey] : null;
+      var html = '<div class="fit-wrap"><div class="slide-head">';
+      var eyebrowText = has(def.eyebrow) ? def.eyebrow : (secName ? secName.toLowerCase() : null);
+      if (eyebrowText) html += '<p class="eyebrow">// ' + esc(eyebrowText) + '</p>';
+      if (has(def.heading)) html += '<h2>' + esc(def.heading) + '</h2>';
+      if (has(def.sub)) html += '<p class="slide-sub">' + esc(def.sub) + '</p>';
+      html += '</div>';
+      html += '<div class="slide-body">' + renderBlocks(def.blocks) + '</div></div>';
+
+      var footL = [];
+      if (has(deck.client)) footL.push(esc(deck.client));
+      if (has(deck.title))  footL.push(esc(deck.title));
+      html += '<div class="slide-foot"><span>' + footL.join(' &mdash; ') + '</span>'
+            + (secName ? '<span class="foot-section">' + esc(secName) + '</span>' : '<span></span>')
+            + '</div>';
+      return { cls: 'slide-content', html: html, sectionKey: entry.sectionKey };
+    }
+
+    /* ══════════════════════════════════
+       ASSEMBLE DECK
+    ══════════════════════════════════ */
+    var built = [];
+    built.push(buildTitleSlide());
+
+    /* Agenda: sections present, with counts and jump targets. Content
+       slides start at index 2 (after title + agenda). */
+    var sectionsPresent = [];
+    var runningIndex = 2;
+    for (i = 0; i < SECTION_ORDER.length; i++) {
+      var sk = SECTION_ORDER[i];
+      var count = grouped[sk].length;
+      if (!count) continue;
+      sectionsPresent.push({ key: sk, name: SECTION_NAMES[sk], count: count, firstIndex: runningIndex });
+      runningIndex += count;
+    }
+    built.push(buildAgendaSlide(sectionsPresent));
+
+    for (i = 0; i < contentSlides.length; i++) {
+      built.push(buildContentSlide(contentSlides[i]));
+    }
+
+    var stage = document.getElementById('stage');
+    if (!stage) return;
+    var stageHtml = '';
+    for (i = 0; i < built.length; i++) {
+      stageHtml += '<section class="slide ' + built[i].cls + '" data-index="' + i + '" aria-label="Slide ' + (i + 1) + ' of ' + built.length + '">' + built[i].html + '</section>';
+    }
+    stage.innerHTML = stageHtml;
+
+    /* ══════════════════════════════════
+       DECK BEHAVIOR — nav, scale, fullscreen
+    ══════════════════════════════════ */
+    var slideEls = stage.querySelectorAll('.slide');
+    var total = slideEls.length;
+    var current = 0;
+    var deckEl = document.getElementById('deck');
+    var counterEl = document.getElementById('counter');
+    var progressEl = document.getElementById('progress-fill');
+
+    function goTo(n) {
+      if (n < 0) n = 0;
+      if (n > total - 1) n = total - 1;
+      current = n;
+      for (var k = 0; k < total; k++) {
+        if (k === current) slideEls[k].classList.add('active');
+        else slideEls[k].classList.remove('active');
+      }
+      if (counterEl) counterEl.textContent = (current + 1) + ' / ' + total;
+      if (progressEl) progressEl.style.width = (total > 1 ? (current / (total - 1)) * 100 : 100) + '%';
+    }
+    function next() { goTo(current + 1); }
+    function prev() { goTo(current - 1); }
+
+    /* Stage scale-to-fit (16:9 inside any viewport) */
+    function fitStage() {
+      var vw = deckEl.clientWidth || window.innerWidth;
+      var vh = deckEl.clientHeight || window.innerHeight;
+      var scale = Math.min(vw / 1280, vh / 720) * 0.97;
+      if (!isFinite(scale) || scale <= 0) scale = 1;
+      stage.style.transform = 'translate(-50%, -50%) scale(' + scale + ')';
+    }
+    window.addEventListener('resize', fitStage);
+    document.addEventListener('fullscreenchange', fitStage);
+    document.addEventListener('webkitfullscreenchange', fitStage);
+    fitStage();
+
+    /* Per-slide shrink-to-fit (PowerPoint autofit). The stage is a fixed
+       1280x720 design surface, so the available box is constant; we measure
+       each .fit-wrap's natural size and scale it down when it overflows.
+       Never scales up. Re-run after fonts load (metrics change) and on
+       resize (harmless — stage size is fixed). */
+    var FIT_AVAIL_H = 720 - 56 - 48; /* top padding + footer reserve => 616 */
+    var FIT_AVAIL_W = 1280 - 72 * 2; /* left+right padding => 1136 */
+    function fitSlideContent() {
+      for (var k = 0; k < slideEls.length; k++) {
+        var wrap = slideEls[k].querySelector('.fit-wrap');
+        if (!wrap) continue;
+        wrap.style.transform = 'none';
+        var needH = wrap.scrollHeight;
+        var needW = wrap.scrollWidth;
+        if (!(needH > 0) || !(needW > 0)) continue;
+        var kf = Math.min(FIT_AVAIL_H / needH, FIT_AVAIL_W / needW, 1);
+        if (kf < 0.62) kf = 0.62;
+        if (kf < 0.9995) {
+          wrap.style.transform = 'scale(' + kf + ')';
+          wrap.setAttribute('data-fit-scale', kf.toFixed(4));
+        } else {
+          wrap.style.transform = 'none';
+          wrap.setAttribute('data-fit-scale', '1');
+        }
+      }
+    }
+    fitSlideContent();
+    window.addEventListener('resize', fitSlideContent);
+    if (document.fonts && document.fonts.ready && typeof document.fonts.ready.then === 'function') {
+      document.fonts.ready.then(function() { fitSlideContent(); });
+    }
+
+    /* Click navigation: right 2/3 next, left 1/3 prev. Interactive
+       elements (agenda links, buttons, anchors) are exempt. */
+    stage.addEventListener('click', function(e) {
+      var t = e.target;
+      while (t && t !== stage) {
+        if (t.tagName === 'BUTTON' || t.tagName === 'A') return;
+        t = t.parentNode;
+      }
+      var rect = stage.getBoundingClientRect();
+      var x = (e.clientX - rect.left) / (rect.width || 1);
+      if (x < 1 / 3) prev(); else next();
+    });
+
+    /* Agenda jump links (event delegation) */
+    stage.addEventListener('click', function(e) {
+      var t = e.target;
+      while (t && t !== stage) {
+        if (t.getAttribute && t.getAttribute('data-jump') != null) {
+          var idx = parseInt(t.getAttribute('data-jump'), 10);
+          if (isFinite(idx)) goTo(idx);
+          return;
+        }
+        t = t.parentNode;
+      }
+    });
+
+    /* Keyboard */
+    document.addEventListener('keydown', function(e) {
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      var tag = e.target && e.target.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+      var key = e.key;
+      if (key === 'ArrowRight' || key === 'PageDown' || (key === ' ' && tag !== 'BUTTON')) { e.preventDefault(); next(); }
+      else if (key === 'ArrowLeft' || key === 'PageUp') { e.preventDefault(); prev(); }
+      else if (key === 'Home') { e.preventDefault(); goTo(0); }
+      else if (key === 'End') { e.preventDefault(); goTo(total - 1); }
+      else if (key === 'f' || key === 'F') { toggleFullscreen(); }
+    });
+
+    /* Fullscreen (with webkit fallback; Esc exits natively) */
+    function toggleFullscreen() {
+      var fsEl = document.fullscreenElement || document.webkitFullscreenElement;
+      if (fsEl) {
+        if (document.exitFullscreen) document.exitFullscreen();
+        else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+      } else {
+        if (deckEl.requestFullscreen) deckEl.requestFullscreen();
+        else if (deckEl.webkitRequestFullscreen) deckEl.webkitRequestFullscreen();
+      }
+    }
+
+    var btnPrev = document.getElementById('btn-prev');
+    var btnNext = document.getElementById('btn-next');
+    var btnFs = document.getElementById('btn-fs');
+    if (btnPrev) btnPrev.addEventListener('click', function(e) { e.stopPropagation(); prev(); });
+    if (btnNext) btnNext.addEventListener('click', function(e) { e.stopPropagation(); next(); });
+    if (btnFs) btnFs.addEventListener('click', function(e) { e.stopPropagation(); toggleFullscreen(); });
+
+    goTo(0);
+  }
+</script>
+
+</body>
+</html>

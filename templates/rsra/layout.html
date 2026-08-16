@@ -1,0 +1,1804 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Rapid Sustainability Risk Assessment</title>
+  <style>
+    /* ─── DESIGN TOKENS ─── */
+    :root {
+      --navy:   #12253A;
+      --stone:  #2C3E50;
+      --ink:    #1A1A2E;
+      --sage:   #1F6B45;
+      --cloud:  #F8F9FB;
+      --card:   #FFFFFF;
+      --muted:  #64748B;
+      --border: #CBD5E1;
+      --rule:   #E2E8EF;
+
+      --signal-low-bg:      #EDF7F2;
+      --signal-low-fg:      #0D5C39;
+      --signal-low-border:  #1F6B45;
+      --signal-opp-bg:      #EDF7F2;
+      --signal-opp-fg:      #0D5C39;
+      --signal-opp-border:  #1F6B45;
+      --signal-capex-bg:    #FEF9EC;
+      --signal-capex-fg:    #7A4F00;
+      --signal-capex-border:#B8860B;
+      --signal-high-bg:     #FEF2F2;
+      --signal-high-fg:     #7F1D1D;
+      --signal-high-border: #B91C1C;
+    }
+
+    /* ─── RESET ─── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      background: #F8F9FB;
+      margin: 0;
+      font-family: -apple-system, 'Helvetica Neue', Arial, sans-serif;
+      font-size: 13px;
+      color: var(--ink);
+      line-height: 1.6;
+    }
+
+    /* ─── REPORT WRAPPER ─── */
+    .report {
+      max-width: 780px;
+      margin: 0 auto;
+      padding: 40px 0 80px;
+    }
+
+    /* ─────────────────────────────────
+       1. DOCUMENT HEADER
+    ───────────────────────────────── */
+    /* NOTE: id="signal-hero-wrapper" gets class="signal-hero <signal>" written by JS.
+       We do NOT style by .signal-hero class — we style the doc-header child by ID.
+       The outer wrapper is intentionally unstyled so JS className overwrite is harmless. */
+    #signal-hero-wrapper {
+      /* outer wrapper — JS sets class="signal-hero signal-xxx", we ignore that */
+    }
+
+    .doc-header {
+      background: #12253A;
+      color: white;
+      padding: 32px 40px 0;
+    }
+
+    .doc-header-eyebrow {
+      font-size: 8px;
+      font-weight: 600;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: #4CAF82;
+      margin-bottom: 8px;
+      font-family: -apple-system, 'Helvetica Neue', Arial, sans-serif;
+    }
+
+    .doc-header-property-name {
+      font-family: -apple-system, 'Helvetica Neue', Arial, sans-serif;
+      font-size: 28px;
+      font-weight: 700;
+      color: #ffffff;
+      margin: 8px 0 4px;
+      line-height: 1.2;
+    }
+
+    .doc-header-address {
+      font-size: 13px;
+      font-weight: 300;
+      color: rgba(255,255,255,0.65);
+      margin-bottom: 24px;
+    }
+
+    /* ─── Meta bar (light strip at base of header) ─── */
+    .meta-bar {
+      display: flex;
+      gap: 32px;
+      padding: 14px 40px;
+      background: #F1F4F8;
+      border-top: 1px solid #CBD5E1;
+      font-size: 11px;
+    }
+
+    .meta-bar-right {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+    }
+
+    .meta-item {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .meta-item .meta-label {
+      color: #64748B;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      font-size: 9px;
+      font-family: -apple-system, 'Helvetica Neue', Arial, sans-serif;
+    }
+
+    .meta-item .meta-value {
+      color: #12253A;
+      font-weight: 600;
+      font-size: 12px;
+      font-family: -apple-system, 'Helvetica Neue', Arial, sans-serif;
+    }
+
+    .meta-confidential {
+      font-size: 9px;
+      font-weight: 600;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: #64748B;
+      font-variant: small-caps;
+    }
+
+    /* Prepared-for strip (bottom of header) */
+    .doc-header-meta-strip {
+      background: #1A3550;
+      padding: 8px 40px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 11px;
+      color: rgba(255,255,255,0.5);
+    }
+
+    .doc-header-meta-strip span {
+      color: rgba(255,255,255,0.5);
+    }
+
+    #cover-meta-date {
+      white-space: nowrap;
+    }
+
+    /* ─────────────────────────────────
+       2. EXECUTIVE SUMMARY
+       NOTE: id="cover-signal-row" gets className wiped by JS to
+       "cover-signal-row signal-xxx". We style by #id + .signal-xxx combinators
+       so our rules survive the JS overwrite.
+    ───────────────────────────────── */
+    #cover-signal-row {
+      background: white;
+      padding: 20px 40px;
+      margin: 0;
+      display: block;
+      border-left: 4px solid #1F6B45; /* default; overridden below */
+    }
+
+    /* Signal color variants — border + text colors */
+    #cover-signal-row.signal-low,
+    #cover-signal-row.signal-opportunity {
+      border-left-color: #1F6B45;
+      background: #EDF7F2;
+    }
+    #cover-signal-row.signal-capex {
+      border-left-color: #B8860B;
+      background: #FEF9EC;
+    }
+    #cover-signal-row.signal-high {
+      border-left-color: #B91C1C;
+      background: #FEF2F2;
+    }
+
+    .exec-summary-label {
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: #64748B;
+      margin-bottom: 8px;
+      font-family: -apple-system, 'Helvetica Neue', Arial, sans-serif;
+      display: block;
+    }
+
+    /* .signal-badge is written by JS */
+    #cover-signal-row .signal-badge {
+      display: block;
+      font-family: -apple-system, 'Helvetica Neue', Arial, sans-serif;
+      font-size: 20px;
+      font-weight: 700;
+      margin-bottom: 8px;
+      line-height: 1.2;
+    }
+
+    #cover-signal-row.signal-low    .signal-badge,
+    #cover-signal-row.signal-opportunity .signal-badge { color: #0D5C39; }
+    #cover-signal-row.signal-capex  .signal-badge { color: #7A4F00; }
+    #cover-signal-row.signal-high   .signal-badge { color: #7F1D1D; }
+
+    /* .signal-narrative is written by JS */
+    #cover-signal-row .signal-narrative {
+      display: block;
+      font-size: 13px;
+      line-height: 1.65;
+      color: #2C3E50;
+      max-width: 680px;
+    }
+
+    /* ─────────────────────────────────
+       SECTIONS — white cards with 2px gap
+    ───────────────────────────────── */
+    .section {
+      padding: 32px 40px;
+      background: white;
+      margin-bottom: 2px;
+      border-radius: 0;
+    }
+
+    .section-label {
+      font-size: 9px;
+      font-weight: 600;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: #1F6B45;
+      margin-bottom: 4px;
+      font-family: -apple-system, 'Helvetica Neue', Arial, sans-serif;
+    }
+
+    .section-title {
+      font-family: -apple-system, 'Helvetica Neue', Arial, sans-serif;
+      font-size: 18px;
+      font-weight: 700;
+      color: #12253A;
+      margin-bottom: 16px;
+      border-bottom: 1.5px solid #12253A;
+      padding-bottom: 8px;
+    }
+
+    /* ─────────────────────────────────
+       3. CAPEX CARDS — styled tabular, consulting look
+       (JS populates #capex-cards-list with .capex-card divs;
+        we cannot use a real <table> because JS fills cards not tbody)
+    ───────────────────────────────── */
+    .capex-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+    }
+
+    .capex-card {
+      background: var(--card);
+      padding: 10px 12px;
+      border-bottom: 1px solid #E2E8EF;
+      border-left: none;
+      border-radius: 0;
+      box-shadow: none;
+    }
+
+    .capex-card:nth-child(even) {
+      background: #F8F9FB;
+    }
+
+    /* Faux table header — above the card list */
+    .capex-table-head {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: #12253A;
+      color: white;
+      padding: 10px 12px;
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      font-family: -apple-system, 'Helvetica Neue', Arial, sans-serif;
+    }
+
+    .capex-table-head .col-measure { flex: 1; }
+    .capex-table-head .col-timing  { width: 90px; text-align: center; }
+    .capex-table-head .col-amount  { width: 90px; text-align: right; }
+
+    .capex-card-top {
+      display: flex;
+      align-items: baseline;
+      gap: 12px;
+      margin-bottom: 4px;
+    }
+
+    .capex-measure {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--ink);
+      flex: 1;
+      line-height: 1.4;
+    }
+
+    .timing-badge {
+      display: inline-block;
+      font-size: 10px;
+      font-weight: 600;
+      padding: 2px 7px;
+      border-radius: 0;
+      white-space: nowrap;
+      flex-shrink: 0;
+      font-family: -apple-system, 'Helvetica Neue', Arial, sans-serif;
+      letter-spacing: 0.04em;
+    }
+
+    .timing-early  { background: #EDF3FF; color: #1E3A8A; }
+    .timing-mid    { background: #FEF9EC; color: #7A4F00; }
+    .timing-late   { background: #FDF2F8; color: #701A4A; }
+    .timing-ongoing{ background: #F1F5F9; color: #475569; }
+
+    .capex-incentives {
+      margin-bottom: 6px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+    }
+
+    .incentive-pill {
+      display: inline-block;
+      font-size: 10px;
+      font-weight: 500;
+      padding: 1px 7px;
+      border: 1px solid #CBD5E1;
+      color: #1F6B45;
+      background: #F8FBF9;
+      white-space: nowrap;
+      border-radius: 0;
+    }
+
+    .capex-amounts {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      font-size: 11px;
+      margin-top: 4px;
+    }
+
+    .capex-fin-impact {
+      color: var(--muted);
+      font-size: 11px;
+      font-style: italic;
+    }
+
+    .capex-co2 {
+      font-weight: 600;
+      color: #1F6B45;
+    }
+
+    .capex-per-unit {
+      color: var(--muted);
+      font-family: 'Courier New', monospace;
+      font-size: 11px;
+    }
+
+    .capex-total {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--ink);
+      margin-left: auto;
+      font-family: 'Courier New', monospace;
+    }
+
+    /* Total row */
+    .capex-total-card {
+      background: #1A3550;
+      color: white;
+      padding: 12px 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 0;
+      border-radius: 0;
+    }
+
+    .capex-total-card .label {
+      font-size: 11px;
+      font-weight: 600;
+      opacity: 0.75;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      font-family: -apple-system, 'Helvetica Neue', Arial, sans-serif;
+    }
+
+    .capex-total-card .amounts {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+    }
+
+    .capex-total-card .total-amount {
+      font-size: 16px;
+      font-weight: 700;
+      font-family: 'Courier New', monospace;
+    }
+
+    .capex-total-card .per-unit {
+      font-size: 12px;
+      opacity: 0.65;
+      font-family: 'Courier New', monospace;
+    }
+
+    .capex-total-card .co2-total {
+      font-size: 12px;
+      color: #4CAF82;
+      font-weight: 600;
+    }
+
+    /* ─────────────────────────────────
+       4. EMISSIONS PROFILE
+    ───────────────────────────────── */
+    .emissions-card {
+      background: var(--card);
+      padding: 0;
+      margin-bottom: 0;
+      box-shadow: none;
+    }
+
+    /* Emissions profile — table layout avoids grid breakage when JS shows/hides individual dt/dd */
+    .profile-dl {
+      display: table;
+      width: 100%;
+      border-collapse: collapse;
+      border-top: 1px solid #E2E8EF;
+      margin-top: 0;
+    }
+
+    .profile-dt, .profile-dd {
+      display: table-cell;
+      padding: 10px 12px;
+      font-size: 13px;
+      border-bottom: 1px solid #E2E8EF;
+      line-height: 1.5;
+      vertical-align: top;
+    }
+
+    /* Each dt+dd pair is a row — achieved by wrapping in a div that acts as table-row */
+    .profile-row {
+      display: table-row;
+    }
+
+    .profile-row:last-child .profile-dt,
+    .profile-row:last-child .profile-dd {
+      border-bottom: none;
+    }
+
+    .profile-dt {
+      font-weight: 600;
+      font-size: 11px;
+      color: #64748B;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      background: #F8F9FB;
+      font-family: -apple-system, 'Helvetica Neue', Arial, sans-serif;
+      width: 160px;
+    }
+
+    .profile-dd {
+      color: var(--ink);
+      background: var(--card);
+    }
+
+    /* Regulation risk */
+    .reg-high     { color: #B91C1C; font-weight: 600; }
+    .reg-moderate { color: #B45309; font-weight: 600; }
+    .reg-low      { color: #0D5C39; font-weight: 600; }
+
+    /* Benchmark chart */
+    .benchmark-chart {
+      margin-top: 16px;
+      padding: 14px 16px;
+      background: var(--cloud);
+      border: 1px solid var(--border);
+    }
+
+    .benchmark-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 8px;
+    }
+    .benchmark-row:last-of-type { margin-bottom: 0; }
+
+    .benchmark-label {
+      width: 130px;
+      flex-shrink: 0;
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--ink);
+    }
+
+    .benchmark-bar-track {
+      flex: 1;
+      height: 5px;
+      background: var(--border);
+      overflow: hidden;
+    }
+
+    .benchmark-bar {
+      height: 100%;
+    }
+
+    .benchmark-figure {
+      width: 56px;
+      text-align: right;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--ink);
+      flex-shrink: 0;
+      font-family: 'Courier New', monospace;
+    }
+
+    .benchmark-unit {
+      margin-top: 6px;
+      font-size: 11px;
+      color: var(--muted);
+      text-align: right;
+    }
+
+    /* ─────────────────────────────────
+       signal-box: hidden — signal is in exec-summary above
+    ───────────────────────────────── */
+    #signal-box { display: none; }
+
+    /* ─────────────────────────────────
+       5. SELLER QUESTIONS
+    ───────────────────────────────── */
+    .questions-list {
+      list-style: none;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+    }
+
+    /* JS emits .question-card / .seller-q-num / .question-text */
+    .question-card {
+      background: transparent;
+      border-radius: 0;
+      padding: 14px 0;
+      display: flex;
+      gap: 16px;
+      align-items: flex-start;
+      box-shadow: none;
+      border-bottom: 1px solid #E2E8EF;
+      font-size: 13px;
+      line-height: 1.6;
+    }
+
+    .question-card:last-child {
+      border-bottom: none;
+    }
+
+    .seller-q-num {
+      font-family: -apple-system, 'Helvetica Neue', Arial, sans-serif;
+      font-size: 12px;
+      font-weight: 700;
+      color: #1F6B45;
+      flex-shrink: 0;
+      width: 24px;
+      background: transparent;
+      border-radius: 0;
+      height: auto;
+      display: block;
+      text-align: left;
+      line-height: 1.6;
+    }
+
+    .question-text {
+      font-size: 13px;
+      line-height: 1.6;
+      color: var(--ink);
+      padding-top: 0;
+    }
+
+    /* ─────────────────────────────────
+       SHARED TABLE — physical risk, GHG, SDG
+    ───────────────────────────────── */
+    .profile-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+      margin-top: 4px;
+    }
+    .profile-table th {
+      background: #12253A;
+      color: #fff;
+      text-align: left;
+      padding: 8px 12px;
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+    .profile-table td {
+      padding: 8px 12px;
+      border-bottom: 1px solid #E2E8F0;
+      vertical-align: top;
+      color: #334155;
+    }
+    .profile-table tr:nth-child(even) td { background: #F8F9FB; }
+    .risk-high { color: #B91C1C; font-weight: 600; }
+    .risk-moderate { color: #92400E; font-weight: 600; }
+    .risk-low { color: #065F46; font-weight: 600; }
+
+    /* ─────────────────────────────────
+       6. SOURCES (collapsible)
+    ───────────────────────────────── */
+    #sources-section details {
+      background: var(--card);
+      border: 1px solid var(--border);
+      overflow: hidden;
+    }
+
+    #sources-section summary {
+      padding: 12px 16px;
+      font-size: 12px;
+      font-weight: 600;
+      color: #12253A;
+      cursor: pointer;
+      list-style: none;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      font-family: -apple-system, 'Helvetica Neue', Arial, sans-serif;
+    }
+
+    #sources-section summary::before {
+      content: '▶';
+      font-size: 9px;
+      transition: transform 0.15s;
+    }
+
+    #sources-section details[open] summary::before {
+      transform: rotate(90deg);
+    }
+
+    #sources-section .sources-inner {
+      padding: 0 16px 12px;
+    }
+
+    .sources-list {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+    }
+
+    .source-item {
+      display: flex;
+      gap: 10px;
+      padding: 8px 0;
+      border-bottom: 1px solid var(--rule);
+      font-size: 12px;
+      line-height: 1.4;
+    }
+    .source-item:last-child { border-bottom: none; }
+
+    .source-num {
+      flex-shrink: 0;
+      width: 18px;
+      font-weight: 600;
+      color: var(--muted);
+    }
+
+    .source-body { flex: 1; }
+
+    .source-label { font-weight: 500; color: var(--ink); }
+    .source-value { color: var(--muted); }
+    .source-url {
+      font-family: 'Courier New', monospace;
+      font-size: 11px;
+      color: #1F6B45;
+      text-decoration: none;
+      word-break: break-all;
+    }
+
+    /* ─────────────────────────────────
+       7. CONFIDENCE NOTE
+    ───────────────────────────────── */
+    .confidence-note {
+      margin-top: 8px;
+      font-size: 11px;
+      color: var(--muted);
+      line-height: 1.5;
+      font-style: italic;
+      padding: 0 40px;
+    }
+
+    .confidence-note strong {
+      color: var(--ink);
+      font-weight: 600;
+      font-style: normal;
+    }
+
+    /* ─────────────────────────────────
+       DISPOSITION BANNER
+    ───────────────────────────────── */
+    .disposition-banner {
+      background: #12253A;
+      color: #fff;
+      text-align: center;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      padding: 7px 16px;
+      margin-bottom: 2px;
+      border-radius: 0;
+      font-family: -apple-system, 'Helvetica Neue', Arial, sans-serif;
+    }
+
+    /* ─── UTILITY ─── */
+    .sr-only {
+      position: absolute; width: 1px; height: 1px;
+      overflow: hidden; clip: rect(0,0,0,0);
+    }
+  </style>
+</head>
+<body>
+
+<script id="report-data" type="application/json">
+{
+  "property": {
+    "name": "Cascade Commons",
+    "address": "2815 NE 45th Street, Portland, OR 97213",
+    "type": "multifamily",
+    "units": 148,
+    "year_built": 1988,
+    "zip": "97213"
+  },
+  "decarb_plan": [
+    {
+      "measure": "LED lighting retrofit — common areas & exterior",
+      "timing": "Early Yr1",
+      "capex_per_unit": 300,
+      "capex_total": 44400,
+      "incentive_program": "PGE Energy Trust rebates",
+      "financial_impact_type": "Common area expense reduction",
+      "financial_impact_timing": "Annual ongoing",
+      "financial_impact_value": "~$6,200/yr"
+    },
+    {
+      "measure": "Smart thermostats — all units",
+      "timing": "Early Yr2",
+      "capex_per_unit": 400,
+      "capex_total": 59200,
+      "incentive_program": "Energy Trust of Oregon — $50/unit rebate",
+      "financial_impact_type": "Revenue lift",
+      "financial_impact_timing": "Annual ongoing",
+      "financial_impact_value": "+0.5% rent potential (reduced resident energy burden)"
+    },
+    {
+      "measure": "Rooftop solar — amenity building & carports",
+      "timing": "Early Yr2",
+      "capex_per_unit": 400,
+      "capex_total": 59200,
+      "incentive_program": "ITC §48E — 30% tax credit; Oregon Residential Energy Tax Credit",
+      "financial_impact_type": "ITC tax credit",
+      "financial_impact_timing": "Year 2 one-time",
+      "financial_impact_value": "~$17,760 ITC + ~$1,800/yr common area electricity savings"
+    },
+    {
+      "measure": "EV charging — 8 Level-2 stations",
+      "timing": "Early Yr2",
+      "capex_per_unit": 150,
+      "capex_total": 22200,
+      "incentive_program": "IRS §30C Alternative Fuel Vehicle Credit — 30% of cost",
+      "financial_impact_type": "Revenue lift",
+      "financial_impact_timing": "Annual ongoing",
+      "financial_impact_value": "Amenity premium; optional charging revenue $3–8K/yr"
+    },
+    {
+      "measure": "Heat pump water heater — central DHW plant",
+      "timing": "Mid Yr3",
+      "capex_per_unit": 700,
+      "capex_total": 103600,
+      "incentive_program": "IRA §25C (if tenant-owned) or §48E; Energy Trust of Oregon rebate",
+      "financial_impact_type": "Common area expense reduction",
+      "financial_impact_timing": "Annual ongoing from Yr3",
+      "financial_impact_value": "~$11,400/yr gas cost savings (est.)"
+    },
+    {
+      "measure": "Envelope improvements — window weatherization, attic insulation",
+      "timing": "Late Yr4-5",
+      "capex_per_unit": 1500,
+      "capex_total": 222000,
+      "incentive_program": "Energy Trust of Oregon deep energy retrofit program",
+      "financial_impact_type": "Common area expense reduction",
+      "financial_impact_timing": "Annual ongoing from Yr5",
+      "financial_impact_value": "~8–12% total energy reduction; green certification pathway"
+    }
+  ],
+  "decarb_plan_total": {
+    "capex_per_unit": 3450,
+    "capex_total": 510600
+  },
+  "emissions_profile": {
+    "fuel_profile": "Dual-fuel — natural gas heat & DHW; resident electric cooling",
+    "utility_structure": "Resident electric submetered; landlord pays common area electric + gas",
+    "baseline_emissions": "~68 kgCO₂e/m²yr (est., dual-fuel Midwest/Northwest benchmark)",
+    "crrem_pathway": "~22% above 2030 target — Yr3 HPWH + Yr5 envelope measures close the gap",
+    "regulation": "Moderate — Oregon HB 2021 Clean Electricity Plan; Portland Climate Emergency Declaration. No active BPS fine schedule through hold period — monitor Portland Building Performance Standards rulemaking expected 2027–2028."
+  },
+  "deal_signal": {
+    "level": "Moderate Risk — Opportunity",
+    "narrative": "Gas exposure is real but manageable — dual-fuel profile requires ~$103K mid-hold fuel switching (Yr3 HPWH) not currently in the seller's capital plan; size $3,450/unit into the model. Solar + LED + smart controls are immediately NOI-accretive and position the asset for Fannie Mae Green Rewards at acquisition financing (~12–15 bps rate relief on a $14M note = ~$25K/yr in debt service savings)."
+  },
+  "seller_questions": [
+    "Please provide the last 24 months of utility bills for gas and common area electric — we need actual consumption to verify benchmark emissions estimates before PSA.",
+    "Has the City of Portland issued any preliminary guidance or notices related to the expected 2027–2028 Building Performance Standards rulemaking that references this property or address?",
+    "What is the current status of the central gas boiler — age, last service, any documented deferred maintenance? (Relevant to Yr3 HPWH replacement sizing.)"
+  ],
+  "physical_climate_risk": {
+    "hazards": [
+      {"hazard": "Riverine / coastal flood", "risk_level": "Low", "finding": "FEMA Zone X — minimal flood risk"},
+      {"hazard": "Extreme heat", "risk_level": "Moderate", "finding": "8 additional days >95°F by 2050 (NOAA)"},
+      {"hazard": "Wildfire", "risk_level": "Low", "finding": "Not applicable — Pacific NW urban"},
+      {"hazard": "Hurricane / wind", "risk_level": "Low", "finding": "Not applicable"},
+      {"hazard": "Drought / water stress", "risk_level": "Moderate", "finding": "WRI Aqueduct Medium-High — Portland metro growth"},
+      {"hazard": "Seismic", "risk_level": "High", "finding": "USGS Zone D — Cascadia subduction zone; standard Portland exposure"}
+    ],
+    "insurance_note": "Seismic exposure is standard for Portland market; no insurer withdrawal concerns. Premium increases from heat stress are likely moderate over a 5-year hold.",
+    "climate_var": {
+      "cumulative_var_npv_pct": "2.8%",
+      "cumulative_var_npv_usd": 415000,
+      "expected_annual_loss_pct_exit": "0.45%",
+      "primary_driver": "Seismic — Cascadia subduction zone exposure",
+      "hold_period_years": 5,
+      "scenario": "SSP2-4.5",
+      "covers": "Flood + Wind + Seismic (parametric)"
+    }
+  },
+  "ghg_scoping": {
+    "scopes": [
+      {"scope": "Scope 1", "source": "Natural gas — heat + DHW", "annual_tco2e": "~42", "notes": "Verified from OM utility schedule"},
+      {"scope": "Scope 2 (location)", "source": "Grid electricity — landlord common area", "annual_tco2e": "~18", "notes": "eGRID NWPP: 0.18 lbs CO₂/kWh"},
+      {"scope": "Scope 3", "source": "Resident electricity (submetered out)", "annual_tco2e": "~310", "notes": "Leased-space boundary — excluded from owner total"},
+      {"scope": "Total (owner boundary)", "source": "Scope 1 + 2", "annual_tco2e": "~60", "notes": "~2.6 kgCO₂e/SF/yr | ~68 kgCO₂e/m²/yr"}
+    ],
+    "offset_note": "Annual REC offset cost for full owner boundary (60 tCO₂e): ~155 RECs × $6/REC = ~$930/yr. Full building including residents: ~960 RECs = ~$5,760/yr."
+  },
+  "water_efficiency": {
+    "wui": "30.4 gal/SF/yr (12-mo actuals from seller)",
+    "vs_benchmark": "Efficient — Stoneweg portfolio assets at this WUI typically achieve Water Score >75",
+    "water_stress": "Medium-High (WRI Aqueduct) — Portland metro growth outpacing supply in dry years",
+    "sasb_disclosure": "Yes — SASB Real Estate standard requires identification of assets in water stress areas",
+    "submeters": "Unit-level water submeters installed — enables RUBS billing and ESPM benchmarking"
+  },
+  "quality_of_life": {
+    "walk_score": "72 / 100 — Very Walkable",
+    "bike_score": "88 / 100 — Biker's Paradise",
+    "transit_score": "61 / 100 — Excellent Transit",
+    "google_rating": "4.4 / 5 stars (38 reviews)",
+    "ora_ranking": "79 / 100"
+  },
+  "affordability": {
+    "avg_rent": "$1,680/mo (proforma average across unit mix)",
+    "income_required": "$67,200/yr (40x rule at 30% rent burden threshold)",
+    "tract_mfi": "$94,500 (2022 FFIEC census tract estimate)",
+    "gap": "$27,300 surplus — rents affordable to residents earning well below MFI",
+    "tract_income_level": "Middle",
+    "underserved": "No",
+    "minority_pct": "28.4%",
+    "agency_mission": "Possible — proforma rents serve ~70% AMI demographic; confirm unit mix against Fannie Mae AMI thresholds at origination"
+  },
+  "certifications_and_debt": {
+    "energy_star_recommendation": "Pursue — Audette estimates likely score ~78; Freddie Mac loan term is 10 years (Green Advantage eligible). Cost: ~$8K one-time. Annual recertification required.",
+    "leed_recommendation": "Not recommended — fund does not report to GRESB and no lender mandate; no meaningful exit premium expected in this submarket.",
+    "green_debt": "Freddie Mac Green Advantage eligible (10-yr term) — requires documenting ≥25% energy or water savings from planned measures. HPWH + solar + smart controls likely qualify.",
+    "fund_alignment": "This acquisition improves the fund portfolio's sustainability profile — all-electric primary fuel, efficient water use, and planned ENERGY STAR certification align with Better Climate Challenge 50% reduction commitment."
+  },
+  "sdg_alignment": [
+    {"sdg": "SDG 7 — Clean Energy", "alignment": "Primarily electric; solar array planned (Yr2); seeking renewable PPA"},
+    {"sdg": "SDG 9 — Infrastructure", "alignment": "Energy efficiency improvements modeled; CO₂ intensity ~40% below local median"},
+    {"sdg": "SDG 11 — Sustainable Cities", "alignment": "Walk Score 72, Transit Score 61; workforce housing pricing (~70% AMI)"},
+    {"sdg": "SDG 12 — Responsible Consumption", "alignment": "Recycling program in place; WasteX enrollment planned post-acquisition"},
+    {"sdg": "SDG 13 — Climate Action", "alignment": "ESPM benchmarking from Day 1; GHG reduction plan aligned with BCC 50% target"}
+  ],
+  "decarb_sensitivity": [
+    {
+      "label": "LED + Smart thermostats only",
+      "spend_per_unit": 700,
+      "total_spend": 103600,
+      "emissions_reduction_pct": 8,
+      "noi_impact_annual": 14200,
+      "value_delta_pct": 1.2,
+      "value_delta_usd": 178000
+    },
+    {
+      "label": "Phase 1 + Solar + EV",
+      "spend_per_unit": 1450,
+      "total_spend": 214600,
+      "emissions_reduction_pct": 22,
+      "noi_impact_annual": 32000,
+      "value_delta_pct": 2.8,
+      "value_delta_usd": 415000
+    },
+    {
+      "label": "Full plan incl. HPWH + envelope",
+      "spend_per_unit": 3450,
+      "total_spend": 510600,
+      "emissions_reduction_pct": 55,
+      "noi_impact_annual": 48500,
+      "value_delta_pct": 4.2,
+      "value_delta_usd": 623000
+    }
+  ],
+  "data_quality": "Medium — confirmed fuel profile; CapEx benchmarked",
+  "prepared_by": "Soapbox Sustainability Intelligence",
+  "prepared_for": "Cascade Capital Partners — Acquisitions",
+  "report_date": "2026-06-16",
+  "disposition_mode": false
+}
+</script>
+
+<script>
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function() { populateReport(); });
+  } else {
+    populateReport();
+  }
+
+  function populateReport() {
+    var dataEl = document.getElementById('report-data');
+    if (!dataEl) return;
+
+    var data;
+    try {
+      data = JSON.parse(dataEl.textContent);
+    } catch(e) {
+      console.error('RSRA: failed to parse report-data JSON', e);
+      return;
+    }
+
+    var prop   = data.property     || {};
+    var plan   = data.decarb_plan  || [];
+    var totals = data.decarb_plan_total || {};
+    var emiss  = data.emissions_profile || {};
+    var signal = data.deal_signal  || {};
+    var qs     = data.seller_questions || [];
+    var isDisp = !!data.disposition_mode;
+
+    /* ── Helpers ── */
+    function safe(val) {
+      return (val !== undefined && val !== null && val !== '') ? String(val) : '—';
+    }
+    /* HTML-escape for innerHTML string builders */
+    function esc(val) {
+      var s = (val !== undefined && val !== null && val !== '') ? String(val) : '—';
+      return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+    }
+    /* Validate URL — only allow http/https schemes */
+    function safeUrl(url) {
+      if (!url) return null;
+      try { var u = new URL(String(url)); return (u.protocol === 'https:' || u.protocol === 'http:') ? u.href : null; } catch(e) { return null; }
+    }
+
+    function fmtCurrency(n) {
+      if (typeof n !== 'number') return '—';
+      if (n >= 1000000) {
+        var m = n / 1000000;
+        return '$' + (m >= 10 ? Math.round(m) : parseFloat(m.toFixed(1))) + 'M';
+      }
+      if (n >= 1000) {
+        var k = n / 1000;
+        return '$' + (k >= 100 ? Math.round(k) : parseFloat(k.toFixed(1))) + 'K';
+      }
+      return '$' + Math.round(n);
+    }
+
+    function signalClass(level) {
+      if (!level) return 'signal-low';
+      if (level === 'Low Risk')                        return 'signal-low';
+      if (level === 'Moderate Risk — Opportunity')     return 'signal-opportunity';
+      if (level === 'Moderate Risk — CapEx')           return 'signal-capex';
+      if (level === 'High Transition Risk')            return 'signal-high';
+      return 'signal-low';
+    }
+
+    function signalIcon(level) {
+      if (level === 'Low Risk')                        return '✓';
+      if (level === 'Moderate Risk — Opportunity')     return '↗';
+      if (level === 'Moderate Risk — CapEx')           return '△';
+      if (level === 'High Transition Risk')            return '!';
+      return '?';
+    }
+
+    function timingClass(t) {
+      if (!t) return 'timing-ongoing';
+      if (t.startsWith('Early')) return 'timing-early';
+      if (t.startsWith('Mid'))   return 'timing-mid';
+      if (t.startsWith('Late'))  return 'timing-late';
+      return 'timing-ongoing';
+    }
+
+    function regClass(reg) {
+      if (!reg) return '';
+      var lower = reg.toLowerCase();
+      if (lower.startsWith('high') || lower.includes('high —')) return 'reg-high';
+      if (lower.startsWith('moderate')) return 'reg-moderate';
+      return 'reg-low';
+    }
+
+    /* ── Named string anchors ── */
+    setText('org-name-anchor', safe(data.prepared_for || data.prepared_by || 'Confidential'));
+
+    /* ── Header: property name + address ── */
+    setText('cover-property-name', safe(prop.name));
+    setText('cover-property-address', safe(prop.address));
+    setText('cover-meta-date', safe(data.report_date));
+
+    /* ── Meta bar ── */
+    setText('cover-meta-type',  safe(capitalise(prop.type)));
+    setText('cover-meta-units', prop.units ? prop.units + ' units' : (prop.gfa_sqft ? fmtSqft(prop.gfa_sqft) : '—'));
+    setText('cover-meta-built', prop.year_built ? String(prop.year_built) : '—');
+    setText('cover-meta-for',   safe(data.prepared_for));
+    setText('cover-meta-by',    safe(data.prepared_by));
+
+    /* CapEx per unit for meta bar */
+    var isMF = prop.type === 'multifamily' || prop.type === 'senior-living' || prop.type === 'student-housing';
+    if (isMF && totals.capex_per_unit) {
+      setText('cover-meta-capex-unit', fmtCurrency(totals.capex_per_unit) + '/unit');
+    }
+
+    /* ── Cover signal row (exec summary) ── */
+    var coverSignalRow = document.getElementById('cover-signal-row');
+    if (coverSignalRow && signal.level) {
+      var sc = signalClass(signal.level);
+      coverSignalRow.className = 'cover-signal-row ' + sc;
+      coverSignalRow.querySelector('.signal-badge').textContent = signal.level;
+      coverSignalRow.querySelector('.signal-narrative').textContent = safe(signal.narrative);
+      /* Apply signal class to the hero wrapper too (for metrics strip tint) */
+      var hero = document.getElementById('signal-hero-wrapper');
+      if (hero) hero.className = 'signal-hero ' + sc;
+    }
+
+    /* ── Disposition banner ── */
+    if (isDisp) {
+      var banner = document.getElementById('disposition-banner');
+      if (banner) banner.style.display = '';
+    }
+
+    /* ── CapEx Cards ── */
+    var capexList = document.getElementById('capex-cards-list');
+    if (capexList) {
+      var planTotal = totals.capex_total;
+      if (!planTotal) {
+        planTotal = plan.reduce(function(s, m) { return s + (m.capex_total || 0); }, 0);
+      }
+      var planPerUnit = totals.capex_per_unit;
+      if (!planPerUnit && isMF && prop.units) {
+        planPerUnit = planTotal / prop.units;
+      }
+
+      var html = '';
+      plan.forEach(function(m) {
+        var incentives = m.incentive_program
+          ? m.incentive_program.split(';').map(function(p) {
+              return '<span class="incentive-pill">' + esc(p.trim()) + '</span>';
+            }).join('')
+          : '';
+
+        var finImpactParts = [];
+        if (m.financial_impact_value) finImpactParts.push(esc(m.financial_impact_value));
+        if (m.financial_impact_type)  finImpactParts.push(esc(m.financial_impact_type));
+        var finStr = finImpactParts.join(' · ');
+
+        var emRed = (m.emissions_reduction_pct != null)
+          ? '<span class="capex-co2">−' + m.emissions_reduction_pct.toFixed(1) + '% CO₂</span>'
+          : '';
+
+        html += '<div class="capex-card">';
+        html +=   '<div class="capex-card-top">';
+        html +=     '<span class="capex-measure">' + esc(m.measure) + '</span>';
+        html +=     '<span class="timing-badge ' + timingClass(m.timing) + '">' + esc(m.timing) + '</span>';
+        html +=   '</div>';
+        if (incentives) {
+          html += '<div class="capex-incentives">' + incentives + '</div>';
+        }
+        html +=   '<div class="capex-amounts">';
+        if (finStr) {
+          html += '<span class="capex-fin-impact">' + finStr + '</span>';
+        }
+        if (emRed) { html += emRed; }
+        if (isMF && m.capex_per_unit != null) {
+          html += '<span class="capex-per-unit">' + fmtCurrency(m.capex_per_unit) + '/unit</span>';
+        }
+        html +=   '<span class="capex-total">' + fmtCurrency(m.capex_total) + '</span>';
+        html +=   '</div>';
+        html += '</div>';
+      });
+      capexList.innerHTML = html;
+
+      /* Total card */
+      var totalCard = document.getElementById('capex-total-card');
+      if (totalCard) {
+        var totalEmRed = (totals.total_emissions_reduction_pct != null)
+          ? '<span class="co2-total">−' + totals.total_emissions_reduction_pct.toFixed(1) + '% CO₂</span>'
+          : '';
+        var puStr = (isMF && planPerUnit) ? '<span class="per-unit">' + fmtCurrency(Math.round(planPerUnit)) + '/unit</span>' : '';
+        totalCard.innerHTML =
+          '<span class="label">Total Estimated CapEx</span>' +
+          '<span class="amounts">' + totalEmRed + puStr +
+          '<span class="total-amount">' + fmtCurrency(planTotal) + '</span></span>';
+      }
+    }
+
+    /* ── Hidden table IDs for JS compatibility ── */
+    /* decarb-tbody, decarb-total-row, decarb-unit-col-header are hidden divs */
+    var tbody = document.getElementById('decarb-tbody');
+    var totalRow = document.getElementById('decarb-total-row');
+    var unitColHeader = document.getElementById('decarb-unit-col-header');
+    /* These are invisible — populate them silently for any external consumers */
+    if (tbody) tbody.innerHTML = '';
+    if (totalRow) totalRow.innerHTML = '';
+    if (unitColHeader) unitColHeader.style.display = isMF ? '' : 'none';
+
+    /* ── Sensitivity Table ── */
+    var sens = data.decarb_sensitivity;
+    var sensSection = document.getElementById('sensitivity-section');
+    if (sensSection && sens && sens.length > 0) {
+      /* Scatter chart: value delta % vs CO₂ reduction % */
+      var sensChartEl = document.getElementById('sensitivity-chart');
+      var hasVD = sens.some(function(r){ return r.value_delta_pct != null; });
+      if (sensChartEl && hasVD) {
+        var sCo2Vals = sens.map(function(r){ return Number(String(r.emissions_reduction_pct||0).replace('%','')); });
+        var sVdVals  = sens.map(function(r){ return Number(r.value_delta_pct||0); });
+        var sCo2Max  = Math.ceil(Math.max.apply(null,sCo2Vals)*1.25/10)*10||100;
+        var sVdMax   = Math.ceil(Math.max.apply(null,sVdVals)*1.3/2)*2||10;
+        var sCx1=52,sCx2=500,sCy1=20,sCy2=165,sCw=sCx2-sCx1,sCh=sCy2-sCy1;
+        function sX(v){return (sCx1+(v/sCo2Max)*sCw).toFixed(1);}
+        function sY(v){return (sCy2-(v/sVdMax)*sCh).toFixed(1);}
+        var sGrid='',sXLabs='',sYLabs='',sPts='',sLabs='',sLinePts=[];
+        for(var si=0;si<=4;si++){
+          var sGx=Math.round(sCo2Max*si/4),sGy=(sVdMax*si/4).toFixed(1);
+          sGrid+='<line x1="'+sX(sGx)+'" y1="'+sCy1+'" x2="'+sX(sGx)+'" y2="'+sCy2+'" stroke="#F1F4F8" stroke-width="1"/>';
+          sGrid+='<line x1="'+sCx1+'" y1="'+sY(sGy)+'" x2="'+sCx2+'" y2="'+sY(sGy)+'" stroke="#F1F4F8" stroke-width="1"/>';
+          sXLabs+='<text x="'+sX(sGx)+'" y="'+(sCy2+13)+'" font-size="9" fill="#94A3B8" text-anchor="middle">'+sGx+'%</text>';
+          sYLabs+='<text x="'+(sCx1-4)+'" y="'+(Number(sY(sGy))+3).toFixed(1)+'" font-size="9" fill="#94A3B8" text-anchor="end">'+sGy+'%</text>';
+        }
+        sens.forEach(function(row,i){
+          var co2=Number(String(row.emissions_reduction_pct||0).replace('%',''));
+          var vd=Number(row.value_delta_pct||0);
+          var px=sX(co2),py=sY(vd);
+          sLinePts.push(px+','+py);
+          sPts+='<circle cx="'+px+'" cy="'+py+'" r="6" fill="#12253A" stroke="#fff" stroke-width="2"/>';
+          var anch=i<sens.length/2?'start':'end',dx=i<sens.length/2?10:-10;
+          sLabs+='<text x="'+(Number(px)+dx).toFixed(1)+'" y="'+(Number(py)-5).toFixed(1)+'" font-size="9" fill="#475569" text-anchor="'+(dx>0?'start':'end')+'">'+esc(row.label||'')+'</text>';
+        });
+        sensChartEl.innerHTML='<div style="font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#64748B;margin-bottom:8px">Value Delta vs. Carbon Reduction — sensitivity at each investment level</div><svg viewBox="0 0 560 195" width="100%" style="display:block;overflow:visible" aria-label="Value creation vs carbon reduction scatter chart">'+sGrid+sXLabs+sYLabs+'<polyline points="'+sLinePts.join(' ')+'" fill="none" stroke="#12253A" stroke-width="1.5" stroke-dasharray="4,3" opacity="0.4"/>'+sPts+sLabs+'<text x="'+(((sCx1+sCx2)/2)).toFixed(0)+'" y="185" font-size="9" fill="#64748B" text-anchor="middle">CO₂ Reduction (%)</text><text x="12" y="92" font-size="9" fill="#64748B" text-anchor="middle" transform="rotate(-90,12,92)">Value Delta (%)</text></svg>';
+      }
+      /* Table */
+      var sensTbody = document.querySelector('#sensitivity-table tbody');
+      var sensHtml = '';
+      sens.forEach(function(row) {
+        var co2Str = row.emissions_reduction_pct != null ? esc(String(row.emissions_reduction_pct).replace(/[^0-9.]/g,''))+'%' : '—';
+        var noiStr = row.noi_impact_annual ? '+'+fmtCurrency(row.noi_impact_annual)+'/yr' : '—';
+        var vdStr  = row.value_delta_pct != null ? (row.value_delta_pct > 0 ? '+' : '')+row.value_delta_pct+'%' : (row.value_delta_usd ? '+'+fmtCurrency(row.value_delta_usd) : '—');
+        var capStr = isMF && row.spend_per_unit ? fmtCurrency(row.spend_per_unit)+'/unit' : fmtCurrency(row.total_spend);
+        sensHtml += '<tr>';
+        sensHtml += '<td><strong>' + esc(row.label || '—') + '</strong></td>';
+        sensHtml += '<td>' + esc(capStr) + '</td>';
+        sensHtml += '<td style="font-weight:600;color:#1F6B45">' + esc(co2Str) + '</td>';
+        sensHtml += '<td>' + esc(noiStr) + '</td>';
+        sensHtml += '<td style="font-weight:600;color:#12253A">' + esc(vdStr) + '</td>';
+        sensHtml += '</tr>';
+      });
+      if (sensTbody) sensTbody.innerHTML = sensHtml;
+      sensSection.style.display = '';
+    }
+
+    /* ── Emissions Profile ── */
+    setHtml('profile-fuel',      '<strong>' + esc(emiss.fuel_profile) + '</strong>');
+    setHtml('profile-utility',   esc(emiss.utility_structure));
+    setHtml('profile-emissions', esc(emiss.baseline_emissions));
+
+    if (emiss.crrem_pathway) {
+      setHtml('profile-crrem', esc(emiss.crrem_pathway));
+      showEl('profile-crrem-row');
+    }
+
+    var regHtml = '';
+    if (emiss.regulation) {
+      var rc = regClass(emiss.regulation);
+      var parts = emiss.regulation.split(' — ');
+      var regPrefix = parts.length > 1 ? parts[0] : '';
+      var regBody   = parts.length > 1 ? parts.slice(1).join(' — ') : emiss.regulation;
+      if (regPrefix && rc) {
+        regHtml = '<span class="' + rc + '">' + esc(regPrefix) + '</span>' + (regBody ? ' — ' + esc(regBody) : '');
+      } else {
+        regHtml = esc(emiss.regulation);
+      }
+    } else {
+      regHtml = '—';
+    }
+    setHtml('profile-regulation', regHtml);
+
+    /* ── BPD Peer EUI Histogram ── */
+    /* Rendered when emiss.bpd_chart is present (structured bucket data from BPD). */
+    var chartContainer = document.getElementById('emissions-benchmark-chart');
+    var bpdChart = emiss.bpd_chart;
+    if (chartContainer && bpdChart && bpdChart.buckets && bpdChart.buckets.length > 0) {
+      var bMinE = Number(bpdChart.min_eui) || 0;
+      var bMaxE = Number(bpdChart.max_eui) || 150;
+      var bMedE = (bpdChart.median_eui != null) ? Number(bpdChart.median_eui) : null;
+      var bTgtE = (bpdChart.target_eui != null) ? Number(bpdChart.target_eui) : null;
+      var bSubE = (bpdChart.subject_eui != null) ? Number(bpdChart.subject_eui) : null;
+      var bPeerN = Number(bpdChart.peer_count || bpdChart.buckets.reduce(function(s,b){return s+(b.count||0);},0));
+      var bAcLabel = esc((bpdChart.asset_class||'') + (bpdChart.climate_zone ? ' ('+bpdChart.climate_zone+')' : ''));
+      var bMaxCount = Math.max.apply(null, bpdChart.buckets.map(function(b){return b.count||0;}));
+      var bNb = bpdChart.buckets.length;
+      var bCx1=28, bCx2=548, bCy1=10, bCy2=130, bCw=520, bCh=120;
+      function bpdX(eui){return bCx1+(eui-bMinE)/(bMaxE-bMinE)*bCw;}
+      var bBars='';
+      bpdChart.buckets.forEach(function(b,i){
+        var bx=(bCx1+(i/bNb)*bCw).toFixed(1);
+        var bw=((bCw/bNb)-1).toFixed(1);
+        var bh=bMaxCount>0?((b.count/bMaxCount)*bCh).toFixed(1):'0';
+        var by=(bCy2-(b.count/bMaxCount)*bCh).toFixed(1);
+        bBars+='<rect x="'+bx+'" y="'+by+'" width="'+bw+'" height="'+bh+'" fill="#CBD5E1" rx="1"/>';
+      });
+      var bMedX=bpdX(bMedE).toFixed(1);
+      var bTgtX=bpdX(bTgtE).toFixed(1);
+      var bMedLine=Number.isFinite(bMedE)?'<line x1="'+bMedX+'" y1="'+bCy1+'" x2="'+bMedX+'" y2="'+bCy2+'" stroke="#12253A" stroke-width="1.5" stroke-dasharray="4,3"/><text x="'+bMedX+'" y="8" font-size="9" fill="#12253A" text-anchor="middle" font-weight="600">Median '+bMedE+'</text>':'';
+      var bTgtLine=Number.isFinite(bTgtE)?'<line x1="'+bTgtX+'" y1="'+bCy1+'" x2="'+bTgtX+'" y2="'+bCy2+'" stroke="#4CAF82" stroke-width="1.5"/><text x="'+bTgtX+'" y="'+(Number.isFinite(bMedE)?20:8)+'" font-size="9" fill="#1F6B45" text-anchor="middle" font-weight="600">2030 CRREM '+bTgtE+'</text>':'';
+      var bSubLine=Number.isFinite(bSubE)?'<line x1="'+bpdX(bSubE).toFixed(1)+'" y1="'+bCy1+'" x2="'+bpdX(bSubE).toFixed(1)+'" y2="'+bCy2+'" stroke="#EF4444" stroke-width="2"/><text x="'+bpdX(bSubE).toFixed(1)+'" y="'+(Number.isFinite(bMedE)&&Number.isFinite(bTgtE)?32:8)+'" font-size="9" fill="#991B1B" text-anchor="middle" font-weight="700">This asset '+bSubE+'</text>':'';
+      var bMid=((bMinE+bMaxE)/2).toFixed(0);
+      chartContainer.innerHTML='<div style="margin-top:20px"><div style="font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#64748B;margin-bottom:8px">Peer EUI Distribution'+(bAcLabel?' — '+bAcLabel:'')+(Number.isFinite(bPeerN)?' · '+bPeerN+' buildings':'')+'</div><svg viewBox="0 0 560 160" width="100%" style="display:block;overflow:visible" aria-label="EUI distribution histogram"><text x="8" y="80" font-size="9" fill="#94A3B8" text-anchor="middle" transform="rotate(-90,8,80)"># Buildings</text>'+bBars+'<line x1="'+bCx1+'" y1="'+bCy2+'" x2="'+bCx2+'" y2="'+bCy2+'" stroke="#E2E8F0" stroke-width="1"/><text x="'+bCx1+'" y="145" font-size="9" fill="#94A3B8" text-anchor="middle">'+bMinE+'</text><text x="288" y="145" font-size="9" fill="#94A3B8" text-anchor="middle">'+bMid+' kBtu/SF/yr</text><text x="'+bCx2+'" y="145" font-size="9" fill="#94A3B8" text-anchor="middle">'+bMaxE+'</text>'+bMedLine+bTgtLine+bSubLine+'</svg><div style="font-size:11px;color:#94A3B8;margin-top:4px">Source: Lawrence Berkeley National Lab Building Performance Database'+(bpdChart.year?' · '+esc(String(bpdChart.year))+' release':'')+'</div></div>';
+      chartContainer.style.display='';
+    }
+
+    /* ── Emissions Benchmark Chart (simple bar — shown when bpd_chart absent) ── */
+    /* Only render when EUI is actually measured — if the text says "(est." or "estimated"
+       the agent used benchmarks to produce the value, making peer comparison circular. */
+    var baselineText = String(emiss.baseline_emissions || '').toLowerCase();
+    var isEstimated = baselineText.indexOf('(est') !== -1 || baselineText.indexOf('estimated') !== -1 || baselineText.indexOf('benchmark') !== -1;
+    if (chartContainer && !isEstimated && (emiss.baseline_emissions_kgco2 != null || emiss.benchmark_emissions_kgco2 != null)) {
+      var propVal  = emiss.baseline_emissions_kgco2  || 0;
+      var benchVal = emiss.benchmark_emissions_kgco2 || 0;
+      var maxVal   = Math.max(propVal, benchVal, 1) * 1.25;
+      var propPct  = (propVal  / maxVal * 100).toFixed(1);
+      var benchPct = (benchVal / maxVal * 100).toFixed(1);
+      var propColor  = propVal > benchVal ? '#B91C1C' : '#1F6B45';
+      var benchColor = '#94A3B8';
+      var chartHtml  = '<div class="benchmark-chart">';
+      chartHtml += '<div class="benchmark-row">';
+      chartHtml += '<div class="benchmark-label">This Property</div>';
+      chartHtml += '<div class="benchmark-bar-track"><div class="benchmark-bar" style="width:' + propPct + '%;background:' + propColor + '"></div></div>';
+      chartHtml += '<div class="benchmark-figure">' + propVal.toFixed(1) + '</div>';
+      chartHtml += '</div>';
+      if (benchVal > 0) {
+        chartHtml += '<div class="benchmark-row">';
+        chartHtml += '<div class="benchmark-label">ENERGY STAR Median</div>';
+        chartHtml += '<div class="benchmark-bar-track"><div class="benchmark-bar" style="width:' + benchPct + '%;background:' + benchColor + '"></div></div>';
+        chartHtml += '<div class="benchmark-figure">' + benchVal.toFixed(1) + '</div>';
+        chartHtml += '</div>';
+      }
+      chartHtml += '<div class="benchmark-unit">kgCO₂e/m²/yr</div>';
+      chartHtml += '</div>';
+      chartContainer.innerHTML = chartHtml;
+      chartContainer.style.display = '';
+    }
+
+    /* ── Deal Signal box (hidden — signal is in exec-summary) ── */
+    var signalBox = document.getElementById('signal-box');
+    if (signalBox && signal.level) {
+      signalBox.className = 'signal-box ' + signalClass(signal.level);
+      var iconEl = signalBox.querySelector('.signal-icon');
+      var labelEl = signalBox.querySelector('.signal-level-label');
+      var narEl = signalBox.querySelector('.signal-narrative-text');
+      if (iconEl) iconEl.textContent = signalIcon(signal.level);
+      if (labelEl) labelEl.textContent = safe(signal.level);
+      if (narEl) narEl.textContent = safe(signal.narrative);
+    }
+
+    /* ── Physical Climate Risk ── */
+    var physRisk = data.physical_climate_risk || {};
+    var physSection = document.getElementById('physical-risk-section');
+    if (physSection && physRisk.hazards && physRisk.hazards.length > 0) {
+      /* Radar chart — draw before the table */
+      var rN = physRisk.hazards.length;
+      if (rN >= 3) {
+        function rPt(v, i, rOv) {
+          var rr = rOv != null ? rOv : (v/3)*110;
+          var th = (2*Math.PI/rN)*i - Math.PI/2;
+          return {x:(140+rr*Math.cos(th)).toFixed(2), y:(140+rr*Math.sin(th)).toFixed(2)};
+        }
+        function rRing(r) {
+          var pts=[];
+          for(var i=0;i<rN;i++){var p=rPt(0,i,r);pts.push(p.x+','+p.y);}
+          return pts.join(' ');
+        }
+        var rDataPts = physRisk.hazards.map(function(h,i){
+          var lvl=(h.risk_level||'').toLowerCase();
+          var v=lvl.indexOf('high')!==-1?3:lvl.indexOf('mod')!==-1?2:1;
+          return rPt(v,i,(v/3)*110);
+        });
+        var rDataPoly=rDataPts.map(function(p){return p.x+','+p.y;}).join(' ');
+        var rSpokes='',rDots='',rLabels='';
+        physRisk.hazards.forEach(function(h,i){
+          var tip=rPt(0,i,110);
+          rSpokes+='<line x1="140" y1="140" x2="'+tip.x+'" y2="'+tip.y+'" stroke="#F1F4F8" stroke-width="1"/>';
+          rDots+='<circle cx="'+rDataPts[i].x+'" cy="'+rDataPts[i].y+'" r="4" fill="#12253A"/>';
+          var lpt=rPt(0,i,128);
+          var th=(2*Math.PI/rN)*i-Math.PI/2;
+          var anchor=Math.abs(Math.sin(th))>Math.abs(Math.cos(th))?'middle':Math.cos(th)>0?'start':'end';
+          var lbl=h.hazard.split('/')[0].trim();
+          rLabels+='<text x="'+lpt.x+'" y="'+lpt.y+'" font-size="10" fill="#475569" text-anchor="'+anchor+'">'+esc(lbl)+'</text>';
+        });
+        var radarDiv=document.createElement('div');
+        radarDiv.innerHTML='<svg viewBox="-90 0 510 280" width="100%" style="display:block;overflow:visible;margin-bottom:16px" aria-label="Climate hazard radar chart"><text x="144" y="138" font-size="8" fill="#94A3B8">Low</text><text x="144" y="102" font-size="8" fill="#94A3B8">Moderate</text><text x="144" y="32" font-size="8" fill="#94A3B8">High</text><polygon points="'+rRing(36.7)+'" fill="none" stroke="#E2E8F0" stroke-width="1"/><polygon points="'+rRing(73.3)+'" fill="none" stroke="#E2E8F0" stroke-width="1"/><polygon points="'+rRing(110)+'" fill="none" stroke="#E2E8F0" stroke-width="1"/>'+rSpokes+'<polygon points="'+rDataPoly+'" fill="#4CAF82" fill-opacity="0.4" stroke="#12253A" stroke-width="2"/>'+rDots+rLabels+'</svg>';
+        var physTable=document.getElementById('physical-risk-table');
+        if (physTable) physTable.parentNode.insertBefore(radarDiv,physTable);
+      }
+
+      /* Detect format: new physrisk (risk_2030/risk_2050) vs legacy (risk_level/finding) */
+      var isPhysriskFormat = physRisk.hazards.some(function(h){ return h.risk_2030 !== undefined || h.risk_2050 !== undefined; });
+
+      /* Update table header for physrisk format */
+      var physThead = document.getElementById('physical-risk-thead');
+      if (isPhysriskFormat && physThead) {
+        physThead.innerHTML = '<tr><th>Hazard</th><th>2030</th><th>2050</th><th>Data Source</th></tr>';
+      }
+
+      function riskClass(lvl) {
+        lvl = (lvl || '').toLowerCase();
+        return lvl.indexOf('high') !== -1 || lvl.indexOf('red') !== -1 ? 'risk-high'
+             : lvl.indexOf('mod') !== -1 ? 'risk-moderate'
+             : (lvl.indexOf('low') !== -1 || lvl.indexOf('no ') !== -1) ? 'risk-low' : '';
+      }
+
+      var physTbody = document.querySelector('#physical-risk-table tbody');
+      var riskHtml = '';
+      physRisk.hazards.forEach(function(h) {
+        if (isPhysriskFormat) {
+          riskHtml += '<tr><td>' + esc(h.hazard) + '</td>';
+          riskHtml += '<td class="' + riskClass(h.risk_2030) + '">' + esc(h.risk_2030 || '—') + '</td>';
+          riskHtml += '<td class="' + riskClass(h.risk_2050) + '">' + esc(h.risk_2050 || '—') + '</td>';
+          riskHtml += '<td style="font-size:11px;color:#64748B">' + esc(h.data_source || '—') + '</td></tr>';
+        } else {
+          var lvl = (h.risk_level || '').toLowerCase();
+          riskHtml += '<tr><td>' + esc(h.hazard) + '</td>';
+          riskHtml += '<td class="' + riskClass(lvl) + '">' + esc(h.risk_level) + '</td>';
+          riskHtml += '<td>' + esc(h.finding) + '</td></tr>';
+        }
+      });
+      if (physTbody) physTbody.innerHTML = riskHtml;
+
+      /* Climate VaR callout box */
+      var cVar = physRisk.climate_var;
+      var varBox = document.getElementById('climate-var-box');
+      if (varBox && cVar && cVar.cumulative_var_npv_pct) {
+        var varPct = esc(cVar.cumulative_var_npv_pct);
+        var ealExit = esc(cVar.expected_annual_loss_pct_exit || cVar.expected_annual_loss_pct_2030 || '—');
+        var driver = esc(cVar.primary_driver || '—');
+        var holdYrs = Number.isFinite(Number(cVar.hold_period_years)) && cVar.hold_period_years ? Number(cVar.hold_period_years) + '-yr hold' : '';
+        var scenarioStr = esc(physRisk.scenario || cVar.scenario || 'SSP2-4.5');
+        var npvUsd = cVar.cumulative_var_npv_usd ? '$' + Number(cVar.cumulative_var_npv_usd).toLocaleString() : '';
+        var heatIdx = (cVar.operational_risk && cVar.operational_risk !== undefined) ? null : null;
+        /* operational risk may be on physRisk or embedded in cVar object from tool output */
+        var opRisk = physRisk.operational_risk || {};
+        var heatVal = opRisk.heat_impact_index_exit != null ? opRisk.heat_impact_index_exit : null;
+        var waterVal = opRisk.water_stress_index_exit != null ? opRisk.water_stress_index_exit : null;
+
+        var opHtml = '';
+        if (heatVal != null || waterVal != null) {
+          opHtml = '<div style="margin-top:10px;padding-top:10px;border-top:1px solid #E2E8F0;font-size:11px;color:#64748B">';
+          opHtml += '<strong>Operational risk indices (not asset value loss):</strong> ';
+          if (heatVal != null) opHtml += 'Heat disruption: <strong>' + esc(String(heatVal)) + '</strong>&nbsp;&nbsp;';
+          if (waterVal != null) opHtml += 'Water stress: <strong>' + esc(String(waterVal)) + '</strong>';
+          opHtml += '</div>';
+        }
+
+        varBox.innerHTML =
+          '<div style="display:flex;align-items:flex-start;gap:16px">' +
+            '<div style="flex:0 0 auto;background:#12253A;color:#fff;border-radius:8px;padding:10px 14px;text-align:center;min-width:80px">' +
+              '<div style="font-size:22px;font-weight:700;letter-spacing:-0.5px">' + varPct + '</div>' +
+              '<div style="font-size:9px;text-transform:uppercase;letter-spacing:0.5px;opacity:0.75;margin-top:2px">Climate VaR</div>' +
+            '</div>' +
+            '<div style="flex:1;min-width:0">' +
+              '<div style="font-size:13px;font-weight:600;color:#12253A;margin-bottom:4px">Expected Loss at Risk' + (holdYrs ? ' · ' + holdYrs : '') + '</div>' +
+              '<div style="font-size:12px;color:#475569;line-height:1.6">' +
+                'NPV of cumulative flood + wind damage under <strong>' + scenarioStr + '</strong>. ' +
+                'Annual expected loss at exit: <strong>' + ealExit + '</strong> of asset value' +
+                (npvUsd ? ' (' + npvUsd + ' NPV)' : '') + '. ' +
+                'Primary driver: <strong>' + driver + '</strong>.' +
+              '</div>' +
+              '<div style="margin-top:6px;font-size:10px;color:#94A3B8">' +
+                'Physical risk only · Transition VaR not modeled · Model uncertainty ±30–50% · ' + esc(cVar.covers || 'Flood + Wind') +
+              '</div>' +
+            '</div>' +
+          '</div>' + opHtml;
+        varBox.style.display = '';
+      }
+
+      if (physRisk.insurance_note) {
+        var pNote = document.getElementById('physical-risk-note');
+        if (pNote) pNote.textContent = physRisk.insurance_note;
+      }
+      physSection.style.display = '';
+    }
+
+    /* ── GHG Scoping ── */
+    var ghg = data.ghg_scoping || {};
+    var ghgSection = document.getElementById('ghg-section');
+    if (ghgSection && ghg.scopes && ghg.scopes.length > 0) {
+      /* GHG donut chart — extract Scope 1/2/3 numeric values */
+      var dS1=0, dS2=0, dS3=0;
+      ghg.scopes.forEach(function(s){
+        var sn=(s.scope||'').toLowerCase();
+        var v=parseFloat(String(s.annual_tco2e||'').replace(/[^0-9.]/g,''))||0;
+        if(sn.indexOf('scope 1')===0){dS1=v;}
+        else if(sn.indexOf('scope 2')===0){dS2=v;}
+        else if(sn.indexOf('scope 3')===0){dS3=v;}
+      });
+      var dTotal=dS1+dS2+dS3;
+      if(dTotal>0){
+        var dCx=90,dCy=90,dR=70,dIr=42;
+        function dArc(a0,a1){
+          var x1=dCx+dR*Math.sin(a0),y1=dCy-dR*Math.cos(a0);
+          var x2=dCx+dR*Math.sin(a1),y2=dCy-dR*Math.cos(a1);
+          var ix1=dCx+dIr*Math.sin(a0),iy1=dCy-dIr*Math.cos(a0);
+          var ix2=dCx+dIr*Math.sin(a1),iy2=dCy-dIr*Math.cos(a1);
+          var lg=(a1-a0>Math.PI)?1:0;
+          return 'M '+x1.toFixed(2)+','+y1.toFixed(2)+' A '+dR+','+dR+',0,'+lg+',1,'+x2.toFixed(2)+','+y2.toFixed(2)+' L '+ix2.toFixed(2)+','+iy2.toFixed(2)+' A '+dIr+','+dIr+',0,'+lg+',0,'+ix1.toFixed(2)+','+iy1.toFixed(2)+' Z';
+        }
+        var dA1=(dS1/dTotal)*2*Math.PI,dA2=(dS2/dTotal)*2*Math.PI,dA3=(dS3/dTotal)*2*Math.PI;
+        var dOwner=dS1+dS2;
+        var dOwnerLabel=dOwner<1?dOwner.toFixed(1):Math.round(dOwner);
+        var d3Path='<path d="'+dArc(0,dA3)+'" fill="#CBD5E1" stroke="#fff" stroke-width="2"/>';
+        var d2Path='<path d="'+dArc(dA3,dA3+dA2)+'" fill="#4CAF82" stroke="#fff" stroke-width="2"/>';
+        var d1Path=dS1>0?'<path d="'+dArc(dA3+dA2,dA3+dA2+dA1)+'" fill="#12253A" stroke="#fff" stroke-width="2"/>':'';
+        var donutDiv=document.createElement('div');
+        donutDiv.innerHTML='<div style="display:flex;gap:24px;align-items:flex-start;margin-bottom:16px"><svg viewBox="0 0 180 180" width="180" height="180" style="flex-shrink:0" aria-label="GHG scope breakdown donut">'+d3Path+d2Path+d1Path+'<text x="90" y="85" text-anchor="middle" font-size="18" font-weight="700" fill="#12253A">'+dOwnerLabel+'</text><text x="90" y="100" text-anchor="middle" font-size="9" fill="#64748B">tCO₂e/yr</text><text x="90" y="113" text-anchor="middle" font-size="8" fill="#94A3B8">owner boundary</text></svg><div style="font-size:12px;line-height:2">'+(dS1>0?'<div><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#12253A;margin-right:6px;vertical-align:middle"></span>Scope 1 — '+dS1+' tCO₂e</div>':'')+'<div><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#4CAF82;margin-right:6px;vertical-align:middle"></span>Scope 2 — '+dS2+' tCO₂e (owner boundary)</div><div><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#CBD5E1;border:1px dashed #94A3B8;margin-right:6px;vertical-align:middle"></span>Scope 3 — '+dS3+' tCO₂e <em style="color:#94A3B8">(excluded — tenant)</em></div></div></div>';
+        var ghgTable=document.getElementById('ghg-table');
+        if(ghgTable) ghgTable.parentNode.insertBefore(donutDiv,ghgTable);
+      }
+
+      var ghgTbody = document.querySelector('#ghg-table tbody');
+      var ghgHtml = '';
+      ghg.scopes.forEach(function(s) {
+        ghgHtml += '<tr><td>' + esc(s.scope) + '</td><td>' + esc(s.source) + '</td>';
+        ghgHtml += '<td>' + esc(s.annual_tco2e) + '</td><td>' + esc(s.notes) + '</td></tr>';
+      });
+      if (ghgTbody) ghgTbody.innerHTML = ghgHtml;
+      if (ghg.offset_note) {
+        var ghgNote = document.getElementById('ghg-offset-note');
+        if (ghgNote) ghgNote.textContent = ghg.offset_note;
+      }
+      ghgSection.style.display = '';
+    }
+
+    /* ── Certifications & Green Debt ── */
+    var cert = data.certifications_and_debt || {};
+    var certSection = document.getElementById('cert-section');
+    if (certSection && Object.keys(cert).length > 0) {
+      var certDl = document.getElementById('cert-dl');
+      var cFields = [
+        ['ENERGY STAR Recommendation', cert.energy_star_recommendation],
+        ['LEED Recommendation', cert.leed_recommendation],
+        ['Green Debt Assessment', cert.green_debt],
+        ['Fund / LP ESG Alignment', cert.fund_alignment]
+      ];
+      var cHtml = '';
+      cFields.forEach(function(f) {
+        if (f[1]) {
+          cHtml += '<div class="profile-row"><dt class="profile-dt">' + f[0] + '</dt>';
+          cHtml += '<dd class="profile-dd">' + esc(f[1]) + '</dd></div>';
+        }
+      });
+      if (certDl && cHtml) { certDl.innerHTML = cHtml; certSection.style.display = ''; }
+    }
+
+    /* ── Seller Questions ── */
+    var sellerSection = document.getElementById('seller-questions-section');
+    if (sellerSection) {
+      if (qs.length > 0) {
+        var qsList = document.getElementById('seller-questions-list');
+        if (qsList) {
+          var qsHtml = '';
+          qs.forEach(function(q, i) {
+            qsHtml += '<li class="question-card">';
+            qsHtml += '<span class="seller-q-num">' + (i + 1) + '</span>';
+            qsHtml += '<span class="question-text">' + esc(q) + '</span>';
+            qsHtml += '</li>';
+          });
+          qsList.innerHTML = qsHtml;
+        }
+        sellerSection.style.display = '';
+      } else {
+        sellerSection.style.display = 'none';
+      }
+    }
+
+    /* ── Sources / Citations ── */
+    var sourcesSection = document.getElementById('sources-section');
+    var sourcesList    = document.getElementById('sources-list');
+    var srcs = data.sources || [];
+    if (sourcesSection && sourcesList && srcs.length > 0) {
+      var srcHtml = '';
+      srcs.forEach(function(s, i) {
+        srcHtml += '<li class="source-item">';
+        srcHtml += '<span class="source-num">' + (i + 1) + '</span>';
+        srcHtml += '<span class="source-body">';
+        srcHtml += '<span class="source-label">' + esc(s.label) + '</span>';
+        if (s.value_cited) {
+          srcHtml += ' <span class="source-value">— ' + esc(s.value_cited) + '</span>';
+        }
+        var validUrl = safeUrl(s.url);
+        if (validUrl) {
+          srcHtml += '<br><a class="source-url" target="_blank" rel="noopener noreferrer" href="' + esc(validUrl) + '">' + esc(validUrl) + '</a>';
+        }
+        srcHtml += '</span></li>';
+      });
+      sourcesList.innerHTML = srcHtml;
+      sourcesSection.style.display = '';
+    }
+
+    /* ── Confidence note ── */
+    if (data.data_quality) {
+      var confNote = document.getElementById('confidence-note');
+      if (confNote) {
+        confNote.innerHTML = '<strong>Data quality:</strong> ' + esc(data.data_quality);
+      }
+    }
+
+    /* ── Disposition mode ── */
+    if (isDisp) {
+      var dispBanner = document.getElementById('disposition-banner');
+      if (dispBanner) dispBanner.style.display = '';
+    }
+  }
+
+  /* ── DOM helpers ── */
+  function setText(id, val) {
+    var el = document.getElementById(id);
+    if (el) el.textContent = val;
+  }
+  function setHtml(id, val) {
+    var el = document.getElementById(id);
+    if (el) el.innerHTML = val;
+  }
+  function showEl(id) {
+    var el = document.getElementById(id);
+    if (el) el.style.display = '';
+  }
+  function capitalise(s) {
+    if (!s) return '';
+    return s.charAt(0).toUpperCase() + s.slice(1);
+  }
+  function fmtSqft(n) {
+    if (typeof n !== 'number') return '—';
+    return n.toLocaleString('en-US') + ' sqft';
+  }
+</script>
+
+<span id="org-name-anchor" aria-hidden="true"></span>
+
+<!-- Hidden table stubs for JS compatibility -->
+<table style="display:none" aria-hidden="true">
+  <thead><tr><th id="decarb-unit-col-header"></th></tr></thead>
+  <tbody id="decarb-tbody"></tbody>
+  <tfoot><tr id="decarb-total-row"></tr></tfoot>
+</table>
+
+<!-- Hidden signal-box for JS compatibility -->
+<div id="signal-box" class="signal-box signal-low" style="display:none" aria-hidden="true">
+  <div class="signal-box-header">
+    <div class="signal-icon">?</div>
+    <div class="signal-level-label">—</div>
+  </div>
+  <div class="signal-narrative-text">—</div>
+</div>
+
+<div class="report">
+
+  <!-- Disposition banner — hidden by default -->
+  <div id="disposition-banner" class="disposition-banner" style="display:none">
+    Sustainability Passport — Disposition / Exit
+  </div>
+
+  <!-- ══════════════════════════════════
+       1. DOCUMENT HEADER
+  ════════════════════════════════════ -->
+  <!-- signal-hero-wrapper: JS sets className="signal-hero signal-xxx" — we do not style by that class -->
+  <div id="signal-hero-wrapper">
+
+    <div class="doc-header">
+      <div class="doc-header-eyebrow">Pre-Underwriting Sustainability Analysis</div>
+      <div class="doc-header-property-name" id="cover-property-name">Property Name</div>
+      <div class="doc-header-address" id="cover-property-address">Address</div>
+
+      <!-- Prepared-for strip inside the navy header -->
+      <div class="doc-header-meta-strip">
+        <span>
+          Prepared for: <span id="cover-meta-for">—</span>
+          &nbsp;·&nbsp;
+          Prepared by: <span id="cover-meta-by">—</span>
+          &nbsp;·&nbsp;
+          <span id="cover-meta-date">—</span>
+        </span>
+        <span class="meta-confidential">Confidential</span>
+      </div>
+    </div>
+
+    <!-- Meta bar -->
+    <div class="meta-bar">
+      <div class="meta-item">
+        <span class="meta-label">Asset Type</span>
+        <span class="meta-value" id="cover-meta-type">—</span>
+      </div>
+      <div class="meta-item">
+        <span class="meta-label">Size</span>
+        <span class="meta-value" id="cover-meta-units">—</span>
+      </div>
+      <div class="meta-item">
+        <span class="meta-label">Year Built</span>
+        <span class="meta-value" id="cover-meta-built">—</span>
+      </div>
+      <div class="meta-item">
+        <span class="meta-label">Est. Decarb CapEx / Unit</span>
+        <span class="meta-value" id="cover-meta-capex-unit">—</span>
+      </div>
+    </div>
+
+    <!-- Executive Summary — id="cover-signal-row" gets className wiped by JS; styled via #id + .signal-xxx -->
+    <div id="cover-signal-row" class="cover-signal-row signal-low">
+      <div class="exec-summary-label">Assessment Signal</div>
+      <span class="signal-badge">—</span>
+      <span class="signal-narrative">—</span>
+    </div>
+
+  </div><!-- /signal-hero-wrapper -->
+
+  <!-- ══════════════════════════════════
+       2. CAPEX SECTION
+  ════════════════════════════════════ -->
+  <div class="section">
+    <div class="section-label">Capital Planning</div>
+    <h2 class="section-title">Decarbonization Opportunities</h2>
+
+    <!-- Faux table header row -->
+    <div class="capex-table-head">
+      <span class="col-measure">Measure</span>
+      <span class="col-timing">Timing</span>
+      <span class="col-amount">Est. CapEx</span>
+    </div>
+
+    <div class="capex-list" id="capex-cards-list">
+      <!-- Populated by JS -->
+    </div>
+
+    <div class="capex-total-card" id="capex-total-card">
+      <!-- Populated by JS -->
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════
+       2b. SENSITIVITY TABLE
+  ════════════════════════════════════ -->
+  <div id="sensitivity-section" class="section" style="display:none">
+    <div class="section-label">Investment Trade-offs</div>
+    <h2 class="section-title">Value Creation vs. Carbon Reduction</h2>
+    <p style="font-size:12px;color:#475569;margin-bottom:16px;line-height:1.6">Sensitivity of value creation and carbon reduction at incremental spend levels — for investment analysts sizing the sustainability program.</p>
+    <div id="sensitivity-chart" style="margin-bottom:20px"></div>
+    <table class="profile-table" id="sensitivity-table">
+      <thead><tr><th>Scenario</th><th>CapEx</th><th>CO₂ Reduction</th><th>Annual NOI Lift</th><th>Est. Value Delta</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <!-- ══════════════════════════════════
+       3. EMISSIONS PROFILE
+  ════════════════════════════════════ -->
+  <div class="section">
+    <div class="section-label">Carbon Characterization</div>
+    <h2 class="section-title">Energy &amp; Emissions Profile</h2>
+
+    <div class="emissions-card">
+      <dl class="profile-dl">
+        <div class="profile-row">
+          <dt class="profile-dt">Fuel Profile</dt>
+          <dd class="profile-dd" id="profile-fuel">—</dd>
+        </div>
+
+        <div class="profile-row">
+          <dt class="profile-dt">Utility Structure</dt>
+          <dd class="profile-dd" id="profile-utility">—</dd>
+        </div>
+
+        <div class="profile-row">
+          <dt class="profile-dt">Baseline Emissions</dt>
+          <dd class="profile-dd" id="profile-emissions">—</dd>
+        </div>
+
+        <!-- CRREM row — hidden by default; JS shows the dt via showEl('profile-crrem-row')
+             We hide the entire row via the dt's display; dd is always rendered when row is visible -->
+        <div class="profile-row" id="profile-crrem-row" style="display:none">
+          <dt class="profile-dt">Carbon Pathway Alignment</dt>
+          <dd class="profile-dd" id="profile-crrem">—</dd>
+        </div>
+
+        <div class="profile-row">
+          <dt class="profile-dt">Regulatory Exposure</dt>
+          <dd class="profile-dd" id="profile-regulation">—</dd>
+        </div>
+      </dl>
+
+      <!-- Benchmark chart — hidden until JS populates it -->
+      <div id="emissions-benchmark-chart" style="display:none; margin-top:16px;"></div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════
+       4. PHYSICAL CLIMATE RISK
+  ════════════════════════════════════ -->
+  <div id="physical-risk-section" class="section" style="display:none">
+    <div class="section-label">Physical Climate Risk</div>
+    <h2 class="section-title">Climate Hazard Screening</h2>
+    <table class="profile-table" id="physical-risk-table">
+      <thead id="physical-risk-thead"><tr><th>Hazard</th><th>Risk Level</th><th>Key Finding</th></tr></thead>
+      <tbody></tbody>
+    </table>
+    <div id="climate-var-box" style="display:none;margin-top:20px;border-radius:8px;border:1.5px solid #12253A;background:#F8FAFC;padding:16px 20px"></div>
+    <div id="physical-risk-note" style="margin-top:12px;font-size:12px;color:#475569;line-height:1.6"></div>
+  </div>
+
+  <!-- ══════════════════════════════════
+       5. GHG SCOPING
+  ════════════════════════════════════ -->
+  <div id="ghg-section" class="section" style="display:none">
+    <div class="section-label">Carbon Characterization</div>
+    <h2 class="section-title">GHG Scoping — Scope 1 / 2 / 3</h2>
+    <table class="profile-table" id="ghg-table">
+      <thead><tr><th>Scope</th><th>Source</th><th>Annual tCO₂e</th><th>Notes</th></tr></thead>
+      <tbody></tbody>
+    </table>
+    <div id="ghg-offset-note" style="margin-top:12px;font-size:12px;color:#475569;line-height:1.6"></div>
+  </div>
+
+  <!-- ══════════════════════════════════
+       6. CERTIFICATIONS & GREEN DEBT
+  ════════════════════════════════════ -->
+  <div id="cert-section" class="section" style="display:none">
+    <div class="section-label">Certifications &amp; Financing</div>
+    <h2 class="section-title">Certifications, Green Debt &amp; Fund Alignment</h2>
+    <dl class="profile-dl" id="cert-dl"></dl>
+  </div>
+
+  <!-- ══════════════════════════════════
+       7. SELLER QUESTIONS
+  ════════════════════════════════════ -->
+  <div id="seller-questions-section" class="section" style="display:none">
+    <div class="section-label">Due Diligence</div>
+    <h2 class="section-title">Seller Questions</h2>
+
+    <ol class="questions-list" id="seller-questions-list">
+      <!-- Populated by JS -->
+    </ol>
+  </div>
+
+  <!-- ══════════════════════════════════
+       5. SOURCES (collapsible)
+  ════════════════════════════════════ -->
+  <div id="sources-section" class="section" style="display:none">
+    <details>
+      <summary>Sources &amp; Citations</summary>
+      <div class="sources-inner">
+        <ol class="sources-list" id="sources-list"></ol>
+      </div>
+    </details>
+  </div>
+
+  <!-- ══════════════════════════════════
+       6. CONFIDENCE NOTE
+  ════════════════════════════════════ -->
+  <div class="confidence-note" id="confidence-note">
+    <strong>Data quality:</strong> —
+  </div>
+
+</div><!-- /report -->
+
+</body>
+</html>

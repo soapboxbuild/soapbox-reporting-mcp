@@ -1,0 +1,88 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "esg-profile",
+  "title": "ESG Profile",
+  "type": "object",
+  "required": ["meta"],
+  "additionalProperties": false,
+  "properties": {
+    "meta": {
+      "type": "object",
+      "required": ["fund", "reporting_year", "anonymized"],
+      "additionalProperties": false,
+      "properties": {
+        "fund": {"type":"string"},
+        "reporting_year": {"type":"integer"},
+        "anonymized": {"type":"boolean"},
+        "generated_period": {"type":"string"}
+      }
+    },
+    "sponsor": {
+      "type": "object",
+      "required": ["name","investment_overview","risk_profile","scorecard","benchmark","governance_rights"],
+      "additionalProperties": false,
+      "properties": {
+        "name": {"type":"string","description":"Pseudonym when meta.anonymized=true"},
+        "investment_overview": {
+          "type":"object","additionalProperties": false,
+          "properties": {"asset_class":{"type":"string"},"location":{"type":"string"},"size":{"type":"string"},"exit_date":{"type":"string"},"standing_dev":{"type":"string"}}
+        },
+        "risk_profile": {
+          "type":"object","additionalProperties": false,
+          "properties": {
+            "transition": {"type":"object","additionalProperties": false,"properties":{
+              "green_street_rating":{"type":"string"},"crrem_stranding_year":{"type":["integer","string"]},
+              "market_regulation":{"type":"string"},"fine_exposure":{"type":"string"}}},
+            "physical": {"type":"object","additionalProperties": false,"properties":{
+              "impact":{"type":"string"},"hazards":{"type":"array","items":{"type":"string"}},"source":{"type":"string"}}}
+          }
+        },
+        "scorecard": {
+          "type":"object","required":["pillars","total"],"additionalProperties": false,
+          "properties": {
+            "pillars": {"type":"object","required":["policy_strategy","governance_resourcing","portfolio_management","monitoring_reporting"],"additionalProperties": false,
+              "properties":{"policy_strategy":{"type":"number"},"governance_resourcing":{"type":"number"},"portfolio_management":{"type":"number"},"monitoring_reporting":{"type":"number"}}},
+            "total": {"type":"number"},
+            "trend": {"type":"array","items":{"type":"object","required":["year","total"],"additionalProperties":false,"properties":{"year":{"type":"integer"},"total":{"type":"number"}}}}
+          }
+        },
+        "initiatives": {
+          "type":"object","additionalProperties": false,
+          "properties": {
+            "completed":{"type":"array","items":{"type":"string"}},
+            "in_progress":{"type":"array","items":{"type":"object","additionalProperties":false,"properties":{"item":{"type":"string"},"budget":{"type":"string"}}}},
+            "planned":{"type":"array","items":{"type":"object","additionalProperties":false,"properties":{"item":{"type":"string"},"budget":{"type":"string"},"regression":{"type":"boolean"}}}}
+          }
+        },
+        "regressions": {"type":"array","items":{"type":"string"}},
+        "benchmark": {
+          "type":"object","additionalProperties": false,
+          "properties": {"metrics":{"type":"array","items":{"type":"object","additionalProperties":false,
+            "properties":{"metric":{"type":"string"},"sponsor":{"type":"string"},"mieppi":{"type":"string"},"asset_class":{"type":"string"},"mir":{"type":"string"}}}}}
+        },
+        "governance_rights": {
+          "type":"object","additionalProperties": false,
+          "properties":{"annual_budget":{"type":"string"},"leasing":{"type":"string"},"capex_variance":{"type":"string"},"contractor_engagement":{"type":"string"}}
+        },
+        "energy": {"type":"object","additionalProperties":false,"properties":{
+          "eui_kwh_m2":{"type":"number"},"carbon_intensity":{"type":"string"},"renewable_pct":{"type":"number"},"energy_rating_pct":{"type":"number"}}},
+        "provenance": {"type":"array","items":{"type":"object","required":["source_id","mode"],"additionalProperties":false,
+          "properties":{"source_id":{"type":"string"},"mode":{"enum":["live","static","estimate"]},"origin":{"type":"string"},"period":{"type":"string"}}}}
+      }
+    },
+    "fund_overview": {
+      "type":"object","required":["stats","sponsor_metrics","ranking"],"additionalProperties": false,
+      "properties": {
+        "stats": {"type":"object","additionalProperties":false,"properties":{
+          "asset_classes":{"type":"string"},"locations":{"type":"string"},"total_size":{"type":"string"},
+          "standing_dev":{"type":"string"},"response_rate":{"type":"string"},"yoy_performance":{"type":"string"},
+          "avg_crrem_stranding_year":{"type":["integer","string"]},"fine_exposure":{"type":"string"}}},
+        "sponsor_metrics": {"type":"array","items":{"type":"object"}},
+        "ranking": {"type":"array","items":{"type":"object","additionalProperties":false,
+          "properties":{"rank":{"type":"integer"},"sponsor":{"type":"string"},"score":{"type":"number"},"yoy_change":{"type":"string"},"vs_mieppi":{"type":"string"},"vs_mir":{"type":"string"}}}},
+        "underperformers": {"type":"array","items":{"type":"object","additionalProperties":false,
+          "properties":{"sponsor":{"type":"string"},"identified_risk":{"type":"string"},"mitigation":{"type":"string"}}}}
+      }
+    }
+  }
+}

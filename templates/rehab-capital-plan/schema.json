@@ -1,0 +1,662 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "rehab-capital-plan",
+  "title": "Rehabilitation Capital Plan Report Data",
+  "description": "Data contract for rehab-capital-plan: forked from templates/decarb (the two-plan comparison base, not decarb-capital-plan's single-package fork). Plan 1 = Like-for-Similar (every component at code-minimum), Plan 2 = Like-for-Efficient (every component at high-efficiency) \u2014 shown side by side as ILLUSTRATIVE aggregates. The real decision unit is components[]: each component clears or misses its own IRR hurdle independently, and a reader may take Plan 1 on one component and Plan 2 on another. Unlike templates/decarb, plans[].waterfall/cashflow are OPERATING-BASIS (no exit capitalization, no asset_value_impact) \u2014 this engagement has a fixed hold and a flat IRR hurdle, not an exit-value framing. All engine-sourced fields \u2014 never LLM-computed; omit a field entirely rather than estimate it.",
+  "type": "object",
+  "required": [
+    "property",
+    "scope",
+    "baseline",
+    "components",
+    "plans"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "property": {
+      "type": "object",
+      "required": [
+        "name",
+        "address",
+        "type",
+        "year_built"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "address": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "multifamily",
+            "office",
+            "industrial",
+            "retail",
+            "hotel",
+            "senior-living",
+            "student-housing",
+            "mixed-use"
+          ]
+        },
+        "units": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "gfa_sqft": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "gfa_m2": {
+          "type": "number",
+          "minimum": 1
+        },
+        "year_built": {
+          "type": "integer",
+          "minimum": 1800,
+          "maximum": 2100
+        }
+      }
+    },
+    "prepared_by": {
+      "type": "string"
+    },
+    "prepared_for": {
+      "type": "string"
+    },
+    "report_date": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+    },
+    "scope": {
+      "type": "object",
+      "description": "The closed rehab program this report evaluates within \u2014 set by the client's construction/engineering team, not ideated here.",
+      "required": [
+        "program_source",
+        "hold_period_years",
+        "irr_hurdle_pct"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "program_source": {
+          "type": "string",
+          "description": "Where the rehab scope originated."
+        },
+        "hold_period_years": {
+          "type": "integer",
+          "description": "Fixed hold the incremental-IRR test is run over (e.g. 10). No exit year, no exit cap \u2014 this engagement does not model disposition."
+        },
+        "irr_hurdle_pct": {
+          "type": "number",
+          "description": "Client's flat IRR hurdle on incremental cost, as a percent (e.g. 10)."
+        },
+        "hard_constraints": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Constraints that removed candidates before costing (e.g. 'No tankless water heaters')."
+        }
+      }
+    },
+    "executive_summary": {
+      "oneOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "headline": {
+              "type": "string"
+            },
+            "narrative": {
+              "type": "string"
+            }
+          }
+        }
+      ]
+    },
+    "dashboard": {
+      "type": "object",
+      "description": "Decision Dashboard \u2014 the hero section. Every field nullable; a missing field hides its tile. This is 'the way to make a useful decision': the headline is per-component clearance, not a single package verdict.",
+      "additionalProperties": false,
+      "properties": {
+        "title": {
+          "type": "string"
+        },
+        "components_clearing_hurdle": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "components_evaluated": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "irr_hurdle_pct": {
+          "type": "number",
+          "description": "Mirrors scope.irr_hurdle_pct \u2014 shown as the chip caption."
+        },
+        "total_incremental_capital_ask": {
+          "type": "number",
+          "description": "Sum of incremental cost across components taking the efficient tier (or, pre-decision, across all components' efficient options)."
+        },
+        "whole_building_eui_reduction_pct": {
+          "type": "number",
+          "description": "Percent, e.g. 15.5 for 15.5%. If every component takes the efficient tier."
+        },
+        "regulatory_status": {
+          "type": "string"
+        },
+        "recommendation": {
+          "type": "string",
+          "description": "MAXIMUM 3 sentences: which components clear, the single biggest driver, the one open gap."
+        }
+      }
+    },
+    "baseline": {
+      "type": "object",
+      "description": "What exists today, before any rehab decision. Whole-building stats plus a per-component description of current condition \u2014 the report's answer to 'what are we replacing and why'.",
+      "required": [
+        "components"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "model_validation": {
+          "type": "string"
+        },
+        "calibrated_kwh": {
+          "type": "number",
+          "minimum": 0
+        },
+        "eui_kwh_m2": {
+          "type": "number",
+          "minimum": 0
+        },
+        "emissions_tco2e": {
+          "type": "number",
+          "minimum": 0
+        },
+        "energy_star_score": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        },
+        "fuel_profile": {
+          "type": "string"
+        },
+        "utility_structure": {
+          "type": "string"
+        },
+        "calibration_basis": {
+          "type": "string"
+        },
+        "components": {
+          "type": "array",
+          "description": "Current-state description of each component being evaluated, BEFORE the similar/efficient comparison. Read this before the options below \u2014 it says what is actually installed and why it's being touched now.",
+          "items": {
+            "type": "object",
+            "required": [
+              "component",
+              "current_spec"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "component": {
+                "type": "string",
+                "description": "Matches the name used in components[] below."
+              },
+              "quantity": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "current_spec": {
+                "type": "string",
+                "description": "What's installed now (age, condition, fuel, efficiency)."
+              },
+              "condition_basis": {
+                "type": "string",
+                "description": "Source of the condition assessment (PCA, equipment survey, maintenance records) and provenance (document-derived vs stock-derived)."
+              },
+              "why_now": {
+                "type": "string",
+                "description": "Why this component is being touched in this rehab cycle (end of useful life, planned program, code trigger)."
+              }
+            }
+          }
+        }
+      }
+    },
+    "components": {
+      "type": "array",
+      "description": "Section 3 \u2014 the report's decision unit. One entry per component; independent verdict per component. Plan 1/Plan 2 below are illustrative rollups of this array, never the decision itself.",
+      "items": {
+        "type": "object",
+        "required": [
+          "component",
+          "quantity",
+          "similar_tier",
+          "efficient_tier",
+          "incremental_cost"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "component": {
+            "type": "string"
+          },
+          "quantity": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "install_year": {
+            "type": "integer",
+            "description": "Staged install year, if the rehab program sequences by building/phase. Omit for a single-year program."
+          },
+          "similar_tier": {
+            "type": "object",
+            "required": [
+              "spec",
+              "total_cost"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "spec": {
+                "type": "string"
+              },
+              "total_cost": {
+                "type": "number",
+                "minimum": 0
+              },
+              "incentives": {
+                "type": "number",
+                "minimum": 0,
+                "description": "Only set when an incentive applies equally to the similar tier too (e.g. a rebate keyed to a threshold both specs clear) -- rare, but real: do not default this to efficient_tier.incentives, most incentives target the efficient tier only."
+              }
+            }
+          },
+          "efficient_tier": {
+            "type": "object",
+            "required": [
+              "spec",
+              "total_cost"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "spec": {
+                "type": "string"
+              },
+              "total_cost": {
+                "type": "number",
+                "minimum": 0
+              },
+              "incentives": {
+                "type": "number",
+                "minimum": 0
+              },
+              "excluded_candidates": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Candidates screened out by a hard constraint before costing."
+              }
+            }
+          },
+          "incremental_cost": {
+            "type": "number",
+            "minimum": 0,
+            "description": "efficient_tier.total_cost minus similar_tier.total_cost, pre-incentive."
+          },
+          "annual_utility_savings_landlord": {
+            "type": "number"
+          },
+          "annual_utility_savings_tenant": {
+            "type": "number",
+            "description": "Shown separately \u2014 never merged with landlord savings."
+          },
+          "annual_maintenance_savings": {
+            "type": "number",
+            "description": "Omit (do not zero-fill) where no maintenance-cost history exists yet \u2014 use data_gaps instead."
+          },
+          "emissions_savings_tco2e": {
+            "type": "number"
+          },
+          "eui_reduction_contribution_pct": {
+            "type": "number",
+            "description": "Percent of whole-building baseline EUI, e.g. 6.5."
+          },
+          "npv": {
+            "type": "number"
+          },
+          "irr_pct": {
+            "type": "number",
+            "description": "Incremental IRR of this component's efficient-over-similar cash flow. Never a whole-package or property-level figure."
+          },
+          "irr_engine": {
+            "type": "string",
+            "enum": [
+              "compute_plan_economics",
+              "run_npv_payback"
+            ],
+            "description": "Which engine call produced irr_pct."
+          },
+          "payback_years": {
+            "type": "number"
+          },
+          "meets_irr_hurdle": {
+            "type": "boolean"
+          },
+          "decision": {
+            "type": "string",
+            "enum": [
+              "similar",
+              "efficient",
+              "undecided"
+            ]
+          },
+          "data_gaps": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "pending_incentive_note": {
+            "type": "string",
+            "description": "One-line caveat shown as an asterisk + footnote next to any incentives figure on this component, e.g. 'estimated, pending utility eligibility confirmation'. Set this whenever an incentives value is not yet a confirmed/committed rebate -- never silently present an estimated incentive as confirmed."
+          }
+        }
+      }
+    },
+    "plans": {
+      "type": "array",
+      "description": "Exactly two illustrative rollups: Plan 1 (every component at similar_tier) and Plan 2 (every component at efficient_tier). NOT the decision \u2014 see components[]. Each plan's waterfall/cashflow are OPERATING-BASIS: no exit capitalization, no disposition, real cumulative cash position over scope.hold_period_years only.",
+      "minItems": 1,
+      "maxItems": 2,
+      "items": {
+        "type": "object",
+        "required": [
+          "name",
+          "waterfall"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "'Plan 1' or 'Plan 2'."
+          },
+          "label": {
+            "type": "string",
+            "description": "'Like-for-Similar' or 'Like-for-Efficient'."
+          },
+          "summary_points": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 5
+          },
+          "thesis": {
+            "type": "string"
+          },
+          "irr_incremental_pct": {
+            "type": "number",
+            "description": "Aggregate IRR across every component at this tier, as a percent \u2014 illustrative only; the real test is per-component (components[].irr_pct)."
+          },
+          "components_included": {
+            "type": "integer",
+            "description": "How many components this rollup covers (normally all of them)."
+          },
+          "waterfall": {
+            "type": "object",
+            "description": "Operating-basis bridge. incremental_capex is NEGATIVE. No exit_value_uplift / capitalized_* / net_value_creation fields \u2014 this shape must never contain a disposition-based figure.",
+            "required": [
+              "incremental_capex",
+              "incentives",
+              "cumulative_utility_savings",
+              "cumulative_maintenance_savings",
+              "net_position"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "incremental_capex": {
+                "type": "number",
+                "description": "Negative \u2014 sum of incremental_cost across this plan's components."
+              },
+              "incentives": {
+                "type": "number",
+                "minimum": 0
+              },
+              "cumulative_utility_savings": {
+                "type": "number",
+                "description": "Sum of realized (not capitalized) utility savings across scope.hold_period_years."
+              },
+              "cumulative_maintenance_savings": {
+                "type": "number",
+                "description": "Sum of realized maintenance savings across the hold, across only the components that have a real figure (see components[].data_gaps)."
+              },
+              "net_position": {
+                "type": "number",
+                "description": "Real final-year cumulative cash position from this plan's own cashflow series (not a sum of the bars above \u2014 timing matters)."
+              }
+            }
+          },
+          "cashflow": {
+            "type": "array",
+            "description": "Annual operating cashflow underneath the bridge. Engine-sourced (aggregated from the components at this tier), never derived client-side from steady-state assumptions.",
+            "items": {
+              "type": "object",
+              "required": [
+                "year"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "year": {
+                  "type": "integer"
+                },
+                "incremental_capex": {
+                  "type": "number"
+                },
+                "incentives": {
+                  "type": "number"
+                },
+                "utility_savings": {
+                  "type": "number"
+                },
+                "maintenance_savings": {
+                  "type": "number"
+                },
+                "unlevered_incremental_cashflow": {
+                  "type": "number",
+                  "description": "utility_savings + maintenance_savings + incentives \u2212 incremental_capex."
+                },
+                "cumulative": {
+                  "type": "number"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "targets": {
+      "type": "object",
+      "description": "EUI and GHGi trajectories comparing Plan 1 vs Plan 2 against the current baseline. Secondary to the capital decision for this audience \u2014 present, not the organizing frame.",
+      "additionalProperties": false,
+      "properties": {
+        "plan1_label": {
+          "type": "string"
+        },
+        "plan2_label": {
+          "type": "string"
+        },
+        "eui_trajectory": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "year"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "year": {
+                "type": "integer"
+              },
+              "baseline": {
+                "type": "number",
+                "description": "Current EUI, held flat \u2014 no action taken. kWh/m\u00b2/yr."
+              },
+              "planned_1": {
+                "type": "number",
+                "description": "EUI under Plan 1 (Like-for-Similar). kWh/m\u00b2/yr."
+              },
+              "planned_2": {
+                "type": "number",
+                "description": "EUI under Plan 2 (Like-for-Efficient). kWh/m\u00b2/yr."
+              }
+            }
+          }
+        },
+        "ghgi_trajectory": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "year"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "year": {
+                "type": "integer"
+              },
+              "baseline": {
+                "type": "number",
+                "description": "kgCO2e/m\u00b2/yr."
+              },
+              "planned_1": {
+                "type": "number"
+              },
+              "planned_2": {
+                "type": "number"
+              },
+              "bps_target": {
+                "type": "number",
+                "description": "Only where a real, cited BPS applies to this jurisdiction."
+              }
+            }
+          }
+        },
+        "bps_label": {
+          "type": "string"
+        },
+        "bps_source": {
+          "type": "string",
+          "description": "Required whenever any ghgi_trajectory point sets bps_target."
+        },
+        "regulatory": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "applicable_standard": {
+              "type": "string"
+            },
+            "compliance_status": {
+              "type": "string",
+              "enum": [
+                "compliant",
+                "non-compliant",
+                "not-applicable"
+              ]
+            },
+            "annual_fine_avoided_usd": {
+              "type": "number"
+            },
+            "note": {
+              "type": "string"
+            }
+          }
+        },
+        "crrem_pathway": {
+          "type": "array",
+          "description": "Optional CRREM 1.5C pathway limit lines, one entry per year. carbon_kgco2_m2yr feeds the GHGi chart's limit line; eui_kwh_m2yr feeds the EUI chart's limit line -- both required if this is supplied at all, since drawTrajectory has no safe default field and will throw rather than silently plot the wrong unit on the wrong chart. When absent, both charts render exactly as before (no limit line).",
+          "items": {
+            "type": "object",
+            "required": [
+              "year"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "year": {
+                "type": "integer"
+              },
+              "carbon_kgco2_m2yr": {
+                "type": "number",
+                "description": "CRREM carbon limit for this year. kgCO2e/m2/yr."
+              },
+              "eui_kwh_m2yr": {
+                "type": "number",
+                "description": "CRREM energy limit for this year. kWh/m2/yr. Reaches a floor (typically ~90) after which further carbon reduction comes from grid decarbonization, not additional energy efficiency -- this is expected to flatten and is not a data error."
+              }
+            }
+          }
+        },
+        "crrem_meta": {
+          "type": "object",
+          "description": "Provenance for crrem_pathway -- which CRREM region/property type/API call produced it.",
+          "additionalProperties": false,
+          "properties": {
+            "region": {
+              "type": "string",
+              "description": "CRREM region + property type string, e.g. 'SRVCc_Mixed mild_4A -- large multi-family low-rise (>20 units)'."
+            }
+          }
+        }
+      }
+    },
+    "presentation": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "incentive_programs": {
+      "type": "array",
+      "description": "Rebate/incentive programs relevant to this engagement's components, shown as their own report section. Not the same as a component's incentives dollar figure -- this is the narrative list explaining what those programs are, their status, and any caveats (e.g. pending eligibility, or applies to both tiers so isn't differentiating).",
+      "items": {
+        "type": "object",
+        "required": [
+          "program",
+          "description"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "program": {
+            "type": "string",
+            "description": "Program name, e.g. 'Washington Gas high-efficiency water heater rebate'."
+          },
+          "description": {
+            "type": "string",
+            "description": "One to two sentences: amount, which tier(s) it applies to, and confirmation status."
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "confirmed",
+              "pending",
+              "excluded"
+            ],
+            "description": "confirmed = realized/committed. pending = estimated, not yet confirmed -- the common case. excluded = investigated and does not apply, recorded so it isn't re-investigated."
+          }
+        }
+      }
+    },
+    "data_quality_notes": {
+      "type": "array",
+      "description": "Flat list of one-line data-quality/methodology disclosures, rendered verbatim as the report's Data Quality section. Every disclosure that matters to the client belongs here, not just in engagement notes -- a caveat that isn't in this array never reaches the reader.",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

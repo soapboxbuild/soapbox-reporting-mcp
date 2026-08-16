@@ -1,0 +1,12 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://soapbox.build/templates/esg-fund-deck/schema.json",
+  "title": "Fund ESG deck (demo) payload",
+  "description": "Static Fund IV ESG deck in the Soapbox design system (title, summary, one slide per sponsor A-E, ranking, underperformers). Content is baked into layout-agent.html; render.data is not required.",
+  "type": "object",
+  "properties": {
+    "deck": { "type": ["object","null"] },
+    "slides": { "type": ["array","null"] }
+  },
+  "additionalProperties": true
+}

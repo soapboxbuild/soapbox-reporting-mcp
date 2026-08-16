@@ -1,0 +1,707 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "rsra",
+  "title": "Rapid Sustainability Risk Assessment",
+  "description": "Schema for the RSRA report type — energy transition and decarbonization analysis for real estate acquisition underwriting.",
+  "type": "object",
+  "required": [
+    "property",
+    "decarb_plan",
+    "emissions_profile",
+    "deal_signal"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "property": {
+      "type": "object",
+      "description": "Core property identification and physical attributes.",
+      "required": [
+        "name",
+        "address",
+        "type",
+        "year_built"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Property name as it appears on the OM or marketing materials."
+        },
+        "address": {
+          "type": "string",
+          "description": "Full street address including city, state."
+        },
+        "type": {
+          "type": "string",
+          "description": "Asset class. Drives $/unit vs $/sqft cost calculations and applicable financing programs.",
+          "enum": [
+            "multifamily",
+            "office",
+            "industrial",
+            "retail",
+            "hotel",
+            "senior-living",
+            "student-housing",
+            "mixed-use"
+          ]
+        },
+        "units": {
+          "type": "integer",
+          "description": "Unit count. Required for multifamily, senior living, and student housing. Omit for CRE.",
+          "minimum": 1
+        },
+        "gfa_sqft": {
+          "type": "integer",
+          "description": "Gross floor area in square feet. Required for CRE (office, industrial, retail, hotel). Omit for per-unit multifamily analysis.",
+          "minimum": 1
+        },
+        "year_built": {
+          "type": "integer",
+          "description": "Year of original construction. Determines likely envelope/equipment vintage and deferred maintenance risk.",
+          "minimum": 1800,
+          "maximum": 2100
+        },
+        "zip": {
+          "type": "string",
+          "description": "Five-digit ZIP code. Used for climate zone classification, regulatory jurisdiction lookup, and utility program identification.",
+          "pattern": "^[0-9]{5}(-[0-9]{4})?$"
+        }
+      }
+    },
+    "decarb_plan": {
+      "type": "array",
+      "description": "Ordered list of decarbonization and energy efficiency measures to include in the capital plan.",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "measure",
+          "timing",
+          "capex_total"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "measure": {
+            "type": "string",
+            "description": "Descriptive name of the capital measure (e.g., 'LED lighting retrofit — common areas')."
+          },
+          "timing": {
+            "type": "string",
+            "description": "Hold-period timing bucket. Maps to capital plan sequencing.",
+            "enum": [
+              "Early Yr1",
+              "Early Yr2",
+              "Mid Yr3",
+              "Late Yr4-5",
+              "Ongoing"
+            ]
+          },
+          "capex_per_unit": {
+            "type": "number",
+            "description": "Per-unit cost in USD. Required for multifamily. Omit for CRE (use capex_per_sqft instead).",
+            "minimum": 0
+          },
+          "capex_per_sqft": {
+            "type": "number",
+            "description": "Per-square-foot cost in USD. Used for CRE assets. Omit for multifamily.",
+            "minimum": 0
+          },
+          "capex_total": {
+            "type": "number",
+            "description": "Total estimated CapEx for this measure in USD. Always required.",
+            "minimum": 0
+          },
+          "incentive_program": {
+            "type": "string",
+            "description": "Named incentive program(s) applicable to this measure (e.g., 'ITC §48E — 30% tax credit', 'Fannie Mae Green Rewards')."
+          },
+          "financial_impact_type": {
+            "type": "string",
+            "description": "Category of financial benefit: expense reduction, revenue lift, loan rate reduction, tax credit, or exit cap rate compression.",
+            "enum": [
+              "Common area expense reduction",
+              "Revenue lift",
+              "Green loan rate reduction",
+              "ITC tax credit",
+              "§45L tax credit",
+              "§179D deduction",
+              "MACRS accelerated depreciation",
+              "Exit cap rate compression",
+              "Energy cost passthrough reduction",
+              "Other"
+            ]
+          },
+          "financial_impact_timing": {
+            "type": "string",
+            "description": "When the financial benefit is realized (e.g., 'Year 1 one-time', 'Annual ongoing', 'Year 5 exit')."
+          },
+          "financial_impact_value": {
+            "type": "string",
+            "description": "Estimated financial impact as a human-readable string (e.g., '$14,400/yr', '30% × CapEx', '12–15 bps rate relief')."
+          },
+          "emissions_reduction_pct": {
+            "type": "number",
+            "description": "Estimated percentage reduction in whole-building carbon intensity from this single measure (e.g., 8.5 for 8.5%). Use the reference ranges in the SKILL.md.",
+            "minimum": 0,
+            "maximum": 100
+          }
+        }
+      }
+    },
+    "decarb_plan_total": {
+      "type": "object",
+      "description": "Summary totals for the full decarb plan. Computed by the report renderer if omitted.",
+      "additionalProperties": false,
+      "properties": {
+        "capex_per_unit": {
+          "type": "number",
+          "description": "Total CapEx per unit across all measures. Multifamily only.",
+          "minimum": 0
+        },
+        "capex_total": {
+          "type": "number",
+          "description": "Sum of all measure CapEx in USD.",
+          "minimum": 0
+        },
+        "total_emissions_reduction_pct": {
+          "type": "number",
+          "description": "Estimated total percentage reduction in building carbon intensity if all plan measures are implemented (accounts for overlap between measures — not a simple sum).",
+          "minimum": 0,
+          "maximum": 100
+        }
+      }
+    },
+    "emissions_profile": {
+      "type": "object",
+      "description": "Energy and carbon characterization of the asset — the foundation for regulatory risk and decarb sequencing.",
+      "required": [
+        "fuel_profile",
+        "utility_structure",
+        "baseline_emissions",
+        "regulation"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "fuel_profile": {
+          "type": "string",
+          "description": "Primary energy profile of the asset (e.g., '~100% electric', 'Dual-fuel — gas heat/DHW + electric cooling', 'Primarily natural gas')."
+        },
+        "utility_structure": {
+          "type": "string",
+          "description": "Who pays utilities and how metered (e.g., 'Resident electric submetered; landlord pays common area gas', 'Master-metered — landlord pays all utilities')."
+        },
+        "baseline_emissions": {
+          "type": "string",
+          "description": "Estimated or reported carbon intensity (e.g., '~52 kgCO₂e/m²yr (est., mixed fuel benchmark)' or '47 kgCO₂e/m²yr per ESG DD report')."
+        },
+        "crrem_pathway": {
+          "type": "string",
+          "description": "Gap vs. CRREM 1.5°C pathway for this asset type/geography (e.g., '~18% above 2030 target — planned measures close the gap by Yr3'). Omit if CRREM analysis is not applicable."
+        },
+        "regulation": {
+          "type": "string",
+          "description": "Regulatory exposure summary (e.g., 'Low — no active BPS; monitor Colorado SB 19-096 over hold period' or 'HIGH — NYC LL97 penalties estimated $42K/yr beginning 2025')."
+        },
+        "eui_kbtu": {
+          "type": "number",
+          "description": "Energy Use Intensity in kBtu/sqft/yr. Include if available from ENERGY STAR Portfolio Manager or ESG DD report.",
+          "minimum": 0
+        },
+        "energy_star_score": {
+          "type": "integer",
+          "description": "ENERGY STAR score (1–100) if available.",
+          "minimum": 1,
+          "maximum": 100
+        },
+        "baseline_emissions_kgco2": {
+          "type": "number",
+          "description": "Numeric baseline carbon intensity in kgCO₂e/m²/yr. Used to render the benchmark chart. Derive from baseline_emissions string or estimate from EUI + fuel profile.",
+          "minimum": 0
+        },
+        "benchmark_emissions_kgco2": {
+          "type": "number",
+          "description": "ENERGY STAR sector median carbon intensity in kgCO₂e/m²/yr for this asset type and climate zone. Used as the benchmark bar in the chart.",
+          "minimum": 0
+        },
+        "bpd_chart": {
+          "type": "object",
+          "description": "Structured BPD peer EUI distribution for the histogram. Only supply when EUI is MEASURED (not benchmark-estimated) — otherwise the peer comparison is circular and the chart auto-suppresses.",
+          "additionalProperties": true,
+          "properties": {
+            "buckets": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": true,
+                "properties": {
+                  "count": {
+                    "type": "number"
+                  }
+                }
+              }
+            },
+            "min_eui": {
+              "type": "number"
+            },
+            "max_eui": {
+              "type": "number"
+            },
+            "median_eui": {
+              "type": "number"
+            },
+            "target_eui": {
+              "type": "number"
+            },
+            "subject_eui": {
+              "type": "number"
+            },
+            "peer_count": {
+              "type": "number"
+            },
+            "asset_class": {
+              "type": "string"
+            },
+            "climate_zone": {
+              "type": "string"
+            },
+            "year": {
+              "type": [
+                "string",
+                "number"
+              ]
+            }
+          }
+        }
+      }
+    },
+    "physical_climate_risk": {
+      "type": "object",
+      "description": "Physical climate hazard assessment from os-climate physrisk engine. Include when physrisk MCP data is available for the asset location.",
+      "additionalProperties": false,
+      "properties": {
+        "hazards": {
+          "type": "array",
+          "description": "Per-hazard risk levels at 2030 and 2050 under the assessed scenario.",
+          "items": {
+            "type": "object",
+            "required": [
+              "hazard",
+              "risk_2030",
+              "risk_2050"
+            ],
+            "additionalProperties": true,
+            "properties": {
+              "hazard": {
+                "type": "string",
+                "description": "Hazard name (e.g., 'Riverine flood', 'Coastal flood', 'Extreme heat', 'Wind / hurricane', 'Water stress')."
+              },
+              "hazard_key": {
+                "type": "string",
+                "description": "Internal physrisk hazard key (e.g., 'RiverineInundation')."
+              },
+              "risk_2030": {
+                "type": "string",
+                "description": "Risk level at 2030: No risk | Low | Moderate | High | Red flag."
+              },
+              "risk_2050": {
+                "type": "string",
+                "description": "Risk level at 2050: No risk | Low | Moderate | High | Red flag."
+              },
+              "score_2030": {
+                "type": "number",
+                "description": "Numeric score 0–4 at 2030."
+              },
+              "score_2050": {
+                "type": "number",
+                "description": "Numeric score 0–4 at 2050."
+              },
+              "impact_mean_2030": {
+                "type": "number",
+                "description": "Mean annual impact fraction at 2030 from physrisk. For flood/wind: EAL fraction of asset value. For heat/water: disruption index."
+              },
+              "impact_mean_2050": {
+                "type": "number",
+                "description": "Mean annual impact fraction at 2050 from physrisk."
+              },
+              "data_source": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "overall_risk_2050": {
+          "type": "string",
+          "description": "Highest risk level across all hazards at 2050."
+        },
+        "primary_hazard": {
+          "type": "string",
+          "description": "The hazard with the highest 2050 score."
+        },
+        "scenario": {
+          "type": "string",
+          "description": "IPCC scenario assessed (e.g., 'SSP2-4.5 (moderate emissions)')."
+        },
+        "climate_var": {
+          "type": "object",
+          "description": "Climate physical Value at Risk — expected cumulative financial loss from flood and wind hazards over the hold period.",
+          "additionalProperties": false,
+          "properties": {
+            "expected_annual_loss_pct_2030": {
+              "type": "string",
+              "description": "Expected annual loss as % of asset value at 2030 (e.g., '0.210%')."
+            },
+            "expected_annual_loss_pct_exit": {
+              "type": "string",
+              "description": "Expected annual loss as % of asset value at exit year."
+            },
+            "expected_annual_loss_usd_2030": {
+              "type": "number",
+              "description": "Expected annual loss in USD at 2030."
+            },
+            "expected_annual_loss_usd_exit": {
+              "type": "number",
+              "description": "Expected annual loss in USD at exit year."
+            },
+            "cumulative_var_npv_pct": {
+              "type": "string",
+              "description": "NPV of cumulative expected loss over hold period as % of asset value (e.g., '2.1%'). The headline Climate VaR metric."
+            },
+            "cumulative_var_npv_usd": {
+              "type": "number",
+              "description": "NPV of cumulative expected loss over hold period in USD."
+            },
+            "primary_driver": {
+              "type": "string",
+              "description": "Hazard contributing most to the financial VaR."
+            },
+            "covers": {
+              "type": "string"
+            },
+            "excludes": {
+              "type": "string"
+            },
+            "hold_period_years": {
+              "type": "number"
+            },
+            "exit_year": {
+              "type": "number"
+            },
+            "asset_value_usd": {
+              "type": "number"
+            },
+            "discount_rate": {
+              "type": "number"
+            },
+            "scenario": {
+              "type": "string"
+            },
+            "methodology": {
+              "type": "string"
+            },
+            "confidence": {
+              "type": "string"
+            }
+          }
+        },
+        "operational_risk": {
+          "type": "object",
+          "description": "Operational (non-$) climate risk indices surfaced in the Climate VaR box — heat/water are disruption indices, NOT asset-value loss. Populate from calculate_climate_var operational_risk output.",
+          "additionalProperties": true,
+          "properties": {
+            "heat_impact_index_exit": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "Chronic-heat disruption index at exit (degree-days/index) — never a $ loss."
+            },
+            "water_stress_index_exit": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "description": "Water-stress index at exit."
+            }
+          }
+        }
+      }
+    },
+    "deal_signal": {
+      "type": "object",
+      "description": "Top-line investment signal — the single most decision-useful output of the RSRA.",
+      "required": [
+        "level",
+        "narrative"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "level": {
+          "type": "string",
+          "description": "Signal tier. Drives the colored callout box in the report.",
+          "enum": [
+            "Low Risk",
+            "Moderate Risk — Opportunity",
+            "Moderate Risk — CapEx",
+            "High Transition Risk"
+          ]
+        },
+        "narrative": {
+          "type": "string",
+          "description": "One to two sentences. Specific, direct, decision-useful. Names the primary driver and its model implication."
+        }
+      }
+    },
+    "seller_questions": {
+      "type": "array",
+      "description": "Targeted questions for the seller — only include when specific risks require verification (BPS compliance, unclear fuel profile, pre-1990 vintage, potential fines). Omit the field entirely if no questions are warranted.",
+      "items": {
+        "type": "string",
+        "description": "A single, specific, warranted seller question."
+      },
+      "minItems": 1,
+      "maxItems": 5
+    },
+    "data_quality": {
+      "type": "string",
+      "description": "Confidence level and basis (e.g., 'High — fuel profile confirmed from ESG DD report; CapEx costs benchmarked, verify with local contractors before PSA').",
+      "enum": [
+        "High — confirmed from ESG DD report or utility bills",
+        "Medium — confirmed fuel profile; CapEx benchmarked",
+        "Low — all figures estimated from benchmark ranges"
+      ]
+    },
+    "deal_finance": {
+      "type": "object",
+      "description": "Deal capital structure parameters used to derive the unlevered hurdle rate (Ru). Extracted from OM sponsor assumptions or deal terms. Included in the XLSX Property Overview sheet so analysts can verify the IRR screen threshold.",
+      "additionalProperties": false,
+      "properties": {
+        "re": {
+          "type": "number",
+          "description": "Target equity IRR (e.g., 0.20 for 20%)."
+        },
+        "kd": {
+          "type": "number",
+          "description": "Cost of debt (e.g., 0.065 for 6.5%)."
+        },
+        "de_ratio": {
+          "type": "number",
+          "description": "Debt / equity ratio (e.g., 1.86 for 65/35 LTV)."
+        },
+        "hurdle_ru": {
+          "type": "number",
+          "description": "Derived unlevered hurdle rate Ru = (Re + Kd × D/E) / (1 + D/E). Used for large (>$500K) measures."
+        },
+        "hurdle_re": {
+          "type": "number",
+          "description": "Equity-only hurdle = Re. Used for small (<$500K) measures funded from equity."
+        }
+      }
+    },
+    "prepared_by": {
+      "type": "string",
+      "description": "Human preparer who produced this assessment. Defaults to 'Christopher Naismith, Soapbox'. Never an AI persona."
+    },
+    "prepared_for": {
+      "type": "string",
+      "description": "Recipient organization or deal team (e.g., 'Acme Capital Partners — Acquisitions')."
+    },
+    "report_date": {
+      "type": "string",
+      "description": "ISO 8601 date the report was generated (e.g., '2026-06-16').",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+    },
+    "disposition_mode": {
+      "type": "boolean",
+      "description": "Set to true when this assessment is produced for a disposition/exit rather than acquisition. Reframes the report as a sustainability passport for the broker.",
+      "default": false
+    },
+    "sources": {
+      "type": "array",
+      "description": "Citations for data used in this report. Each entry represents one external source consulted during research (Brave Search results, utility websites, regulatory sources, etc.). Omit entirely if no external sources were consulted — do not include benchmark table references as sources.",
+      "items": {
+        "type": "object",
+        "required": [
+          "label",
+          "url"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "label": {
+            "type": "string",
+            "description": "Short human-readable description of what this source provided (e.g., 'ERCOT grid carbon intensity 2025', 'Texas no active BPS — ACEEE 2026')."
+          },
+          "url": {
+            "type": "string",
+            "description": "Full URL of the source page."
+          },
+          "value_cited": {
+            "type": "string",
+            "description": "The specific data point taken from this source (e.g., '0.386 kgCO₂/kWh', '$0.118/kWh commercial rate'). Optional but strongly preferred."
+          }
+        }
+      },
+      "minItems": 1
+    },
+    "ghg_scoping": {
+      "type": "object",
+      "description": "GHG Scope 1/2/3 breakdown. Scope allocation follows system architecture (centralized→owner, unitized→tenant), derived docs-first (see rsra skill). RUBS shifts economic capture, NOT carbon ownership.",
+      "additionalProperties": true,
+      "properties": {
+        "scopes": {
+          "type": "array",
+          "description": "One row per scope. Owner boundary = Scope 1 + Scope 2; Scope 3 (tenant/resident energy = downstream leased assets, Cat.13) is shown but excluded from owner boundary.",
+          "items": {
+            "type": "object",
+            "additionalProperties": true,
+            "required": [
+              "scope",
+              "annual_tco2e"
+            ],
+            "properties": {
+              "scope": {
+                "type": "string",
+                "description": "'Scope 1' | 'Scope 2' | 'Scope 3' (may include a short qualifier)."
+              },
+              "source": {
+                "type": "string",
+                "description": "Emission source, e.g. 'Owner gas combustion', 'Common-area purchased electricity', 'Tenant/resident energy'."
+              },
+              "annual_tco2e": {
+                "type": "string",
+                "description": "Annual tCO2e (string; may be a range or carry 'est.')."
+              },
+              "notes": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "offset_note": {
+          "type": "string",
+          "description": "Optional note on REC/offset economics for the owner boundary."
+        }
+      }
+    },
+    "decarb_sensitivity": {
+      "type": "array",
+      "description": "Investment trade-off rows (>=3, e.g. Phase 1 / Phase 1+2 / Full plan) sizing value creation vs carbon reduction. Drives the sensitivity chart + table. REQUIRED for the section to render.",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": [
+          "label",
+          "emissions_reduction_pct"
+        ],
+        "properties": {
+          "label": {
+            "type": "string",
+            "description": "Scenario label, e.g. 'Phase 1 only'."
+          },
+          "total_spend": {
+            "type": "number",
+            "description": "Total CapEx for this scenario (USD). Use spend_per_unit for multifamily."
+          },
+          "spend_per_unit": {
+            "type": "number",
+            "description": "CapEx per unit (USD) — multifamily."
+          },
+          "emissions_reduction_pct": {
+            "type": [
+              "number",
+              "string"
+            ],
+            "description": "Cumulative CO2 reduction % at this spend level."
+          },
+          "noi_impact_annual": {
+            "type": "number",
+            "description": "Operational NOI impact only (landlord-share utility savings + hard revenue). Excludes financing and ancillary. value_delta_usd must equal this ÷ exit cap."
+          },
+          "value_delta_pct": {
+            "type": "number",
+            "description": "Estimated asset value delta (%). Provide this OR value_delta_usd."
+          },
+          "value_delta_usd": {
+            "type": "number",
+            "description": "Estimated asset value delta (USD)."
+          },
+          "financing_impact_annual": {
+            "type": "number",
+            "description": "Recurring financing benefit (e.g. Green Rewards debt-service reduction). Below the NOI line — NOT capitalized into value."
+          },
+          "ancillary_impact_annual": {
+            "type": "number",
+            "description": "Recurring ancillary/soft revenue (e.g. EV charging). Risk-adjusted, NOT perpetuity-capitalized into value."
+          }
+        }
+      }
+    },
+    "certifications_and_debt": {
+      "type": "object",
+      "description": "Certification + green-financing recommendations (ENERGY STAR / LEED / green debt / fund-LP ESG alignment).",
+      "additionalProperties": true,
+      "properties": {
+        "energy_star_recommendation": {
+          "type": "string"
+        },
+        "leed_recommendation": {
+          "type": "string"
+        },
+        "green_debt": {
+          "type": "string",
+          "description": "Green debt / Fannie-Freddie Green Rewards / HUD Green MIP assessment."
+        },
+        "fund_alignment": {
+          "type": "string",
+          "description": "Fund / LP ESG alignment (e.g. GRESB, SFDR, net-zero commitments)."
+        }
+      }
+    },
+    "risk_scores": {
+      "type": "object",
+      "description": "Scored risk-factor summary for underwriting. Rate each acquisition risk dimension so the reader sees the whole risk surface at a glance, not just physical hazards. Complements physical_climate_risk (detail) — this is the cross-cutting scorecard.",
+      "additionalProperties": true,
+      "properties": {
+        "factors": {
+          "type": "array",
+          "description": "One row per risk dimension. Recommended set: 'Physical climate', 'Transition / regulatory', 'Market / liquidity (green premium · brown discount)', 'Data confidence'. Add others (e.g. 'Insurance / P&C') where material.",
+          "items": {
+            "type": "object",
+            "additionalProperties": true,
+            "required": [
+              "factor",
+              "level"
+            ],
+            "properties": {
+              "factor": {
+                "type": "string",
+                "description": "Risk dimension name."
+              },
+              "level": {
+                "type": "string",
+                "description": "Rating: No risk | Low | Moderate | High | Red flag."
+              },
+              "score": {
+                "type": [
+                  "number",
+                  "integer"
+                ],
+                "description": "Optional 0–4 numeric score matching the level."
+              },
+              "rationale": {
+                "type": "string",
+                "description": "1–2 sentence basis for the rating, citing the driving fact (e.g. 'No TX BPS → no transition penalty through hold')."
+              }
+            }
+          }
+        },
+        "overall": {
+          "type": "string",
+          "description": "Optional overall risk posture (e.g. 'Low — opportunity-led')."
+        },
+        "note": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}
