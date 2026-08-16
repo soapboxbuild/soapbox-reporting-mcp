@@ -1,0 +1,837 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ESG Profile</title>
+  <style>
+    /* ══════════════════════════════════════════════════════════
+       ESG PROFILE — Sponsor Profile + Fund Overview
+       Soapbox Sustainability Intelligence
+       Brand: navy base (report family) + warm-radial dark cards,
+       // eyebrows, orange (#EA580C) data accent.
+       Self-contained: no external fonts, scripts, or network.
+       Print-ready via @page + break-inside (Playwright PDF honors it).
+    ══════════════════════════════════════════════════════════ */
+
+    /* ─── DESIGN TOKENS ─── */
+    :root {
+      --navy:    #12253A;
+      --navy-2:  #1A3550;
+      --ink:     #1A1A2E;
+      --slate:   #2C3E50;
+      --muted:   #64748B;
+      --faint:   #94A3B8;
+      --cloud:   #F8F9FB;
+      --panel:   #F1F4F8;
+      --card:    #FFFFFF;
+      --border:  #CBD5E1;
+      --rule:    #E2E8EF;
+
+      /* Soapbox accent — orange */
+      --orange:    #EA580C;
+      --orange-2:  #F97316;
+      --orange-bg: #FEF4EC;
+
+      --sage:    #1F6B45;
+      --sage-bg: #EDF7F2;
+
+      --amber:   #B45309;
+      --amber-bg:#FEF9EC;
+      --red:     #B91C1C;
+      --red-bg:  #FEF2F2;
+
+      --sans: -apple-system, 'Helvetica Neue', 'Segoe UI', Arial, sans-serif;
+      --mono: 'SF Mono', 'Courier New', ui-monospace, monospace;
+    }
+
+    /* ─── RESET ─── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      background: var(--cloud);
+      font-family: var(--sans);
+      font-size: 13px;
+      color: var(--ink);
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .report { max-width: 820px; margin: 0 auto; padding: 40px 0 80px; }
+
+    /* ─── SIGNATURE: // eyebrow ─── */
+    .eyebrow {
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--orange);
+      font-family: var(--sans);
+    }
+    .eyebrow::before { content: '// '; color: var(--orange-2); font-weight: 800; }
+
+    /* ─── DOCUMENT HEADER — warm radial on navy ─── */
+    .doc-header {
+      position: relative;
+      background:
+        radial-gradient(120% 140% at 88% -20%, rgba(234,88,12,0.55) 0%, rgba(234,88,12,0) 46%),
+        radial-gradient(90% 120% at 0% 120%, rgba(31,107,69,0.35) 0%, rgba(31,107,69,0) 50%),
+        linear-gradient(160deg, #16304C 0%, #0F1F32 100%);
+      color: #fff;
+      padding: 34px 40px 30px;
+      overflow: hidden;
+    }
+    .doc-header .eyebrow { color: #FDBA8C; margin-bottom: 12px; }
+    .doc-header .eyebrow::before { color: var(--orange-2); }
+    .doc-title {
+      font-size: 30px;
+      font-weight: 700;
+      line-height: 1.15;
+      margin: 0 0 6px;
+      letter-spacing: -0.01em;
+    }
+    .doc-subtitle {
+      font-size: 13px;
+      font-weight: 300;
+      color: rgba(255,255,255,0.68);
+    }
+    .anon-badge {
+      display: inline-block;
+      margin-top: 14px;
+      padding: 4px 11px;
+      border: 1px solid rgba(253,186,140,0.5);
+      border-radius: 999px;
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: #FDBA8C;
+      background: rgba(234,88,12,0.12);
+    }
+
+    /* dual Soapbox + Audette logo block (last child of .doc-header) */
+    .doc-header-logos {
+      display: flex; align-items: center; gap: 22px;
+      padding: 6px 0 26px;
+    }
+    .doc-header-logos svg, .doc-header-logos img { display: block; }
+    .doc-header-logos .logo-divider { width: 1px; height: 24px; background: rgba(255,255,255,0.22); }
+
+    /* meta strip beneath header */
+    .doc-meta-strip {
+      background: var(--navy-2);
+      color: rgba(255,255,255,0.6);
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px 28px;
+      padding: 9px 40px;
+      font-size: 11px;
+      letter-spacing: 0.03em;
+    }
+    .doc-meta-strip .confidential { color: #FDBA8C; font-weight: 600; margin-left: auto; }
+
+    /* ─── SECTIONS ─── */
+    .section {
+      padding: 30px 40px;
+      background: var(--card);
+      margin-bottom: 2px;
+      break-inside: avoid;
+    }
+    .section-head { margin-bottom: 16px; }
+    .section-title {
+      font-size: 19px;
+      font-weight: 700;
+      color: var(--navy);
+      margin-top: 4px;
+      padding-bottom: 8px;
+      border-bottom: 2px solid var(--navy);
+    }
+    .section-note { font-size: 12px; color: var(--muted); margin-top: 10px; line-height: 1.55; }
+
+    /* ─── STAT TILES ─── */
+    .tiles {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 2px;
+      background: var(--rule);
+      border: 1px solid var(--rule);
+    }
+    .tile { background: var(--card); padding: 14px 16px; }
+    .tile-label {
+      font-size: 9px; font-weight: 700; letter-spacing: 0.09em;
+      text-transform: uppercase; color: var(--muted); margin-bottom: 6px;
+    }
+    .tile-value {
+      font-size: 20px; font-weight: 700; color: var(--navy);
+      font-variant-numeric: tabular-nums; line-height: 1.1;
+    }
+    .tile-sub { font-size: 11px; color: var(--faint); margin-top: 3px; }
+
+    /* Dark accent tile (scorecard total, key fund stat) */
+    .tile.tile-accent {
+      background:
+        radial-gradient(120% 140% at 100% 0%, rgba(234,88,12,0.45) 0%, rgba(234,88,12,0) 55%),
+        linear-gradient(160deg, #16304C 0%, #0F1F32 100%);
+    }
+    .tile.tile-accent .tile-label { color: #FDBA8C; }
+    .tile.tile-accent .tile-value { color: #fff; }
+    .tile.tile-accent .tile-sub { color: rgba(255,255,255,0.6); }
+
+    /* ─── DEFINITION ROWS ─── */
+    .dl { display: table; width: 100%; border-collapse: collapse; }
+    .dl-row { display: table-row; }
+    .dl-row .dt, .dl-row .dd {
+      display: table-cell; padding: 10px 12px; border-bottom: 1px solid var(--rule);
+      vertical-align: top; font-size: 13px;
+    }
+    .dl-row:last-child .dt, .dl-row:last-child .dd { border-bottom: none; }
+    .dl-row .dt {
+      width: 190px; font-weight: 600; font-size: 11px; color: var(--muted);
+      letter-spacing: 0.05em; text-transform: uppercase; background: var(--cloud);
+    }
+    .dl-row .dd { color: var(--ink); background: var(--card); }
+
+    /* ─── TABLES ─── */
+    table.grid { width: 100%; border-collapse: collapse; font-size: 12.5px; margin-top: 4px; }
+    table.grid th {
+      background: var(--navy); color: #fff; text-align: left; padding: 9px 12px;
+      font-size: 10px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
+      vertical-align: bottom;
+    }
+    table.grid th.num, table.grid td.num { text-align: right; font-variant-numeric: tabular-nums; }
+    table.grid td { padding: 9px 12px; border-bottom: 1px solid var(--rule); vertical-align: top; color: var(--slate); }
+    table.grid tr:nth-child(even) td { background: var(--cloud); }
+    table.grid .col-sponsor { font-weight: 700; color: var(--orange); }
+    .cell-strong { font-weight: 700; color: var(--navy); }
+
+    /* ─── RISK / STATUS PILLS ─── */
+    .pill {
+      display: inline-block; padding: 2px 8px; border-radius: 3px;
+      font-size: 10px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase;
+    }
+    .pill-green { background: var(--sage-bg); color: var(--sage); }
+    .pill-amber { background: var(--amber-bg); color: var(--amber); }
+    .pill-red   { background: var(--red-bg); color: var(--red); }
+    .pill-grey  { background: var(--panel); color: var(--muted); }
+    .pill-orange{ background: var(--orange-bg); color: var(--orange); }
+    .hazard-chip {
+      display: inline-block; margin: 2px 4px 2px 0; padding: 2px 9px;
+      border: 1px solid var(--border); border-radius: 999px; font-size: 11px; color: var(--slate);
+    }
+
+    /* ─── SCORECARD ─── */
+    .scorecard-grid { display: grid; grid-template-columns: 200px 1fr; gap: 20px; align-items: start; }
+    @media (max-width: 640px) { .scorecard-grid { grid-template-columns: 1fr; } }
+    .score-hero {
+      background:
+        radial-gradient(120% 130% at 100% 0%, rgba(234,88,12,0.5) 0%, rgba(234,88,12,0) 55%),
+        linear-gradient(160deg, #16304C 0%, #0F1F32 100%);
+      color: #fff; padding: 20px 18px; text-align: center; border-radius: 4px;
+    }
+    .score-hero .eyebrow { color: #FDBA8C; display: block; margin-bottom: 8px; }
+    .score-hero .score-big { font-size: 52px; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; }
+    .score-hero .score-max { font-size: 14px; color: rgba(255,255,255,0.55); font-weight: 500; }
+    .score-hero .score-tag { margin-top: 12px; font-size: 11px; color: rgba(255,255,255,0.7); }
+
+    .chart-card {
+      background: var(--cloud); border: 1px solid var(--rule); border-radius: 4px;
+      padding: 14px 16px; margin-bottom: 14px; break-inside: avoid;
+    }
+    .chart-card:last-child { margin-bottom: 0; }
+    .chart-title {
+      font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+      color: var(--muted); margin-bottom: 12px;
+    }
+    .chart-card svg { display: block; width: 100%; height: auto; overflow: visible; }
+
+    /* ─── INITIATIVES TIMELINE ─── */
+    .timeline { display: flex; flex-direction: column; gap: 0; }
+    .tl-group { padding: 4px 0; }
+    .tl-group-head {
+      display: flex; align-items: center; gap: 8px; margin: 10px 0 8px;
+      font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+    }
+    .tl-icon {
+      width: 18px; height: 18px; border-radius: 50%; flex-shrink: 0;
+      display: inline-flex; align-items: center; justify-content: center;
+      font-size: 11px; font-weight: 700; color: #fff;
+    }
+    .tl-icon-done { background: var(--sage); }
+    .tl-icon-prog { background: var(--orange); }
+    .tl-icon-plan { background: var(--muted); }
+    .tl-item {
+      display: flex; align-items: flex-start; gap: 10px; padding: 7px 0 7px 26px;
+      border-bottom: 1px solid var(--rule); font-size: 13px;
+    }
+    .tl-item:last-child { border-bottom: none; }
+    .tl-item .tl-body { flex: 1; }
+    .tl-item .tl-budget { color: var(--muted); font-family: var(--mono); font-size: 11.5px; white-space: nowrap; }
+    .tl-regression {
+      display: inline-block; margin-left: 6px; color: var(--amber); font-weight: 700; font-size: 12px;
+    }
+    .regression-callout {
+      background: var(--amber-bg); border-left: 3px solid #D97706; padding: 12px 14px;
+      margin-top: 14px; font-size: 12.5px; color: var(--amber); line-height: 1.55; border-radius: 0 4px 4px 0;
+    }
+    .regression-callout strong { display: block; margin-bottom: 6px; color: #78350F; letter-spacing: 0.03em; }
+    .regression-callout ul { margin: 0; padding-left: 18px; }
+
+    /* ─── PROVENANCE ─── */
+    .provenance { margin-top: 6px; }
+    .prov-item {
+      display: flex; align-items: baseline; gap: 10px; padding: 7px 0;
+      border-bottom: 1px solid var(--rule); font-size: 12px;
+    }
+    .prov-item:last-child { border-bottom: none; }
+    .prov-mode { flex-shrink: 0; width: 66px; }
+    .prov-body { flex: 1; color: var(--slate); }
+    .prov-body .prov-id { font-weight: 600; color: var(--ink); }
+    .prov-period { color: var(--faint); font-size: 11px; white-space: nowrap; }
+
+    /* ─── GLOSSARY / ENDNOTES ─── */
+    .boiler { break-before: page; }
+    .glossary-term { margin-bottom: 12px; font-size: 12px; line-height: 1.6; color: var(--slate); }
+    .glossary-term .term { font-weight: 700; color: var(--navy); }
+    .endnote { margin-bottom: 10px; font-size: 11.5px; line-height: 1.55; color: var(--slate); }
+
+    /* ─── FOOTER ─── */
+    .report-footer {
+      padding: 22px 40px; background: var(--panel); border-top: 2px solid var(--rule);
+      font-size: 11px; color: var(--muted); line-height: 1.6;
+    }
+    .report-footer .src { font-weight: 600; color: var(--slate); margin-bottom: 4px; }
+    .report-footer .disclaimer { font-style: italic; color: var(--faint); font-size: 10px; margin-top: 8px; }
+
+    .empty-note { color: var(--faint); font-style: italic; font-size: 12px; }
+
+    /* ─── PRINT ─── */
+    @page { size: Letter; margin: 14mm; }
+    @media print {
+      html, body { background: #fff; }
+      .report { max-width: none; padding: 0; }
+      .section-title { break-after: avoid; }
+      table.grid, .chart-card, .tile, .regression-callout { break-inside: avoid; }
+      .doc-header, .tile.tile-accent, .score-hero {
+        -webkit-print-color-adjust: exact; print-color-adjust: exact;
+      }
+    }
+  </style>
+</head>
+<body>
+
+<script id="report-data" type="application/json">{}</script>
+
+<div class="report">
+
+  <!-- Document header (always) -->
+  <div class="doc-header">
+    <span class="eyebrow" id="hdr-eyebrow">ESG Profile</span>
+    <h1 class="doc-title" id="hdr-title">ESG Profile</h1>
+    <div class="doc-subtitle" id="hdr-subtitle"></div>
+    <span class="anon-badge" id="hdr-anon" style="display:none">Anonymized — sponsor identities pseudonymized</span>
+    <div class="doc-header-logos">
+      <svg width="109" height="22" viewBox="0 0 178 36" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Soapbox">
+        <defs>
+          <linearGradient id="sbx-tile" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stop-color="#1aa863"></stop>
+            <stop offset="1" stop-color="#0c6c3d"></stop>
+          </linearGradient>
+          <linearGradient id="sbx-sheen" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#ffffff" stop-opacity="0.42"></stop>
+            <stop offset="0.55" stop-color="#ffffff" stop-opacity="0"></stop>
+          </linearGradient>
+        </defs>
+        <rect x="2" y="2" width="32" height="32" rx="8.5" fill="url(#sbx-tile)"></rect>
+        <rect x="2" y="2" width="32" height="32" rx="8.5" fill="url(#sbx-sheen)"></rect>
+        <text x="18" y="25.5" text-anchor="middle" font-family="'Bricolage Grotesque',-apple-system,'Helvetica Neue',Arial,sans-serif" font-weight="800" font-size="20" fill="#ffffff">S</text>
+        <text x="45" y="26" font-family="'Bricolage Grotesque',-apple-system,'Helvetica Neue',Arial,sans-serif" font-weight="800" font-size="27" letter-spacing="-0.6" fill="#ffffff">Soapbox<tspan fill="#f0652c">.</tspan></text>
+      </svg>
+      <div class="logo-divider"></div>
+      <svg width="27" height="22" viewBox="0 0 74 61" role="img" aria-label="Audette" style="display:block"><rect fill="#eb02ad" x="41.18" y="0.26" width="6.56" height="19.05"/><circle fill="#eb02ad" cx="62.48" cy="9.78" r="9.52"/><path fill="#eb02ad" d="M19.65,9.78.12,59.94h9l4.67-12.59H35l4.74,12.59H49L29.48,9.78ZM16.74,39.49,24.38,19,32,39.49Z"/></svg>
+    </div>
+  </div>
+  <div class="doc-meta-strip">
+    <span id="hdr-fund"></span>
+    <span id="hdr-year"></span>
+    <span id="hdr-period"></span>
+    <span id="hdr-by"></span>
+    <span class="confidential">CONFIDENTIAL</span>
+  </div>
+
+  <!-- Sponsor pages (shown only when data.sponsor) -->
+  <div id="sponsor-pages" style="display:none"></div>
+
+  <!-- Fund pages (shown only when data.fund_overview) -->
+  <div id="fund-pages" style="display:none"></div>
+
+  <!-- ══════ GLOSSARY (static boilerplate — verbatim from source deck) ══════ -->
+  <div class="section boiler">
+    <div class="section-head">
+      <span class="eyebrow">Reference</span>
+      <h2 class="section-title">Glossary</h2>
+    </div>
+    <div class="glossary-term"><span class="term">BREEAM</span> (Building Research Establishment Environmental Assessment Method) is a sustainability assessment method that measures the sustainable value of infrastructure and buildings using a series of categories, ranging from energy to ecology. Each of these categories addresses the most influential factors, including low-impact design and carbon emissions reduction, design durability and resilience, adaption to climate change; and ecological value and biodiversity protection. The BREEAM ratings range from Acceptable (In-Use scheme only) to Pass, Good, Very Good, Excellent to Outstanding and it is reflected in a series of stars on the BREEAM certificate. BREEAM is not currently developed for residential properties.</div>
+    <div class="glossary-term"><span class="term">Energy Rating</span> indicates the percentage of operating properties with an ENERGY STAR score, EPC rating, or any other energy rating out of the total number of operating properties in the investment portfolio. ENERGY STAR is a joint program run by the US Department of Energy and EPA to help identify energy-efficient products, benchmark energy, water, and waste data, and assess building energy performance. The label identifies top-performing, cost-effective products and properties, through a series of set specifications, testing procedures, and verifications. EPC (Energy Performance Certificate) is a four-page document that sets out the energy efficiency of a property on a traffic light system of A to G, with A being the most efficient. An EPC provides an indication of how much it will cost to heat and power a property. A renewable energy certificate (REC) is a market-based instrument that represents the property rights to the environmental, social, and other non-power attributes of renewable electricity generation. RECs are issued when one megawatt-hour (MWh) of electricity is generated and delivered to the electricity grid from a renewable energy resource.</div>
+    <div class="glossary-term"><span class="term">Green Certifications</span> measure the number of operating properties with recognized building certifications such as LEED, BREEAM, and/or similar certifications out of the total number of operating properties in the investment portfolio.</div>
+    <div class="glossary-term"><span class="term">GRESB</span> (Global Real Estate Sustainability Benchmark) is an international organization established in 2009. GRESB provides standards and benchmarks to track environmental, social, and governance (ESG) performance for real estate and infrastructure investments. Institutional and financial investors use GRESB to monitor investments and understand ESG opportunities and risks.</div>
+    <div class="glossary-term"><span class="term">LEED</span> (Leadership in Energy and Environmental Design) is a third-party green building certification program and a globally recognized sustainability standard for the design, construction, and operation of highly efficient green buildings. The LEED rating systems are made up of prerequisites and credits. Prerequisites are required elements or green building strategies that must be included in any LEED-certified project. Credits are optional elements that projects can pursue to gain points toward LEED certification. The levels of certification are then awarded based on points and follow the following thresholds: Certified (40–49 points), Silver (50–59 points), Gold (60–79 points) and Platinum (80+ points).</div>
+    <div class="glossary-term"><span class="term">Net Zero</span> refers to a state in which the greenhouse gases going into the atmosphere are balanced by removal from the atmosphere.</div>
+    <div class="glossary-term"><span class="term">Physical Risk</span> refers to financial risks arising from the physical effects of climate change. This includes the damages and losses to property, infrastructure, supply chains, and the built environment caused by acute or chronic climate events.</div>
+    <div class="glossary-term"><span class="term">CRREM (Carbon Risk Real Estate Monitor) Stranding Year</span> is the year when the asset's GHG intensity is higher than CRREM 1.5°C decarbonization pathway. Stranded assets are properties that will not meet future energy efficiency standards and market expectations and might be increasingly exposed to the risk of early economic obsolescence.</div>
+    <div class="glossary-term"><span class="term">Transition Risk</span> refers to the risk of losing or gaining value due to the changes in policy, regulation, technology and consumer preferences that are needed to shift to a low-carbon economy and mitigate the physical impacts of climate change. This risk may affect the performance and valuation of firms, investments, and sectors that rely on carbon-intensive activities or technologies.</div>
+  </div>
+
+  <!-- ══════ ENDNOTES (static boilerplate — verbatim methodology from source deck) ══════ -->
+  <div class="section boiler">
+    <div class="section-head">
+      <span class="eyebrow">Methodology</span>
+      <h2 class="section-title">Endnotes</h2>
+    </div>
+    <div class="endnote"><strong>Asset Class Groups</strong> have been developed to allow for internal benchmarking against similar investments in the same or similar asset class. The asset class groups established are updated annually and kept as consistent as possible. Sponsors were assigned asset classes based on the asset class that is covered by the majority of their sq ft. Groups include Industrial / Logistics / Self Storage, Multifamily / Senior Housing, Office, Retail, Data Centers, Life Science, SFR, Cold Storage, and Marinas.</div>
+    <div class="endnote"><strong>Green Street Sector Risk Rating</strong> is scored "Low", "Below Average", "Average", "Above Average" and "High" depending on the sector regulations (30%), energy/emissions intensity (50%), compliance costs (10%), grid "greenness" (10%). Metrics are pulled from the Green Street Sector "E" Sensitivity score list.</div>
+    <div class="endnote"><strong>CRREM (Carbon Risk Real Estate Monitor) Stranding Year</strong> is the year when the asset's GHG intensity is higher than CRREM 1.5°C decarbonization pathway. Stranded assets are properties that will not meet future energy efficiency standards and market expectations and might be increasingly exposed to the risk of early economic obsolescence. The stranding year is the first stranding year projected; it is not representative of full portfolio stranding.</div>
+    <div class="endnote"><strong>Physical Impact</strong> are risks resulting from climate change such as droughts, floods, extreme precipitation, wildfires, heat stress, water stress, and hurricanes, among others. It is scored "Low", "Medium" or "High" depending on the severity of the climate event risk.</div>
+    <div class="endnote"><strong>% Sq ft w/ Green Building Certifications and % Sq ft w/ Energy Ratings</strong> are based on the total sq ft with one or more Green Building Certification or Energy Rating (as applicable) available divided by total sq ft of standing assets. Metrics that are "Not Available" mean the investment is under development or non-operating at the time of this report. Metrics that are "Not Applicable" mean that due to the nature of the asset type this data will not be collected.</div>
+    <div class="endnote"><strong>Scorecard Response Rates</strong> are calculated at Fund and MIR level to understand how representative the scorecard averages are of investments in the fund.</div>
+    <div class="endnote"><strong>GRESB Reporting and Net Zero Policy</strong> metrics are based on annual ESG Questionnaire responses provided by sponsors, representing ESG initiatives in place for the reporting year. Sponsor response options were 'Yes', 'No' and 'In Progress'. Percentages are based on the total number of sponsors with a Net Zero Policy in place or in progress / GRESB Reporting or alignment divided by the total number of sponsors in the fund / asset class / MIR.</div>
+    <div class="endnote"><strong>Energy Data Coverage by area</strong> indicates the sponsor's energy data area covered divided by the gross floor area. Metrics that are "Not Available" mean the investment is under development or non-operating at the time of this report.</div>
+    <div class="endnote"><strong>Renewable Energy</strong> metric represents the percentage of renewable energy generated on-site and consumed by landlord and/or off-site renewable energy procured by landlord, as a percentage of total energy consumed by the site. Metrics that are "Not Available" mean the investment is under development or non-operating at the time of this report.</div>
+  </div>
+
+  <!-- FOOTER -->
+  <div class="report-footer">
+    <div class="src">Data sources: ESG Questionnaire · CRREM 2024 · Green Street · physrisk (OS-Climate) · GRESB · Soapbox Sustainability Intelligence</div>
+    <div id="footer-preparer"></div>
+    <div class="disclaimer">Prepared for information purposes only. Benchmarks are peer / Fund / MIR comparisons and are not national medians. Scorecard, CRREM and physical-risk figures reflect the stated reporting period and carry material uncertainty at the single-sponsor level. Regulatory and fine-exposure estimates are preliminary — engage qualified counsel before reliance.</div>
+  </div>
+
+</div>
+
+<script>
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', populateReport);
+  } else {
+    populateReport();
+  }
+
+  function populateReport() {
+    var dataEl = document.getElementById('report-data');
+    if (!dataEl) return;
+    var data;
+    try { data = JSON.parse(dataEl.textContent); }
+    catch (e) { console.error('ESG Profile: failed to parse report-data JSON', e); return; }
+
+    var meta = data.meta || {};
+
+    /* ── Header (always) ── */
+    var isSponsor = !!data.sponsor;
+    var kind = isSponsor ? 'Sponsor ESG Profile' : (data.fund_overview ? 'Fund ESG Overview' : 'ESG Profile');
+    setText('hdr-eyebrow', kind);
+    setText('hdr-title', isSponsor ? safe(data.sponsor.name) : safe(meta.fund) + ' — ESG Overview');
+    setText('hdr-subtitle', [safe(meta.fund), meta.reporting_year ? 'Reporting year ' + meta.reporting_year : ''].filter(Boolean).join('  ·  '));
+    if (meta.anonymized) show('hdr-anon');
+    setText('hdr-fund', 'Fund: ' + safe(meta.fund));
+    setText('hdr-year', 'Reporting year: ' + safe(meta.reporting_year));
+    setText('hdr-period', meta.generated_period ? 'Generated: ' + meta.generated_period : '');
+    // Attribute to the human preparer (Soapbox), never the AI persona.
+    var preparedBy = data.prepared_by;
+    if (!preparedBy || /\baris\b|soapbox ai/i.test(String(preparedBy))) preparedBy = 'Christopher Naismith, Soapbox';
+    setText('hdr-by', 'Prepared by: ' + preparedBy);
+    setText('footer-preparer', 'Prepared by ' + preparedBy);
+
+    /* ── Sponsor pages — independently guarded ── */
+    if (data.sponsor) {
+      try { renderSponsor(data.sponsor, meta); document.getElementById('sponsor-pages').style.display = ''; }
+      catch (e) { console.error('ESG Profile: sponsor render failed', e); }
+    }
+
+    /* ── Fund pages — independently guarded ── */
+    if (data.fund_overview) {
+      try { renderFund(data.fund_overview, meta); document.getElementById('fund-pages').style.display = ''; }
+      catch (e) { console.error('ESG Profile: fund render failed', e); }
+    }
+  }
+
+  /* ═══════════════════════ SPONSOR ═══════════════════════ */
+  function renderSponsor(s, meta) {
+    var out = '';
+
+    /* 1. Investment overview — drop tiles whose value is absent or explicitly not disclosed */
+    var io = s.investment_overview || {};
+    var ioTiles = [
+      ['Asset Class', io.asset_class],
+      ['Location', io.location],
+      ['Size', io.size],
+      ['Standing / Dev', io.standing_dev],
+      ['Target Exit', io.exit_date]
+    ].filter(function (p) {
+      var v = p[1];
+      return v != null && String(v).trim() !== '' && !/not disclosed|not provided|n\/a|^tbd\b/i.test(String(v));
+    }).map(function (p) { return tile(p[0], esc(p[1])); });
+    out += section('Profile', 'Investment Overview', tiles(ioTiles));
+
+    /* 2. Risk profile */
+    var rp = s.risk_profile || {};
+    var tr = rp.transition || {};
+    var ph = rp.physical || {};
+    var riskBody = '';
+    riskBody += '<div class="chart-title" style="margin-top:2px">Transition Risk</div>';
+    riskBody += dl([
+      ['Green Street Rating', esc(tr.green_street_rating)],
+      ['CRREM Stranding Year', '<span class="cell-strong">' + esc(tr.crrem_stranding_year) + '</span>'],
+      ['Market / Regulation', esc(tr.market_regulation)],
+      ['Fine Exposure', esc(tr.fine_exposure)]
+    ]);
+    var hazards = (ph.hazards && ph.hazards.length)
+      ? ph.hazards.map(function (h) { return '<span class="hazard-chip">' + esc(h) + '</span>'; }).join('')
+      : '—';
+    riskBody += '<div class="chart-title" style="margin-top:16px">Physical Risk</div>';
+    riskBody += dl([
+      ['Impact', impactPill(ph.impact)],
+      ['Hazards', hazards],
+      ['Source', esc(ph.source)]
+    ]);
+    out += section('Climate Risk', 'Risk Profile', riskBody);
+
+    /* 3. Scorecard: hero + 4-pillar bar + YoY trend */
+    var sc = s.scorecard || {};
+    if (sc.pillars) {
+      var scBody = '<div class="scorecard-grid">';
+      scBody += '<div class="score-hero">'
+        + '<span class="eyebrow">Total Score</span>'
+        + '<div class="score-big">' + (sc.total != null ? esc(sc.total) : '—') + '</div>'
+        + '<div class="score-max">/ 100</div>'
+        + '<div class="score-tag">ESG scorecard, ' + esc(meta.reporting_year) + '</div>'
+        + '</div>';
+      scBody += '<div>';
+      scBody += '<div class="chart-card">'
+        + '<div class="chart-title">Scorecard by Pillar</div>'
+        + pillarBarChart(sc.pillars) + '</div>';
+      if (sc.trend && sc.trend.length) {
+        scBody += '<div class="chart-card">'
+          + '<div class="chart-title">Year-over-Year Total Score</div>'
+          + trendLineChart(sc.trend) + '</div>';
+      }
+      scBody += '</div></div>';
+      out += section('Performance', 'ESG Scorecard', scBody);
+    }
+
+    /* 4. Initiatives timeline */
+    var init = s.initiatives || {};
+    if (init.completed || init.in_progress || init.planned) {
+      var tlBody = '<div class="timeline">';
+      if (init.completed && init.completed.length) {
+        tlBody += tlGroup('done', 'Completed', init.completed.map(function (c) {
+          return tlItem(esc(c), '', false);
+        }).join(''));
+      }
+      if (init.in_progress && init.in_progress.length) {
+        tlBody += tlGroup('prog', 'In Progress', init.in_progress.map(function (p) {
+          return tlItem(esc(p.item), esc(p.budget), false);
+        }).join(''));
+      }
+      if (init.planned && init.planned.length) {
+        tlBody += tlGroup('plan', 'Planned', init.planned.map(function (p) {
+          return tlItem(esc(p.item), esc(p.budget), !!p.regression);
+        }).join(''));
+      }
+      tlBody += '</div>';
+      /* regression callout */
+      if (s.regressions && s.regressions.length) {
+        tlBody += '<div class="regression-callout"><strong>⚠️ Regressions &amp; gaps</strong><ul>'
+          + s.regressions.map(function (r) { return '<li>' + esc(r) + '</li>'; }).join('')
+          + '</ul></div>';
+      }
+      tlBody += '<div class="section-note">⚠️ marks initiatives that regressed — moved back from in-progress/completed, or a multi-year gap against commitment.</div>';
+      out += section('Actions', 'Initiatives', tlBody);
+    }
+
+    /* 5. Energy (optional) — kWh/m², 2 sig figs */
+    var en = s.energy;
+    if (en) {
+      out += section('Energy', 'Energy Performance',
+        tiles([
+          tile('Energy Use Intensity', en.eui_kwh_m2 != null ? sig2(en.eui_kwh_m2) : '—', 'kWh/m²'),
+          tile('Carbon Intensity', esc(en.carbon_intensity)),
+          tile('Renewable Share', en.renewable_pct != null ? esc(en.renewable_pct) + '%' : '—'),
+          tile('Energy-Rated Area', en.energy_rating_pct != null ? esc(en.energy_rating_pct) + '%' : '—')
+        ]));
+    }
+
+    /* 6. Benchmark — sponsor vs MIEPPI / Asset Class / MIR (peer, never national median) */
+    var bm = s.benchmark || {};
+    if (bm.metrics && bm.metrics.length) {
+      var rows = bm.metrics.map(function (m) {
+        return '<tr>'
+          + '<td class="cell-strong">' + esc(m.metric) + '</td>'
+          + '<td class="num col-sponsor">' + esc(m.sponsor) + '</td>'
+          + '<td class="num">' + esc(m.mieppi) + '</td>'
+          + '<td class="num">' + esc(m.asset_class) + '</td>'
+          + '<td class="num">' + esc(m.mir) + '</td>'
+          + '</tr>';
+      }).join('');
+      out += section('Benchmarking', 'Peer Benchmark',
+        '<table class="grid"><thead><tr>'
+        + '<th>Metric</th><th class="num">Sponsor</th><th class="num">MIEPPI</th>'
+        + '<th class="num">Asset Class</th><th class="num">MIR</th>'
+        + '</tr></thead><tbody>' + rows + '</tbody></table>'
+        + '<div class="section-note">Benchmarks are peer comparisons — sponsor vs. MIEPPI, asset-class group, and MIR. These are not national medians.</div>');
+    }
+
+    /* 7. Governance rights */
+    var gr = s.governance_rights;
+    if (gr) {
+      out += section('Governance', 'Governance Rights',
+        '<table class="grid"><thead><tr><th>Right</th><th>Held</th></tr></thead><tbody>'
+        + govRow('Annual budget approval', gr.annual_budget)
+        + govRow('Leasing decisions', gr.leasing)
+        + govRow('CapEx variance approval', gr.capex_variance)
+        + govRow('Contractor engagement', gr.contractor_engagement)
+        + '</tbody></table>');
+    }
+
+    /* 8. Provenance */
+    var prov = s.provenance;
+    if (prov && prov.length) {
+      var pv = prov.map(function (p) {
+        return '<div class="prov-item">'
+          + '<span class="prov-mode">' + provPill(p.mode) + '</span>'
+          + '<span class="prov-body"><span class="prov-id">' + esc(p.source_id) + '</span>'
+          + (p.origin ? ' — ' + esc(p.origin) : '') + '</span>'
+          + '<span class="prov-period">' + esc(p.period) + '</span>'
+          + '</div>';
+      }).join('');
+      out += section('Data Provenance', 'Sources', '<div class="provenance">' + pv + '</div>'
+        + '<div class="section-note"><span class="pill pill-green">Live</span> data pulled from a connected system at generation time. '
+        + '<span class="pill pill-grey">Static</span> and <span class="pill pill-amber">Estimate</span> values are from scrubbed extracts or modeled inputs.</div>');
+    }
+
+    document.getElementById('sponsor-pages').innerHTML = out;
+  }
+
+  /* ═══════════════════════ FUND ═══════════════════════ */
+  function renderFund(f, meta) {
+    var out = '';
+
+    /* 1. Fund stats tiles */
+    var st = f.stats || {};
+    out += section('Fund Overview', 'Fund Statistics',
+      tiles([
+        tile('Asset Classes', esc(st.asset_classes)),
+        tile('Locations', esc(st.locations)),
+        tile('Total Size', esc(st.total_size)),
+        tile('Standing / Dev', esc(st.standing_dev)),
+        tileAccent('Avg CRREM Stranding', esc(st.avg_crrem_stranding_year), 'first-stranding-year mean'),
+        tile('Response Rate', esc(st.response_rate)),
+        tile('YoY Performance', esc(st.yoy_performance)),
+        tile('Fine Exposure', esc(st.fine_exposure))
+      ]));
+
+    /* 2. Sponsor-metrics matrix — dynamic columns from array of objects */
+    var sm = f.sponsor_metrics;
+    if (sm && sm.length) {
+      var cols = [];
+      sm.forEach(function (row) { Object.keys(row).forEach(function (k) { if (cols.indexOf(k) === -1) cols.push(k); }); });
+      var thead = cols.map(function (c) { return '<th>' + esc(prettyKey(c)) + '</th>'; }).join('');
+      var body = sm.map(function (row) {
+        return '<tr>' + cols.map(function (c, i) {
+          return '<td' + (i === 0 ? ' class="cell-strong"' : '') + '>' + esc(row[c]) + '</td>';
+        }).join('') + '</tr>';
+      }).join('');
+      out += section('Sponsors', 'Sponsor Metrics Matrix',
+        '<div style="overflow-x:auto"><table class="grid"><thead><tr>' + thead + '</tr></thead><tbody>' + body + '</tbody></table></div>');
+    }
+
+    /* 3. Ranking table */
+    var rk = f.ranking;
+    if (rk && rk.length) {
+      var rrows = rk.map(function (r) {
+        return '<tr>'
+          + '<td class="num cell-strong">' + esc(r.rank) + '</td>'
+          + '<td>' + esc(r.sponsor) + '</td>'
+          + '<td class="num col-sponsor">' + esc(r.score) + '</td>'
+          + '<td class="num">' + esc(r.yoy_change) + '</td>'
+          + '<td class="num">' + esc(r.vs_mieppi) + '</td>'
+          + '<td class="num">' + esc(r.vs_mir) + '</td>'
+          + '</tr>';
+      }).join('');
+      out += section('Ranking', 'Sponsor Ranking',
+        '<table class="grid"><thead><tr>'
+        + '<th class="num">Rank</th><th>Sponsor</th><th class="num">Score</th>'
+        + '<th class="num">YoY</th><th class="num">vs MIEPPI</th><th class="num">vs MIR</th>'
+        + '</tr></thead><tbody>' + rrows + '</tbody></table>'
+        + '<div class="section-note">Scores ranked within the Fund. YoY, vs MIEPPI and vs MIR are peer comparisons — not national medians.</div>');
+    }
+
+    /* 4. Underperformers → risk / mitigation */
+    var up = f.underperformers;
+    if (up && up.length) {
+      var urows = up.map(function (u) {
+        return '<tr>'
+          + '<td class="cell-strong">' + esc(u.sponsor) + '</td>'
+          + '<td>' + esc(u.identified_risk) + '</td>'
+          + '<td>' + esc(u.mitigation) + '</td>'
+          + '</tr>';
+      }).join('');
+      out += section('Watchlist', 'Underperforming Sponsors',
+        '<table class="grid"><thead><tr><th>Sponsor</th><th>Identified Risk</th><th>Mitigation</th></tr></thead><tbody>'
+        + urows + '</tbody></table>'
+        + '<div class="section-note">Sponsors below Fund and MIR scorecard averages. Listed securities are excluded from ESG sponsor engagement metrics.</div>');
+    }
+
+    document.getElementById('fund-pages').innerHTML = out;
+  }
+
+  /* ═══════════════════════ CHARTS ═══════════════════════ */
+  /* 4-pillar vertical bar chart — single series, single hue (orange), direct-labeled, no legend */
+  function pillarBarChart(p) {
+    var items = [
+      ['Policy &amp; Strategy', num(p.policy_strategy)],
+      ['Governance &amp; Resourcing', num(p.governance_resourcing)],
+      ['Portfolio Management', num(p.portfolio_management)],
+      ['Monitoring &amp; Reporting', num(p.monitoring_reporting)]
+    ];
+    var W = 560, H = 220, padL = 34, padR = 12, padT = 16, padB = 46;
+    var plotW = W - padL - padR, plotH = H - padT - padB;
+    var n = items.length, gap = 26;
+    var bw = (plotW - gap * (n - 1)) / n;
+    var svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Scorecard by pillar bar chart">';
+    /* gridlines + y labels 0..100 */
+    for (var g = 0; g <= 100; g += 25) {
+      var gy = (padT + plotH - (g / 100) * plotH).toFixed(1);
+      svg += '<line x1="' + padL + '" y1="' + gy + '" x2="' + (W - padR) + '" y2="' + gy + '" stroke="#E2E8EF" stroke-width="1"/>';
+      svg += '<text x="' + (padL - 6) + '" y="' + (Number(gy) + 3).toFixed(1) + '" font-size="9" fill="#94A3B8" text-anchor="end">' + g + '</text>';
+    }
+    items.forEach(function (it, i) {
+      var v = it[1] == null ? 0 : it[1];
+      var x = padL + i * (bw + gap);
+      var bh = (v / 100) * plotH;
+      var y = padT + plotH - bh;
+      /* rounded top via rx on rect */
+      svg += '<rect x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '" width="' + bw.toFixed(1) + '" height="' + Math.max(bh, 0.5).toFixed(1) + '" rx="4" fill="#EA580C"/>';
+      /* value label */
+      svg += '<text x="' + (x + bw / 2).toFixed(1) + '" y="' + (y - 6).toFixed(1) + '" font-size="12" font-weight="700" fill="#12253A" text-anchor="middle">' + (it[1] == null ? '—' : fmtNum(it[1])) + '</text>';
+      /* category label (wrap into <=2 lines) */
+      var words = it[0].split(' &amp; ');
+      var cx = (x + bw / 2).toFixed(1);
+      svg += '<text x="' + cx + '" y="' + (padT + plotH + 16) + '" font-size="9.5" fill="#475569" text-anchor="middle">' + words[0] + (words.length > 1 ? ' &amp;' : '') + '</text>';
+      if (words.length > 1) svg += '<text x="' + cx + '" y="' + (padT + plotH + 28) + '" font-size="9.5" fill="#475569" text-anchor="middle">' + words[1] + '</text>';
+    });
+    svg += '</svg>';
+    return svg;
+  }
+
+  /* YoY trend line — single series orange, dots + direct labels, no legend */
+  function trendLineChart(trend) {
+    var pts = trend.map(function (t) { return { year: t.year, v: num(t.total) }; }).filter(function (p) { return p.v != null; });
+    if (!pts.length) return '<div class="empty-note">No trend data.</div>';
+    var W = 560, H = 190, padL = 34, padR = 16, padT = 20, padB = 30;
+    var plotW = W - padL - padR, plotH = H - padT - padB;
+    var vals = pts.map(function (p) { return p.v; });
+    var maxV = Math.max(100, Math.ceil(Math.max.apply(null, vals) / 25) * 25);
+    var minV = Math.min(0, Math.floor(Math.min.apply(null, vals) / 25) * 25);
+    var n = pts.length;
+    function X(i) { return padL + (n === 1 ? plotW / 2 : (i / (n - 1)) * plotW); }
+    function Y(v) { return padT + plotH - ((v - minV) / (maxV - minV)) * plotH; }
+    var svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Year over year total score line chart">';
+    for (var g = minV; g <= maxV; g += 25) {
+      var gy = Y(g).toFixed(1);
+      svg += '<line x1="' + padL + '" y1="' + gy + '" x2="' + (W - padR) + '" y2="' + gy + '" stroke="#E2E8EF" stroke-width="1"/>';
+      svg += '<text x="' + (padL - 6) + '" y="' + (Number(gy) + 3).toFixed(1) + '" font-size="9" fill="#94A3B8" text-anchor="end">' + g + '</text>';
+    }
+    var line = pts.map(function (p, i) { return X(i).toFixed(1) + ',' + Y(p.v).toFixed(1); }).join(' ');
+    /* area fill under line */
+    var area = 'M' + X(0).toFixed(1) + ',' + Y(minV).toFixed(1) + ' L' + line.split(' ').join(' L') + ' L' + X(n - 1).toFixed(1) + ',' + Y(minV).toFixed(1) + ' Z';
+    svg += '<path d="' + area + '" fill="#EA580C" fill-opacity="0.08"/>';
+    svg += '<polyline points="' + line + '" fill="none" stroke="#EA580C" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>';
+    pts.forEach(function (p, i) {
+      var x = X(i).toFixed(1), y = Y(p.v).toFixed(1);
+      svg += '<circle cx="' + x + '" cy="' + y + '" r="4.5" fill="#EA580C" stroke="#fff" stroke-width="2"/>';
+      svg += '<text x="' + x + '" y="' + (Number(y) - 9).toFixed(1) + '" font-size="10.5" font-weight="700" fill="#12253A" text-anchor="middle">' + fmtNum(p.v) + '</text>';
+      svg += '<text x="' + x + '" y="' + (padT + plotH + 18) + '" font-size="9.5" fill="#475569" text-anchor="middle">' + esc(p.year) + '</text>';
+    });
+    svg += '</svg>';
+    return svg;
+  }
+
+  /* ═══════════════════════ COMPONENT HELPERS ═══════════════════════ */
+  function section(eyebrow, title, body) {
+    return '<div class="section"><div class="section-head">'
+      + '<span class="eyebrow">' + esc(eyebrow) + '</span>'
+      + '<h2 class="section-title">' + esc(title) + '</h2></div>'
+      + body + '</div>';
+  }
+  function tiles(arr) { return '<div class="tiles">' + arr.join('') + '</div>'; }
+  function tile(label, value, sub) {
+    return '<div class="tile"><div class="tile-label">' + label + '</div>'
+      + '<div class="tile-value">' + (value || '—') + '</div>'
+      + (sub ? '<div class="tile-sub">' + sub + '</div>' : '') + '</div>';
+  }
+  function tileAccent(label, value, sub) {
+    return '<div class="tile tile-accent"><div class="tile-label">' + label + '</div>'
+      + '<div class="tile-value">' + (value || '—') + '</div>'
+      + (sub ? '<div class="tile-sub">' + sub + '</div>' : '') + '</div>';
+  }
+  function dl(rows) {
+    return '<div class="dl">' + rows.map(function (r) {
+      return '<div class="dl-row"><div class="dt">' + esc(r[0]) + '</div><div class="dd">' + (r[1] || '—') + '</div></div>';
+    }).join('') + '</div>';
+  }
+  function tlGroup(kind, title, items) {
+    var icon = kind === 'done' ? '<span class="tl-icon tl-icon-done">✓</span>'
+      : kind === 'prog' ? '<span class="tl-icon tl-icon-prog">●</span>'
+      : '<span class="tl-icon tl-icon-plan">○</span>';
+    var color = kind === 'done' ? '#1F6B45' : kind === 'prog' ? '#EA580C' : '#64748B';
+    return '<div class="tl-group"><div class="tl-group-head" style="color:' + color + '">' + icon + title + '</div>' + items + '</div>';
+  }
+  function tlItem(body, budget, regression) {
+    return '<div class="tl-item"><span class="tl-body">' + body
+      + (regression ? '<span class="tl-regression" title="regression">⚠️</span>' : '') + '</span>'
+      + (budget && budget !== '—' ? '<span class="tl-budget">' + budget + '</span>' : '') + '</div>';
+  }
+  function govRow(label, val) {
+    var v = String(val == null ? '' : val);
+    var yes = /^yes/i.test(v);
+    var pill = yes ? '<span class="pill pill-green">Yes</span>' : '<span class="pill pill-grey">No</span>';
+    return '<tr><td>' + esc(label) + '</td><td>' + pill + (v && !/^(yes|no)$/i.test(v.trim()) ? ' <span style="color:#64748B;font-size:11px">' + esc(v.replace(/^(yes|no)\s*/i, '')) + '</span>' : '') + '</td></tr>';
+  }
+  function impactPill(v) {
+    var s = String(v || '').toLowerCase();
+    if (s.indexOf('high') !== -1) return '<span class="pill pill-red">' + esc(v) + '</span>';
+    if (s.indexOf('mod') !== -1 || s.indexOf('med') !== -1) return '<span class="pill pill-amber">' + esc(v) + '</span>';
+    if (s.indexOf('low') !== -1) return '<span class="pill pill-green">' + esc(v) + '</span>';
+    return esc(v);
+  }
+  function provPill(mode) {
+    if (mode === 'live') return '<span class="pill pill-green">Live</span>';
+    if (mode === 'estimate') return '<span class="pill pill-amber">Estimate</span>';
+    return '<span class="pill pill-grey">Static</span>';
+  }
+
+  /* ═══════════════════════ PRIMITIVES ═══════════════════════ */
+  function safe(v) { return (v !== undefined && v !== null && v !== '') ? String(v) : '—'; }
+  function esc(v) {
+    var s = (v !== undefined && v !== null && v !== '') ? String(v) : '—';
+    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+  function num(v) { return (typeof v === 'number' && isFinite(v)) ? v : (v != null && !isNaN(parseFloat(v)) ? parseFloat(v) : null); }
+  function fmtNum(v) { var n = num(v); if (n == null) return '—'; return Number.isInteger(n) ? String(n) : String(Math.round(n * 10) / 10); }
+  /* 2 significant figures — energy display only */
+  function sig2(v) {
+    var n = num(v); if (n == null) return '—';
+    if (n === 0) return '0';
+    var d = Math.ceil(Math.log10(Math.abs(n)));
+    var power = 2 - d;
+    var mag = Math.pow(10, power);
+    var r = Math.round(n * mag) / mag;
+    return String(r);
+  }
+  function prettyKey(k) {
+    return String(k).replace(/_/g, ' ').replace(/\b\w/g, function (c) { return c.toUpperCase(); });
+  }
+  function setText(id, val) { var el = document.getElementById(id); if (el) el.textContent = val; }
+  function show(id) { var el = document.getElementById(id); if (el) el.style.display = ''; }
+</script>
+
+</body>
+</html>

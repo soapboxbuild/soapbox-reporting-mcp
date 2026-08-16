@@ -1,0 +1,310 @@
+{
+  "property": {
+    "name": "Riverstone Commons",
+    "address": "412 Riverstone Way, Columbus, OH",
+    "type": "multifamily",
+    "units": 214,
+    "gfa_sqft": 198000,
+    "year_built": 1998
+  },
+  "prepared_by": "Christopher Naismith, Soapbox",
+  "prepared_for": "Meridian Real Estate Partners",
+  "report_date": "2026-07-26",
+  "summary": {
+    "narrative": "Riverstone Commons' decarbonization package converts central gas boilers to air-source heat pumps across all four buildings, adds a 180 kW rooftop solar array, and completes an envelope air-sealing pass on the two oldest buildings. The package was selected from Soapbox's decarb-plan engagement following measure-level economic screening; this report reflects the final, already-decided scope — no further option analysis is presented.\n\nThe combined package reduces site emissions by an estimated 38% against baseline and pays back in just over six years on a net-of-incentive basis, driven primarily by IRA Section 48 solar ITC and the local utility's heat pump rebate program."
+  },
+  "measures": {
+    "items": [
+      {
+        "name": "Air-source heat pump conversion — all 4 buildings",
+        "type": "Electrification",
+        "install_year": 2027,
+        "total_cost": 1650000,
+        "like_for_like_cost": 620000,
+        "incremental_cost": 1030000,
+        "incentives": 310000,
+        "emissions_savings_tco2e": 410,
+        "landlord_utility_savings": 96000,
+        "tenant_utility_savings": 18000,
+        "ancillary_revenue": 0
+      },
+      {
+        "name": "180 kW rooftop solar PV",
+        "type": "Solar PV",
+        "install_year": 2027,
+        "total_cost": 540000,
+        "like_for_like_cost": 0,
+        "incremental_cost": 540000,
+        "incentives": 162000,
+        "emissions_savings_tco2e": 145,
+        "landlord_utility_savings": 41000,
+        "tenant_utility_savings": 0,
+        "ancillary_revenue": 6000
+      },
+      {
+        "name": "Envelope air-sealing — Buildings A & B",
+        "type": "Envelope",
+        "install_year": 2027,
+        "total_cost": 210000,
+        "like_for_like_cost": 0,
+        "incremental_cost": 210000,
+        "incentives": 0,
+        "emissions_savings_tco2e": 32,
+        "landlord_utility_savings": 8000,
+        "tenant_utility_savings": 5000,
+        "ancillary_revenue": 0
+      }
+    ]
+  },
+  "measures_considered": [
+    {
+      "name": "Ground-source heat pump conversion",
+      "emissions_savings_tco2e": 455,
+      "incremental_cost": 3400000,
+      "reason": "Borefield capex roughly 3x the air-source option for a marginal emissions gain; payback exceeded the presumed hold."
+    }
+  ],
+  "financial": {
+    "total_investment": 2400000,
+    "total_incentives": 472000,
+    "net_investment": 1928000,
+    "annual_savings": 151000,
+    "simple_payback_years": 6.1,
+    "irr_pct": 11.4,
+    "exit_year": 2033,
+    "exit_cap": 0.0625,
+    "cashflow": [
+      {
+        "year": 2027,
+        "cumulative_usd": -1456000,
+        "incremental_capex_usd": 1928000,
+        "incentives_usd": 472000,
+        "utility_savings_usd": 0,
+        "value_uplift_usd": 0
+      },
+      {
+        "year": 2028,
+        "cumulative_usd": -1305000,
+        "incremental_capex_usd": 0,
+        "incentives_usd": 0,
+        "utility_savings_usd": 151000,
+        "value_uplift_usd": 2416000
+      },
+      {
+        "year": 2029,
+        "cumulative_usd": -1154000,
+        "incremental_capex_usd": 0,
+        "incentives_usd": 0,
+        "utility_savings_usd": 151000,
+        "value_uplift_usd": 2416000
+      },
+      {
+        "year": 2030,
+        "cumulative_usd": -1003000,
+        "incremental_capex_usd": 0,
+        "incentives_usd": 0,
+        "utility_savings_usd": 151000,
+        "value_uplift_usd": 2416000
+      },
+      {
+        "year": 2031,
+        "cumulative_usd": -852000,
+        "incremental_capex_usd": 0,
+        "incentives_usd": 0,
+        "utility_savings_usd": 151000,
+        "value_uplift_usd": 2416000
+      },
+      {
+        "year": 2032,
+        "cumulative_usd": -701000,
+        "incremental_capex_usd": 0,
+        "incentives_usd": 0,
+        "utility_savings_usd": 151000,
+        "value_uplift_usd": 2416000
+      },
+      {
+        "year": 2033,
+        "cumulative_usd": -550000,
+        "incremental_capex_usd": 0,
+        "incentives_usd": 0,
+        "utility_savings_usd": 151000,
+        "value_uplift_usd": 2416000
+      },
+      {
+        "year": 2034,
+        "cumulative_usd": -399000,
+        "incremental_capex_usd": 0,
+        "incentives_usd": 0,
+        "utility_savings_usd": 151000,
+        "value_uplift_usd": 2416000
+      },
+      {
+        "year": 2035,
+        "cumulative_usd": -248000,
+        "incremental_capex_usd": 0,
+        "incentives_usd": 0,
+        "utility_savings_usd": 151000,
+        "value_uplift_usd": 2416000
+      },
+      {
+        "year": 2036,
+        "cumulative_usd": -97000,
+        "incremental_capex_usd": 0,
+        "incentives_usd": 0,
+        "utility_savings_usd": 151000,
+        "value_uplift_usd": 2416000
+      }
+    ],
+    "waterfall": {
+      "incentives": 472000,
+      "incremental_capex": -1928000,
+      "cumulative_utility_savings": 1587000,
+      "net_position": 341000
+    },
+    "bridge": {
+      "incremental_capex": -1928000,
+      "cumulative_utility_savings": 1587000,
+      "incentives": 472000,
+      "fine_avoidance": 0,
+      "exit_value_uplift": 2416000,
+      "net": 2547000
+    }
+  },
+  "impact": {
+    "carbon": {
+      "baseline_tco2e": 1520,
+      "post_retrofit_tco2e": 933,
+      "reduction_pct": 0.386
+    },
+    "energy": {
+      "baseline_kwh": 3200000,
+      "post_retrofit_kwh": 2150000,
+      "eui_baseline": 163,
+      "eui_target": 110
+    },
+    "trajectory": [
+      {
+        "year": 2026,
+        "eui_kwh_m2": 163,
+        "ghgi_kgco2_m2": 8.1,
+        "ghgi_bau_kgco2_m2": 8.1
+      },
+      {
+        "year": 2027,
+        "eui_kwh_m2": 141,
+        "ghgi_kgco2_m2": 6.4,
+        "ghgi_bau_kgco2_m2": 8.3
+      },
+      {
+        "year": 2030,
+        "eui_kwh_m2": 128,
+        "ghgi_kgco2_m2": 5.6,
+        "ghgi_bau_kgco2_m2": 8.6
+      },
+      {
+        "year": 2033,
+        "eui_kwh_m2": 116,
+        "ghgi_kgco2_m2": 5.1,
+        "ghgi_bau_kgco2_m2": 8.9
+      },
+      {
+        "year": 2036,
+        "eui_kwh_m2": 110,
+        "ghgi_kgco2_m2": 5.0,
+        "ghgi_bau_kgco2_m2": 9.2
+      }
+    ],
+    "crrem": {
+      "pathway": [
+        {
+          "year": 2026,
+          "carbon_kgco2_m2yr": 7.6,
+          "eui_kwh_m2yr": 152
+        },
+        {
+          "year": 2027,
+          "carbon_kgco2_m2yr": 7.2,
+          "eui_kwh_m2yr": 145
+        },
+        {
+          "year": 2030,
+          "carbon_kgco2_m2yr": 6.3,
+          "eui_kwh_m2yr": 130
+        },
+        {
+          "year": 2033,
+          "carbon_kgco2_m2yr": 5.5,
+          "eui_kwh_m2yr": 118
+        },
+        {
+          "year": 2036,
+          "carbon_kgco2_m2yr": 4.7,
+          "eui_kwh_m2yr": 108
+        }
+      ],
+      "meta": {
+        "country": "US",
+        "property_type": "multifamily",
+        "region": "RFCV_Mixed"
+      }
+    },
+    "regulatory": {
+      "applicable_standard": "Not applicable",
+      "compliance_status": "not-applicable",
+      "note": "Columbus, OH has no adopted building performance standard as of this report date."
+    },
+    "bps_thresholds": [
+      {
+        "metric": "eui",
+        "value": 135,
+        "label": "Ohio BPS 2030 EUI target (illustrative)",
+        "source": "Illustrative example threshold — replace with a real, cited program limit."
+      },
+      {
+        "metric": "ghgi",
+        "value": 6.8,
+        "label": "BPS 2030 GHGi limit (illustrative)",
+        "source": "Illustrative example threshold — replace with a real, cited program limit."
+      }
+    ]
+  },
+  "implementation": {
+    "narrative": "Phased across two construction seasons to avoid displacing residents during heating-system cutover. Heat pump conversion in Buildings A and B is sequenced first (spring 2027) to validate performance before committing Buildings C and D.",
+    "considerations": [
+      {
+        "title": "Tenant coordination",
+        "detail": "Heat pump cutover requires 2-3 day unit access windows per building; coordinate with property management's existing turnover schedule to minimize occupied-unit disruption."
+      },
+      {
+        "title": "Utility interconnection",
+        "detail": "Solar array requires utility interconnection approval — submit application at least 6 months ahead of the planned install window given the local utility's current queue."
+      },
+      {
+        "title": "Incentive timing",
+        "detail": "IRA Section 48 ITC and the heat pump rebate both require equipment to be placed in service within the program's current funding cycle — confirm install schedule against program deadlines before finalizing contractor bids."
+      }
+    ]
+  },
+  "incentive_programs": {
+    "summary": "Programs identified below are stackable with the IRA Section 48 ITC and heat pump rebate already reflected in the financial figures.",
+    "items": [
+      {
+        "program": "IRA Section 48 Investment Tax Credit",
+        "description": "30% ITC on the solar PV installation; requires prevailing wage compliance for the full rate."
+      },
+      {
+        "program": "Ohio Energy Efficiency Grant (Department of Energy)",
+        "description": "Up to $10,000 per heat pump unit for commercial multifamily conversions, subject to funding availability."
+      }
+    ]
+  },
+  "data_quality": {
+    "summary": "Measures finalized 2026-07-20 from the Soapbox decarb-plan engagement.",
+    "items": [
+      {
+        "dot": "green",
+        "text": "Emissions savings, landlord/tenant utility savings, and ancillary revenue are engine-computed from Audette + Costing connectors."
+      }
+    ]
+  }
+}

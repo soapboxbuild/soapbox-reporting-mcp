@@ -1,0 +1,928 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "decarb",
+  "title": "Decarbonization Plan",
+  "description": "Schema for the decarb report type — full-engagement decarbonization plan: validated building model, calibrated baseline, emissions trajectory, phased measure roadmap, and a direct-cap value-creation waterfall + annual cashflow per plan (Audette investment models, recipe 8). CLIENT-RENDER template: the server injects this object into <script id=\"report-data\"> and templates/decarb/layout-agent.html renders every section and chart from it (fill_report path, same as RSRA). The Measure Roadmap renders from economics.measures[]; the waterfall, cashflow, and plan comparison render from economics.plans[].",
+  "type": "object",
+  "required": [
+    "property",
+    "baseline",
+    "economics"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "property": {
+      "type": "object",
+      "description": "Core property identification and physical attributes. Renders the cover header and meta bar.",
+      "required": [
+        "name",
+        "address",
+        "type",
+        "year_built"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Property / asset name."
+        },
+        "address": {
+          "type": "string",
+          "description": "Full street address including city, state."
+        },
+        "type": {
+          "type": "string",
+          "description": "Asset class.",
+          "enum": [
+            "multifamily",
+            "office",
+            "industrial",
+            "retail",
+            "hotel",
+            "senior-living",
+            "student-housing",
+            "mixed-use"
+          ]
+        },
+        "units": {
+          "type": "integer",
+          "description": "Unit count. Required for multifamily/senior-living/student-housing; omit for CRE.",
+          "minimum": 1
+        },
+        "gfa_sqft": {
+          "type": "integer",
+          "description": "Gross floor area in square feet. Used for CRE; drives the meta-bar Size line when units is absent.",
+          "minimum": 1
+        },
+        "gfa_m2": {
+          "type": "number",
+          "description": "Gross floor area in m². Optional; supports kWh·m⁻² derivations.",
+          "minimum": 1
+        },
+        "year_built": {
+          "type": "integer",
+          "description": "Year of original construction.",
+          "minimum": 1800,
+          "maximum": 2100
+        },
+        "climate_zone": {
+          "type": "string",
+          "description": "ASHRAE / IECC climate zone (e.g. 'ASHRAE Zone 5A')."
+        },
+        "zip": {
+          "type": "string",
+          "description": "Five-digit ZIP.",
+          "pattern": "^[0-9]{5}(-[0-9]{4})?$"
+        }
+      }
+    },
+    "prepared_by": {
+      "type": "string",
+      "description": "Human preparer who produced this plan. Default 'Christopher Naismith, Soapbox'. Never an AI persona (e.g. not 'Aris' or 'Soapbox AI')."
+    },
+    "prepared_for": {
+      "type": "string",
+      "description": "Recipient organization or deal team."
+    },
+    "report_date": {
+      "type": "string",
+      "description": "ISO 8601 date the report was generated.",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+    },
+    "executive_summary": {
+      "description": "Top-line summary. Either a plain string (rendered as the narrative) or an object with a headline + narrative.",
+      "oneOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "headline": {
+              "type": "string",
+              "description": "One-line bold conclusion (e.g. 'Deep electrification is CRREM-aligned and value-accretive at exit')."
+            },
+            "narrative": {
+              "type": "string",
+              "description": "One to three sentences naming the recommended plan, the net value creation, and the primary decision driver."
+            }
+          }
+        }
+      ]
+    },
+    "dashboard": {
+      "type": "object",
+      "description": "Decision Dashboard — the hero section rendered right after the doc header. Every field is nullable/omittable: a missing field hides its tile. If this object is ABSENT entirely, the template falls back to the legacy executive-summary row, so old payloads keep working. All figures must come from engines/Audette models — never LLM-computed.",
+      "additionalProperties": false,
+      "properties": {
+        "title": {
+          "type": "string",
+          "description": "Dashboard headline. Defaults to 'Fund decision at a glance' when omitted."
+        },
+        "compliance": {
+          "type": "object",
+          "description": "Compliance status chip (BPS / primary regulatory driver, with-plan).",
+          "additionalProperties": false,
+          "properties": {
+            "status": {
+              "type": "string",
+              "description": "Chip color: green = compliant with plan, amber = marginal/conditional, red = non-compliant.",
+              "enum": [
+                "green",
+                "amber",
+                "red"
+              ]
+            },
+            "label": {
+              "type": "string",
+              "description": "Chip text (e.g. 'Columbus BPS: compliant through 2030 (with plan)')."
+            }
+          }
+        },
+        "net_value_creation": {
+          "type": "number",
+          "description": "Hero tile: net value creation at exit in USD (selected plan's waterfall net)."
+        },
+        "irr": {
+          "type": "number",
+          "description": "Hero tile: unlevered incremental IRR as a decimal (e.g. 0.09 for 9%)."
+        },
+        "irr_hurdle": {
+          "type": "number",
+          "description": "IRR hurdle as a decimal; shown as the IRR tile's comparison sub-line and in the chip caption."
+        },
+        "capital_ask": {
+          "type": "number",
+          "description": "Tile: incremental capital ask in USD (positive number).",
+          "minimum": 0
+        },
+        "ghgi_change_pct": {
+          "type": "number",
+          "description": "Tile: GHGI change by the target year as a signed decimal (NEGATIVE for reductions, e.g. -0.46 for −46%)."
+        },
+        "ghgi_target_year": {
+          "type": "integer",
+          "description": "Year the ghgi_change_pct is measured at (e.g. 2030)."
+        },
+        "downside_avoided": {
+          "type": "number",
+          "description": "Tile: PV of avoided BPS fines ONLY (actual jurisdiction fine avoidance) in USD. CRREM stranding is NOT monetized — never add a stranding-risk dollar value. 0 (or omit the tile) if the asset faces no actual fines.",
+          "minimum": 0
+        },
+        "cf_positive_year": {
+          "type": "integer",
+          "description": "Tile: first year annual unlevered incremental cashflow turns positive."
+        },
+        "recommendation": {
+          "type": "string",
+          "description": "The recommendation, as a SHORT digestible summary — MAXIMUM 3 sentences. State the recommended plan, the single most important reason, and the key trade-off/condition. NOT a wall of text, NOT a full plan description (the per-plan detail lives in economics.plans[].summary_points). E.g. 'Fund Plan 2 — the CRREM-aligned electrification roadmap. It is the only path that keeps the asset non-stranded through a 2036 exit and unlocks green-financing pricing. The trade-off is a lower near-term IRR that Plan 1's capital-light bundle would otherwise maximize.'"
+        }
+      }
+    },
+    "baseline": {
+      "type": "object",
+      "description": "Validated building model + calibrated baseline. All displayed metrics rendered at 2 significant figures; energy in kWh and kWh·m⁻².",
+      "additionalProperties": false,
+      "properties": {
+        "model_validation": {
+          "type": "string",
+          "description": "One line on how the building model was validated (e.g. 'Geometry reconciled against ALTA/PCA; equipment from on-site survey 2026-05')."
+        },
+        "calibrated_kwh": {
+          "type": "number",
+          "description": "Calibrated annual site energy in kWh/yr.",
+          "minimum": 0
+        },
+        "eui_kwh_m2": {
+          "type": "number",
+          "description": "Calibrated energy intensity in kWh·m⁻²·yr⁻¹.",
+          "minimum": 0
+        },
+        "energy_star_score": {
+          "type": "integer",
+          "description": "ENERGY STAR score (1–100) if available.",
+          "minimum": 1,
+          "maximum": 100
+        },
+        "emissions_tco2e": {
+          "type": "number",
+          "description": "Baseline annual emissions in tCO₂e/yr.",
+          "minimum": 0
+        },
+        "fuel_profile": {
+          "type": "string",
+          "description": "Primary energy/fuel profile (e.g. 'Dual-fuel — gas heat + DHW, electric cooling')."
+        },
+        "utility_structure": {
+          "type": "string",
+          "description": "Who pays utilities and how metered."
+        },
+        "calibration_basis": {
+          "type": "string",
+          "description": "Basis for calibration (e.g. '24 months ESPM-linked actuals; zero-variance GFA-weighted building allocation')."
+        }
+      }
+    },
+    "targets": {
+      "type": "object",
+      "description": "Carbon pathway targets and trajectory. Feeds the Emissions Trajectory line chart.",
+      "additionalProperties": false,
+      "properties": {
+        "crrem_stranding_year": {
+          "type": "integer",
+          "description": "Year the planned trajectory crosses (strands against) the CRREM 1.5°C pathway. Optional; shown as an annotated dot + chart footnote. When omitted and crrem_pathway is present, the template computes it as the first year planned > pathway (tracks planned_1 in a two-path report)."
+        },
+        "plan1_label": {
+          "type": "string",
+          "description": "Optional legend label for the planned_1 (capital-light) trajectory line, e.g. 'Plan 1 — Capital-Light'."
+        },
+        "plan2_label": {
+          "type": "string",
+          "description": "Optional legend label for the planned_2 (deep-decarbonization) trajectory line, e.g. 'Plan 2 — Deep Decarbonization'."
+        },
+        "crrem_pathway": {
+          "type": "array",
+          "description": "The ONLY place a CRREM pathway may appear. This MUST be the REAL CRREM decarbonization pathway for the asset's country/region/property type, from the crrem MCP server (get_pathway) — NEVER fabricated, interpolated, or hand-entered. There is NO inline per-year CRREM field anymore (the legacy trajectory[].crrem_target was removed); populate this array from get_pathway and set crrem_meta so the server-side gate can re-fetch and verify it. A render with a hand-built CRREM curve (or with values that don't match get_pathway within tolerance) is BLOCKED. Drawn as a distinct dashed curve ALONGSIDE the stepped BPS target line: BPS drives fines, CRREM drives stranding. Units must be kgCO₂e·m⁻²·yr⁻¹ to match the trajectory series (convert if the asset's GHGI is tracked per-ft²).",
+          "items": {
+            "type": "object",
+            "required": [
+              "year",
+              "carbon_kgco2_m2yr"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "year": {
+                "type": "integer",
+                "description": "Calendar year."
+              },
+              "carbon_kgco2_m2yr": {
+                "type": "number",
+                "description": "CRREM pathway carbon intensity in kgCO₂/m²/yr.",
+                "minimum": 0
+              }
+            }
+          }
+        },
+        "crrem_meta": {
+          "type": "object",
+          "description": "Provenance of the CRREM pathway — rendered as a chart footnote AND used by the server gate to re-fetch and verify the curve. CRITICAL: set these to the EXACT values the get_pathway RESPONSE echoes back (it returns the canonical propertyType/region it resolved to), NOT a hand-written display label. If you store a loose label the gate's re-fetch can't resolve, the render is BLOCKED as unverifiable.",
+          "additionalProperties": false,
+          "properties": {
+            "country": {
+              "type": "string",
+              "description": "Country code exactly as passed to get_pathway (e.g. 'US')."
+            },
+            "region": {
+              "type": "string",
+              "description": "Canonical CRREM region as echoed by the get_pathway response (e.g. 'RMPAc_Cool_5A/5B') — not a paraphrase."
+            },
+            "property_type": {
+              "type": "string",
+              "description": "Canonical CRREM property type as echoed by the get_pathway response (e.g. 'large_multi-family_-_high_rise_(>20_units)') — not a display label."
+            },
+            "scenario": {
+              "type": "string",
+              "description": "Pathway scenario exactly as passed (e.g. '1.5C')."
+            }
+          }
+        },
+        "trajectory": {
+          "type": "array",
+          "description": "Per-year carbon-intensity points (kgCO₂e·m⁻²·yr⁻¹) for BAU, the planned trajectory, and the CRREM 1.5°C target. Minimum 2 points to render a line.",
+          "items": {
+            "type": "object",
+            "required": [
+              "year"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "year": {
+                "type": "integer",
+                "description": "Calendar year."
+              },
+              "bau": {
+                "type": "number",
+                "description": "Business-as-usual carbon intensity (kgCO₂e·m⁻²). Use the Audette-modeled baseline carbon curve where available (grid-factor drift included) — never a fabricated flat line."
+              },
+              "planned": {
+                "type": "number",
+                "description": "Planned/selected-plan carbon intensity (kgCO₂e·m⁻²). Use for a SINGLE-plan report. For a two-path report use planned_1 + planned_2 instead so both curves render."
+              },
+              "planned_1": {
+                "type": "number",
+                "description": "Plan 1 (capital-light) carbon intensity (kgCO₂e·m⁻²) — drawn as a green line. Use with planned_2 to contrast both strategic paths on the chart."
+              },
+              "planned_2": {
+                "type": "number",
+                "description": "Plan 2 (deep-decarbonization) carbon intensity (kgCO₂e·m⁻²) — drawn as a teal line; should stay under the CRREM curve (non-stranded)."
+              },
+              "bps_target": {
+                "type": "number",
+                "description": "BPS / regulatory compliance target intensity for this year (kgCO₂e·m⁻²). Drawn as a STEPPED navy dashed line — the fines driver, distinct from the CRREM stranding pathway. Provide only for years where a target is defined."
+              }
+            }
+          }
+        },
+        "bps_label": {
+          "type": "string",
+          "description": "Legend/footnote label for the carbon bps_target line, e.g. 'Seattle BEPS (GHGI target)'. Defaults to 'BPS compliance target' when omitted."
+        },
+        "bps_source": {
+          "type": "string",
+          "description": "Provenance citation for the bps_target values (jurisdiction + standard + table/rule + URL). Required whenever any trajectory point sets bps_target. Rendered as a chart footnote; NOT server-verified."
+        },
+        "eui_compliance": {
+          "type": "array",
+          "description": "Energy-based BPS standards (e.g. WA Clean Buildings Act / WSCBA) shown as a compact compliance panel. Omit or empty to hide the panel. Each entry is one standard applicable to the asset's jurisdiction.",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "standard",
+              "unit",
+              "building_eui",
+              "target_eui",
+              "status",
+              "source"
+            ],
+            "properties": {
+              "standard": {
+                "type": "string",
+                "description": "Standard name, e.g. 'WA Clean Buildings Act (WSCBA)'."
+              },
+              "unit": {
+                "type": "string",
+                "description": "EUI display unit, e.g. 'kBtu/sf/yr' or 'kWh/m2/yr'. building_eui and target_eui must be in this unit."
+              },
+              "building_eui": {
+                "type": "number",
+                "description": "The building's current/whole-building EUI in `unit`."
+              },
+              "target_eui": {
+                "type": "number",
+                "description": "The standard's EUI target (EUIt) for this property type in `unit`."
+              },
+              "projected_eui": {
+                "type": "number",
+                "description": "The building's projected EUI AFTER the plan's measures, in `unit` (the 'after'). Optional; when present, the panel shows current → target → after so the reader sees the plan clear the line."
+              },
+              "annual_fine_avoided": {
+                "type": "number",
+                "description": "Stabilized annual BPS fine avoided (USD/yr) once the plan brings the building into compliance — the recurring penalty eliminated. Owner-borne (fines are never rebilled to tenants). Omit if no fine regime applies."
+              },
+              "fine_schedule": {
+                "type": "array",
+                "description": "Annual fine ($/yr) over time, driving the fine-avoidance area chart: the BAU (no-action) fine vs the with-plan fine, which drops to $0 once the plan brings EUI under target. Omit to fall back to the compact current-vs-target bar. Every dollar figure must trace to the fine formula in `source` — never fabricate.",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "year",
+                    "bau_fine",
+                    "plan_fine"
+                  ],
+                  "properties": {
+                    "year": {
+                      "type": "integer",
+                      "description": "Calendar year."
+                    },
+                    "bau_fine": {
+                      "type": "number",
+                      "description": "Annual fine (USD/yr) with no action — building EUI stays above target as the target tightens (phased). Stepped up at each compliance milestone."
+                    },
+                    "plan_fine": {
+                      "type": "number",
+                      "description": "Annual fine (USD/yr) with the plan in place — trends to 0 in the year the plan's projected EUI drops under the then-current target."
+                    }
+                  }
+                }
+              },
+              "compliance_year": {
+                "type": "integer",
+                "description": "First compliance deadline year. Optional."
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "compliant",
+                  "non-compliant",
+                  "exempt"
+                ],
+                "description": "Compliance status for this standard."
+              },
+              "source": {
+                "type": "string",
+                "description": "Provenance citation (WAC/rule/table + URL). Required — never fabricate."
+              }
+            }
+          }
+        }
+      }
+    },
+    "economics": {
+      "type": "object",
+      "description": "Direct-cap value-creation economics (recipe 8). Carries the exit assumptions, the measure list (renders the Measure Roadmap), and one or more plans each with a waterfall + annual cashflow.",
+      "required": [
+        "plans"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "exit_cap": {
+          "type": "number",
+          "description": "Exit cap rate as a decimal (e.g. 0.0575 for 5.75%). Used to capitalize recurring NOI changes."
+        },
+        "bps_note": {
+          "type": "string",
+          "description": "Optional override for the note explaining a '—' BPS fine-avoidance column (shown when no plan models a fine regime). Defaults to a generic 'no mandatory BPS penalty regime in this jurisdiction' explanation."
+        },
+        "exit_year": {
+          "type": "integer",
+          "description": "Modeled exit / disposition year."
+        },
+        "selected_plan": {
+          "type": "string",
+          "description": "The `name` of the recommended plan. Visually emphasized in the waterfall; drives which plan's cashflow is shown."
+        },
+        "measures": {
+          "type": "array",
+          "description": "All modeled measures. Renders the Measure Roadmap table (measure, type, install year, incremental cost, savings). Only the incremental cost over like-for-like hits capex/IRR.",
+          "items": {
+            "type": "object",
+            "required": [
+              "name",
+              "type",
+              "incremental_cost"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "name": {
+                "type": "string",
+                "description": "Measure name (e.g. 'Air-source heat pump conversion — 2 of 4 plants')."
+              },
+              "type": {
+                "type": "string",
+                "description": "Measure family (e.g. 'Electrification', 'Add-on', 'Replacement-at-RUL', 'Solar PV'). Used as the roadmap group header."
+              },
+              "plan": {
+                "type": "string",
+                "description": "Which plan this measure belongs to — renders the 'Plan' tag. Use 'Both plans', 'Plan 1 only', or 'Plan 2 only' (the template shortens to Both / Plan 1 / Plan 2)."
+              },
+              "install_year": {
+                "type": "integer",
+                "description": "Staged install year (to equipment RUL / capital event). Renders the 'Year' column."
+              },
+              "total_cost": {
+                "type": "number",
+                "description": "Total installed cost in USD.",
+                "minimum": 0
+              },
+              "like_for_like_cost": {
+                "type": "number",
+                "description": "Like-for-like replacement cost in USD (0 for pure add-ons). Renders 'Like-for-Like Cost'.",
+                "minimum": 0
+              },
+              "incremental_cost": {
+                "type": "number",
+                "description": "Incremental cost over like-for-like (= total − like_for_like). Renders 'Incremental Cost'; drives Net Total Cost and Y1 RoC.",
+                "minimum": 0
+              },
+              "incentives": {
+                "type": "number",
+                "description": "Rebates/incentives applied to THIS measure in USD (positive). Renders 'Incentives'; Net Total Cost = incremental_cost − incentives.",
+                "minimum": 0
+              },
+              "emissions_savings_tco2e": {
+                "type": "number",
+                "description": "Annual emissions reduction from this measure in tCO₂e/yr (engine-computed from gas/elec deltas × emission factors — never LLM-computed). Renders 'Emissions Savings (tCO₂e)'."
+              },
+              "landlord_utility_savings": {
+                "type": "number",
+                "description": "Stabilized annual OWNER/LANDLORD-SHARE utility $ savings the owner actually captures (per the end-use payer). Renders 'Landlord Utility Savings' and drives Y1 RoC. (Alias: annual_owner_savings — landlord_utility_savings wins if both present.) From the engine, never LLM-computed."
+              },
+              "tenant_utility_savings": {
+                "type": "number",
+                "description": "Stabilized annual TENANT-SHARE utility $ savings (does NOT accrue to the owner; shown separately, never merged with landlord savings and never capitalized into the owner value bridge). Renders 'Tenant Utility Savings'."
+              },
+              "ancillary_revenue": {
+                "type": "number",
+                "description": "Stabilized annual ancillary revenue from this measure (EV charging, PJM DR, solar export) in USD/yr, risk-adjusted. Renders 'Ancillary Revenue' and is included in the Y1 RoC numerator."
+              },
+              "annual_owner_savings": {
+                "type": "number",
+                "description": "DEPRECATED alias for landlord_utility_savings (kept for back-compat). Prefer landlord_utility_savings."
+              },
+              "elec_reduction_kwh": {
+                "type": "number",
+                "description": "Annual electricity reduction in kWh. NEGATIVE for electrification measures (electricity rises)."
+              },
+              "gas_reduction_kwh": {
+                "type": "number",
+                "description": "Annual gas reduction in kWh-equivalent."
+              }
+            }
+          }
+        },
+        "plans": {
+          "type": "array",
+          "description": "Scenario bundles (e.g. Plan 1 near-term positive-IRR set, Plan 2 deep electrification). Each renders its own value-creation waterfall + a row in the Plan Comparison; the selected plan's cashflow is shown.",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": [
+              "name",
+              "waterfall"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "name": {
+                "type": "string",
+                "description": "Short plan identifier (e.g. 'Plan 1')."
+              },
+              "label": {
+                "type": "string",
+                "description": "Human-readable descriptor (e.g. 'Near-term positive-IRR')."
+              },
+              "summary_points": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "3-5 short plain-language bullets describing this plan for readability — what it deploys, the headline IRR/value, the key sensitivity or trade-off. Rendered as a bulleted list under the plan heading. PREFER this over cramming the plan narrative into executive_summary as a paragraph wall."
+              },
+              "irr_incremental": {
+                "type": "number",
+                "description": "IRR on incremental spend as a decimal (e.g. 0.25 for 25%)."
+              },
+              "ghgi_reduction_pct": {
+                "type": "number",
+                "description": "Plan's GHGI reduction by the target year as a positive decimal (e.g. 0.58 for a 58% reduction). Nullable; shown in the Scenario Comparison strip.",
+                "minimum": 0,
+                "maximum": 1
+              },
+              "compliant": {
+                "type": "boolean",
+                "description": "Whether this plan achieves BPS compliance. Nullable; shown as ✓ Compliant / At risk in the Scenario Comparison strip."
+              },
+              "waterfall": {
+                "type": "object",
+                "description": "The value-creation-bridge components plus the net total. incremental_capex and capitalized_subscription are stored NEGATIVE (they pull the bridge down); all additive components are positive. net_value_creation should equal the sum of the components (incremental_capex + capitalized_subscription + incentives + capitalized_utility_savings + capitalized_ancillary_revenue + pv_bps_fine_avoidance). baseline_capex is context-only (NOT summed into the bridge).",
+                "required": [
+                  "incremental_capex",
+                  "incentives",
+                  "capitalized_utility_savings",
+                  "capitalized_ancillary_revenue",
+                  "net_value_creation"
+                ],
+                "additionalProperties": false,
+                "properties": {
+                  "incremental_capex": {
+                    "type": "number",
+                    "description": "Σ incremental cost over like-for-like across the plan's measures. NEGATIVE (decrement)."
+                  },
+                  "baseline_capex": {
+                    "type": "number",
+                    "description": "Σ like-for-like (baseline) replacement cost that would be spent anyway across the plan's measures — the spend the incremental sits on top of. POSITIVE. Context/disclosure only: shown in the scenario comparison table, NOT summed into net_value_creation."
+                  },
+                  "capitalized_subscription": {
+                    "type": "number",
+                    "description": "Capitalized impact of any subscription-model measure's recurring FEE (e.g. Parity RCx) = stabilized annual subscription cost ÷ exit cap. NEGATIVE (a value drag). The savings the subscription enables flow through capitalized_utility_savings (gross); this is the separate, transparent cost line. 0 if no subscription measures."
+                  },
+                  "incentives": {
+                    "type": "number",
+                    "description": "Rebates/incentives offsetting capex. Positive."
+                  },
+                  "capitalized_utility_savings": {
+                    "type": "number",
+                    "description": "Stabilized annual owner-share utility $ savings ÷ exit cap. Positive. For subscription measures this is the GROSS savings (before the subscription fee, which is captured separately in capitalized_subscription)."
+                  },
+                  "capitalized_ancillary_revenue": {
+                    "type": "number",
+                    "description": "Stabilized annual solar/EV ancillary revenue ÷ exit cap. Positive."
+                  },
+                  "pv_bps_fine_avoidance": {
+                    "type": [
+                      "number",
+                      "null"
+                    ],
+                    "description": "Discounted present value of the avoided-fine stream (a finite, scheduled penalty — PV, never capitalized). Positive. Set to NULL (omit — do NOT use 0) when the jurisdiction has no mandatory BPS penalty regime: there is no downside to avoid, and the report then shows '—' with an explanatory note rather than a misleading $0 'avoided' line."
+                  },
+                  "net_value_creation": {
+                    "type": "number",
+                    "description": "Impact on asset value at exit = incremental_capex + capitalized_subscription + incentives + capitalized_utility_savings + capitalized_ancillary_revenue + pv_bps_fine_avoidance (treat null fine-avoidance as 0 in this sum)."
+                  }
+                }
+              },
+              "cashflow": {
+                "type": "array",
+                "description": "Annual cashflow underneath the waterfall. NOI Impact = Revenue + Utility Savings + BPS Fine Avoidance; Unlevered Incremental Cashflow = NOI Impact − Incremental CapEx + Incentives; Asset Value Impact booked in the exit year.",
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "year"
+                  ],
+                  "additionalProperties": false,
+                  "properties": {
+                    "year": {
+                      "type": "integer",
+                      "description": "Calendar year."
+                    },
+                    "revenue": {
+                      "type": "number",
+                      "description": "Incremental ancillary revenue (e.g. solar/EV) in USD."
+                    },
+                    "utility_savings": {
+                      "type": "number",
+                      "description": "Owner-share utility $ savings in USD."
+                    },
+                    "like_for_like_capex": {
+                      "type": "number",
+                      "description": "Like-for-like capex in USD (informational; not in the incremental IRR)."
+                    },
+                    "incremental_capex": {
+                      "type": "number",
+                      "description": "Incremental capex in USD (positive spend in the install year)."
+                    },
+                    "incentives": {
+                      "type": "number",
+                      "description": "Incentives received in USD."
+                    },
+                    "bps_fine_avoidance": {
+                      "type": "number",
+                      "description": "BPS fine avoided that year in USD."
+                    },
+                    "noi_impact": {
+                      "type": "number",
+                      "description": "Revenue + Utility Savings + BPS Fine Avoidance."
+                    },
+                    "unlevered_incremental_cashflow": {
+                      "type": "number",
+                      "description": "NOI Impact − Incremental CapEx + Incentives."
+                    },
+                    "cumulative": {
+                      "type": "number",
+                      "description": "Running cumulative unlevered incremental cashflow."
+                    },
+                    "asset_value_impact": {
+                      "type": "number",
+                      "description": "Capitalized NOI uplift booked at exit (nonzero only in the exit year)."
+                    }
+                  }
+                }
+              },
+              "thesis": {
+                "type": "string",
+                "description": "One-line plain-language thesis for this plan (what it does + the headline financial/compliance outcome). Rendered as a separated bulleted block in the Recommendation. Keep to one sentence; summary_points[] carries the detail."
+              },
+              "sensitivity": {
+                "type": "object",
+                "additionalProperties": false,
+                "description": "Engine-computed IRR sensitivity band. Populated by derive_engagement (owner savings ±15%, exit cap ±50bps) — never hand-authored.",
+                "properties": {
+                  "adverse": {
+                    "type": "object",
+                    "additionalProperties": true,
+                    "properties": {
+                      "irr_incremental": {
+                        "type": [
+                          "number",
+                          "null"
+                        ]
+                      },
+                      "irr_excl_exit": {
+                        "type": [
+                          "number",
+                          "null"
+                        ]
+                      },
+                      "net_value_creation": {
+                        "type": [
+                          "number",
+                          "null"
+                        ]
+                      }
+                    }
+                  },
+                  "favorable": {
+                    "type": "object",
+                    "additionalProperties": true,
+                    "properties": {
+                      "irr_incremental": {
+                        "type": [
+                          "number",
+                          "null"
+                        ]
+                      },
+                      "irr_excl_exit": {
+                        "type": [
+                          "number",
+                          "null"
+                        ]
+                      },
+                      "net_value_creation": {
+                        "type": [
+                          "number",
+                          "null"
+                        ]
+                      }
+                    }
+                  },
+                  "assumptions": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "bps_penalty_per_tco2e": {
+          "type": "number",
+          "description": "BPS/BERDO/BEUDO penalty rate in $ per tCO2e over the compliance limit (e.g. 234 for Cambridge BEUDO 2026-2030). REQUIRED whenever any plan books bps_fine_avoidance. The render gate recomputes every year's fine avoidance from targets.trajectory (BAU/plan/bps_target kgCO2e/m2) x this rate x property.gfa_m2 and BLOCKS on divergence — so every fine dollar must derive from the trajectory, never hand-entered."
+        }
+      }
+    },
+    "data_quality": {
+      "type": "object",
+      "description": "Client-facing data-quality summary and per-input confidence dots. EXTERNAL DELIVERABLE: no internal-process language (no 'Gate 1/2', 'adjudicated', 'verifier', 'Confirmed finding <id>', 'phase', 'workflow'). Do NOT include the internal reconciliation ledger.",
+      "additionalProperties": false,
+      "properties": {
+        "summary": {
+          "type": "string",
+          "description": "One-line client-facing confidence statement and basis (e.g. 'Baseline built from 12 months of utility bills and an on-site equipment survey.'). Also populates the footer confidence note. No internal-process terms."
+        },
+        "items": {
+          "type": "array",
+          "description": "Per-input data-quality flags rendered as colored-dot bullets. Client-facing text only — cite the source ('AEI energy audit 475250-EA1'), never the internal step ('Locked at Gate 1').",
+          "items": {
+            "type": "object",
+            "required": [
+              "dot",
+              "text"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "dot": {
+                "type": "string",
+                "description": "Confidence color.",
+                "enum": [
+                  "green",
+                  "amber",
+                  "red"
+                ]
+              },
+              "text": {
+                "type": "string",
+                "description": "The client-facing data-quality note. No internal-process terms."
+              }
+            }
+          }
+        }
+      }
+    },
+    "methodology": {
+      "type": "string",
+      "description": "Methodology note — provenance statement (e.g. 'Every reported number traces to an engine output or cited source; no figure is LLM-computed.')."
+    },
+    "sources": {
+      "type": "array",
+      "description": "Citations for regulatory, incentive, and market claims. Rendered in a collapsible Sources list.",
+      "items": {
+        "type": "object",
+        "required": [
+          "label"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "label": {
+            "type": "string",
+            "description": "Short description of what this source provided."
+          },
+          "url": {
+            "type": "string",
+            "description": "Full URL (http/https only; validated before rendering)."
+          },
+          "value_cited": {
+            "type": "string",
+            "description": "The specific data point taken from this source."
+          }
+        }
+      }
+    },
+    "presentation": {
+      "type": "object",
+      "description": "Phase-2 presentation config (design as data). Read by layout-agent.html populateReport(): section visibility/order, identity (prepared_by/for/date), brand, columns, measure_order, narrative overrides, config-gated paginator (paged.enabled + page_size letter|a4 + running_header/footer), and an annotations overlay for edits that do not map to a known key. Validated separately by validatePresentation() in apps/api; additionalProperties permitted here so new presentation keys do not require a schema bump.",
+      "additionalProperties": true,
+      "properties": {
+        "paged": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "page_size": {
+              "enum": [
+                "letter",
+                "a4"
+              ]
+            },
+            "running_header": {
+              "type": "string"
+            },
+            "running_footer": {
+              "type": "string"
+            }
+          }
+        },
+        "identity": {
+          "type": "object",
+          "properties": {
+            "prepared_by": {
+              "type": "string"
+            },
+            "prepared_for": {
+              "type": "string"
+            },
+            "report_date": {
+              "type": "string"
+            }
+          }
+        },
+        "brand": {
+          "type": "object"
+        },
+        "sections": {
+          "type": "object"
+        },
+        "columns": {
+          "type": "object"
+        },
+        "measure_order": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "narrative": {
+          "type": "object"
+        },
+        "annotations": {
+          "type": "array"
+        }
+      }
+    },
+    "incentive_programs": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Engine-computed incentive/rebate programs that matched this plan's measures (Notes section). Populated by derive_engagement — do not hand-author.",
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "program": {
+                "type": "string",
+                "description": "Program name (e.g. 'IRA §48E ITC', 'DC BEPS')."
+              },
+              "description": {
+                "type": "string",
+                "description": "One-sentence client-facing description. EXTERNAL DELIVERABLE: no internal-process language."
+              }
+            },
+            "required": [
+              "program"
+            ]
+          }
+        }
+      }
+    },
+    "compliance_notes": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Engine-computed building-performance-standard compliance status notes (Notes section). Populated by derive_engagement — do not hand-author.",
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "program": {
+                "type": "string",
+                "description": "Program name (e.g. 'IRA §48E ITC', 'DC BEPS')."
+              },
+              "description": {
+                "type": "string",
+                "description": "One-sentence client-facing description. EXTERNAL DELIVERABLE: no internal-process language."
+              }
+            },
+            "required": [
+              "program"
+            ]
+          }
+        }
+      }
+    }
+  }
+}

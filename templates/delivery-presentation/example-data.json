@@ -1,0 +1,301 @@
+{
+  "deck": {
+    "title": "Westminster Decarbonization Plan",
+    "subtitle": "Value-first electrification pathway for a 7-year hold — calibrated model, expert-reviewed assumptions, and a capital plan that beats the hurdle.",
+    "client": "Cortland",
+    "asset": "Cortland Westminster — Westminster, CO",
+    "date": "July 2026",
+    "presenter": "Soapbox Builders Inc.",
+    "engagement_type": "decarbonization plan delivery",
+    "confidential": true,
+    "cover_logos": ["audette"],
+    "cover_logos_label": "analysis powered by"
+  },
+  "slides": [
+    {
+      "section": "background",
+      "eyebrow": "the asset",
+      "heading": "Cortland Westminster at a glance",
+      "sub": "Garden-style multifamily community entering a regulated compliance window mid-hold. Figures illustrative.",
+      "blocks": [
+        {
+          "type": "stats",
+          "items": [
+            { "label": "Units", "value": "504", "sub": "garden-style, 18 buildings" },
+            { "label": "Gross floor area", "value": "46,000 m²", "sub": "~500,000 sqft conditioned" },
+            { "label": "Vintage", "value": "1998", "sub": "gas DHW + furnaces at mid-life" },
+            { "label": "Hold period", "value": "7 yr", "sub": "exit modeled 2033" },
+            { "label": "Energy intensity", "value": "168 kWh/m²", "sub": "above BPD peer group" },
+            { "label": "Occupancy", "value": "94%", "sub": "trailing 12-month average" }
+          ]
+        },
+        {
+          "type": "bullets",
+          "items": [
+            "Gas-dominant heating and domestic hot water; major plant equipment reaches remaining useful life inside the hold.",
+            "Asset sits above its BPD multifamily peer group on energy intensity — headroom, not a crisis.",
+            "Ownership objective: protect exit value and stay ahead of compliance without over-capitalizing a 7-year hold."
+          ]
+        }
+      ]
+    },
+    {
+      "section": "background",
+      "eyebrow": "why now",
+      "heading": "Colorado Regulation 28 sets the clock",
+      "sub": "Building performance standards convert energy intensity into a dated financial liability.",
+      "blocks": [
+        {
+          "type": "bullets",
+          "items": [
+            "Regulation 28 requires covered buildings to hit energy-intensity targets at 2026 and 2030 checkpoints, with penalties for non-compliance.",
+            "Business-as-usual trajectory misses the 2030 target — fines land inside the hold, before exit.",
+            "Equipment replaced like-for-like at end of life locks in the non-compliant profile for another 15+ years.",
+            "The question is not whether to spend at RUL — it is whether the incremental dollars buy compliance and value."
+          ]
+        },
+        {
+          "type": "quote",
+          "text": "Every dollar in this plan is incremental over spend the asset already owes at end of equipment life.",
+          "attribution": "Framing principle for the capital plan"
+        }
+      ]
+    },
+    {
+      "section": "methodology",
+      "eyebrow": "methodology",
+      "heading": "How the plan was built",
+      "sub": "A calibrated building model, measures timed to equipment life, and value-creation math — with expert-in-the-loop gates at every consequential step.",
+      "blocks": [
+        {
+          "type": "bullets",
+          "items": [
+            "Calibrated energy model: physics-based simulation tuned to 24 months of actual utility data (kWh, calibrated to within acceptance tolerance).",
+            "Measures at remaining useful life: interventions scheduled when equipment is due anyway, so only the incremental cost counts.",
+            "Value-creation math: incremental cost vs. landlord-share utility savings, avoided fines, incentives, and conditional exit-value impact.",
+            "Expert-in-the-loop review: every material assumption was reviewed and confirmed with the owner before economics were run."
+          ]
+        }
+      ]
+    },
+    {
+      "section": "methodology",
+      "eyebrow": "value math",
+      "heading": "What counts as value — and what doesn't",
+      "blocks": [
+        {
+          "type": "two_col",
+          "left": [
+            {
+              "type": "bullets",
+              "items": [
+                "Incremental capital only — like-for-like replacement cost is netted out.",
+                "Landlord-share utility savings, per the owner/tenant meter split.",
+                "PV of avoided Reg-28 penalties across both checkpoints.",
+                "Conditional exit-value impact, applied only where buyer underwriting supports it."
+              ]
+            },
+            {
+              "type": "stats",
+              "items": [
+                { "label": "Counted", "value": "4", "sub": "value drivers in the base case" },
+                { "label": "Landlord share", "value": "38%", "sub": "of total site utility spend" },
+                { "label": "Discount rate", "value": "8.0%", "sub": "unlevered, for PV of savings" }
+              ]
+            }
+          ],
+          "right": [
+            {
+              "type": "bullets",
+              "items": [
+                "No tenant-paid savings claimed by the landlord.",
+                "No green premium asserted without market evidence.",
+                "No incentive counted before program eligibility is confirmed.",
+                "All displayed figures rounded to 2 significant figures; benchmarks vs. BPD peers."
+              ]
+            },
+            {
+              "type": "stats",
+              "items": [
+                { "label": "Excluded", "value": "3", "sub": "categories held out of the base case" },
+                { "label": "Sig figs", "value": "2", "sub": "on every displayed figure" },
+                { "label": "Benchmark", "value": "BPD", "sub": "peer group, not national median" }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "section": "assumptions",
+      "eyebrow": "assumptions",
+      "heading": "Key assumptions behind the numbers",
+      "sub": "Fixed inputs used across every scenario. Figures illustrative.",
+      "blocks": [
+        {
+          "type": "table",
+          "headers": ["Assumption", "Value", "Basis"],
+          "rows": [
+            ["Unit count", "504", "Confirmed — rent roll vs. assessor records"],
+            ["Exit cap rate", "5.5%", "Sponsor guidance, Denver-metro multifamily"],
+            ["Hold / exit year", "7 years / 2033", "Fund business plan"],
+            ["IRR hurdle", "12%", "Sponsor incremental-capital hurdle"],
+            ["Utility escalation", "3.0% elec / 4.0% gas", "10-yr regional tariff history"],
+            ["Baseline year", "2021", "Reg-28 reference; gap noted below"]
+          ]
+        }
+      ]
+    },
+    {
+      "section": "assumptions",
+      "eyebrow": "open items",
+      "heading": "Questions raised — and where they stand",
+      "sub": "Every consequential assumption was reviewed and confirmed with the owner before the economics were run.",
+      "blocks": [
+        {
+          "type": "questions",
+          "items": [
+            {
+              "q": "Unit count: 504 or 512?",
+              "status": "adjudicated",
+              "note": "Rent roll (504) conflicts with assessor record (512). Confirmed as 504 — eight units were combined during the 2014 renovation."
+            },
+            {
+              "q": "Owner/tenant utility split for in-unit electric",
+              "status": "resolved",
+              "note": "Tenants are direct-metered for in-unit electric; landlord carries common-area electric and all gas. Savings allocated accordingly."
+            },
+            {
+              "q": "Exit cap rate 5.5% — hold or sensitize?",
+              "status": "resolved",
+              "note": "Held at sponsor guidance; economics shown with and without exit-value impact so the conclusion doesn't hinge on it."
+            },
+            {
+              "q": "2021 baseline utility data gap (Mar–May)",
+              "status": "open",
+              "note": "Three months interpolated from degree-day regression. Requesting utility re-pull; affects the compliance margin, not the plan selection."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "section": "results",
+      "eyebrow": "headline economics",
+      "heading": "The plan pays for itself — and clears the hurdle",
+      "sub": "Unlevered, incremental basis over the 7-year hold. Figures illustrative.",
+      "blocks": [
+        {
+          "type": "stats",
+          "items": [
+            { "label": "Net value creation", "value": "+$3.9M", "sub": "at exit, incremental over like-for-like", "accent": true },
+            { "label": "Incremental IRR", "value": "16%", "sub": "vs. 12% sponsor hurdle" },
+            { "label": "Incremental capital", "value": "$4.2M", "sub": "timed to equipment RUL" },
+            { "label": "Fines avoided", "value": "$1.1M", "sub": "PV of Reg-28 penalties, both checkpoints" }
+          ]
+        },
+        {
+          "type": "bullets",
+          "items": [
+            "Cashflow turns positive in year 4; the exit-value component is conditional and shown separately.",
+            "Plan remains hurdle-positive with the exit-value impact fully excluded."
+          ]
+        }
+      ]
+    },
+    {
+      "section": "results",
+      "eyebrow": "plan comparison",
+      "heading": "Two credible plans, one recommendation",
+      "sub": "Plan B is the recommendation: full electrification at RUL, phased across the hold. Figures illustrative.",
+      "blocks": [
+        {
+          "type": "table",
+          "headers": ["", "Plan A — Compliance floor", "Plan B — Electrify at RUL (recommended)"],
+          "rows": [
+            ["Scope", "Envelope + controls + DHW heat pumps", "Plan A + heat-pump space conditioning at furnace RUL"],
+            ["Incremental capital", "$2.6M", "$4.2M"],
+            ["Net value creation", "+$1.8M", "+$3.9M"],
+            ["Incremental IRR", "14%", "16%"],
+            ["Reg-28 2030 checkpoint", "Marginal pass", "Clear pass with margin"],
+            ["CRREM stranding (1.5°C)", "2031 — inside hold", "Beyond exit year"]
+          ]
+        }
+      ]
+    },
+    {
+      "section": "results",
+      "eyebrow": "emissions & compliance",
+      "heading": "Carbon intensity drops ahead of both curves",
+      "sub": "Site GHGI under Plan B vs. business-as-usual, against both compliance objects. Figures illustrative.",
+      "blocks": [
+        {
+          "type": "trajectory",
+          "title": "Carbon intensity — with-plan vs. BAU vs. targets",
+          "unit_label": "kgCO₂e/m²·yr",
+          "bps_label": "CO Reg 28 target — fines",
+          "series": [
+            { "year": 2024, "bau": 12.4, "planned": 12.4, "crrem_target": 11.6, "bps_target": 11.0 },
+            { "year": 2025, "bau": 12.2, "planned": 12.1, "crrem_target": 11.0, "bps_target": 11.0 },
+            { "year": 2026, "bau": 12.0, "planned": 10.2, "crrem_target": 10.4, "bps_target": 9.6 },
+            { "year": 2027, "bau": 11.8, "planned": 9.9,  "crrem_target": 9.7,  "bps_target": 9.6 },
+            { "year": 2028, "bau": 11.6, "planned": 9.6,  "crrem_target": 9.0,  "bps_target": 9.6 },
+            { "year": 2029, "bau": 11.4, "planned": 7.8,  "crrem_target": 8.3,  "bps_target": 9.6 },
+            { "year": 2030, "bau": 11.2, "planned": 7.5,  "crrem_target": 7.6,  "bps_target": 7.2 },
+            { "year": 2031, "bau": 11.0, "planned": 6.2,  "crrem_target": 6.8,  "bps_target": 7.2 },
+            { "year": 2032, "bau": 10.8, "planned": 6.0,  "crrem_target": 6.1,  "bps_target": 7.2 },
+            { "year": 2033, "bau": 10.6, "planned": 5.7,  "crrem_target": 5.3,  "bps_target": 7.2 }
+          ],
+          "crrem_meta": { "region": "US — Colorado", "property_type": "Multifamily" },
+          "stranding_year_bau": 2031,
+          "stranding_year_planned": null,
+          "note": "BPS target drives fines; the CRREM pathway drives stranding — two different objects, both cleared under Plan B. BAU strands in 2031, inside the hold; the with-plan trajectory stays under the CRREM 1.5°C pathway through exit."
+        }
+      ]
+    },
+    {
+      "section": "results",
+      "eyebrow": "value bridge",
+      "heading": "Where the $3.9M comes from",
+      "sub": "Incremental basis: like-for-like replacement cost is netted out before the bridge starts. Figures illustrative.",
+      "blocks": [
+        {
+          "type": "waterfall",
+          "title": "Plan B value creation — 7-year hold",
+          "items": [
+            { "label": "Incremental CapEx", "amount": -4200000 },
+            { "label": "Incentives", "amount": 900000 },
+            { "label": "Utility savings (landlord share, PV)", "amount": 2600000 },
+            { "label": "Avoided Reg-28 fines (PV)", "amount": 1100000 },
+            { "label": "Exit-value impact (conditional)", "amount": 3500000 }
+          ],
+          "net": { "label": "Net value creation", "amount": 3900000 },
+          "annotation": "Exit-value impact is conditional on buyer underwriting; the plan remains hurdle-positive with it fully excluded."
+        }
+      ]
+    },
+    {
+      "section": "revisions",
+      "eyebrow": "next steps",
+      "heading": "Revisions and the path to execution",
+      "blocks": [
+        {
+          "type": "bullets",
+          "items": [
+            "1. Close the 2021 baseline data gap — utility re-pull requested; compliance margin to be re-stated on receipt.",
+            "2. Confirm incentive eligibility (utility DSM + IRA 179D pathway) before locking the year-1 capital budget.",
+            "3. Board review of Plan B capital ask at the next investment committee.",
+            "4. Commission the year-1 package: DHW heat-pump design and controls scope, aligned to the 2026 checkpoint.",
+            "5. Align procurement with equipment RUL schedule so only incremental cost is carried on each replacement.",
+            "6. Standing revision cadence: plan re-run annually with actuals, and at any material change in tariffs or Reg-28 rulemaking."
+          ]
+        },
+        {
+          "type": "quote",
+          "text": "This plan is a living document — every revision goes back through the same expert-in-the-loop gates that built it.",
+          "attribution": "Soapbox delivery standard"
+        }
+      ]
+    }
+  ]
+}

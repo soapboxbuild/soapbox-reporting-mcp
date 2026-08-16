@@ -1,0 +1,1511 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Rehabilitation Capital Plan</title>
+  <!--
+    CLIENT-RENDER TEMPLATE (decarb / layout-agent.html)
+    ---------------------------------------------------
+    This template mirrors templates/rsra/layout-agent.html's architecture exactly:
+    the server injects a JSON data object into the report-data script block and THIS
+    template's own JavaScript renders every section and chart from it. The agent
+    writes no HTML and draws no charts — populateReport() does everything.
+    This is the fill_report render path (report_type 'decarb'). It REPLACES the
+    old bracket-token ("TOKEN"-style) hand-fill mechanism entirely.
+
+    Data contract: see templates/decarb/schema.json. The Measure Roadmap section
+    renders from economics.measures[]; the waterfall, cashflow, and plan comparison
+    render from economics.plans[]. incremental_capex is stored NEGATIVE ($ sign
+    convention) in each plan's waterfall.
+
+    Hard prohibitions (match RSRA): self-contained single file — inline CSS + inline
+    JS only. NO external stylesheets, NO CDN scripts, NO external Paged.js/CDN, NO web
+    fonts, NO canvas, NO external images. All charts are JS-drawn inline SVG.
+    Pagination is a first-class, config-gated feature: when report-data.presentation.paged.enabled
+    is true, the internal paginateReport() lays .report into fixed page cards (no external lib).
+  -->
+  <style>
+    /* ─── DESIGN TOKENS (copied from RSRA for visual consistency) ─── */
+    :root {
+      --navy:   #12253A;
+      /* Brand hooks — org design-system tokens override these at runtime (applyOrgBrand).
+         Defaults reproduce the Soapbox kit exactly, so no brand = no visual change. */
+      --brand-font-display: inherit;
+      --brand-font-body: -apple-system, 'Helvetica Neue', Arial, sans-serif;
+      --header-bg: #12253A;
+      --header-glow-1: rgba(234,88,12,0.55);
+      --header-glow-2: rgba(31,107,69,0.35);
+      --eyebrow-color: #4CAF82;
+      --eyebrow-prefix: #F97316;
+      --plan1: #1F6B45;
+      --plan2: #0E7490;
+      --bau-line: #94A3B8;
+      --stone:  #2C3E50;
+      --ink:    #1A1A2E;
+      --sage:   #1F6B45;
+      --cloud:  #F8F9FB;
+      --card:   #FFFFFF;
+      --muted:  #64748B;
+      --border: #CBD5E1;
+      --rule:   #E2E8EF;
+
+      /* Waterfall / economics colors */
+      --wf-decrement: #B45309;  /* incremental capex — decrement */
+      --wf-add:       #1F6B45;  /* additive value bars — green */
+      --wf-net:       #12253A;  /* net value creation — anchor */
+
+      /* Shared brand + status tokens (design kit) */
+      --orange:    #EA580C;
+      --orange-2:  #F97316;
+      --orange-bg: #FEF4EC;
+      --sage-bg:   #EDF7F2;
+      --amber:     #B45309;  --amber-bg: #FEF9EC;
+      --red:       #B91C1C;  --red-bg:   #FEF2F2;
+    }
+
+    /* ─── RESET ─── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      background: #F8F9FB;
+      margin: 0;
+      font-family: var(--brand-font-body);
+      font-size: 13px;
+      color: var(--ink);
+      line-height: 1.6;
+    }
+
+    /* ─── REPORT WRAPPER ─── */
+    .report {
+      max-width: 780px;
+      margin: 0 auto;
+      padding: 40px 0 80px;
+    }
+
+    /* ─────────────────────────────────
+       1. DOCUMENT HEADER (mirrors RSRA)
+    ───────────────────────────────── */
+    .doc-header {
+      background:
+        radial-gradient(120% 140% at 88% -20%, var(--header-glow-1) 0%, rgba(0,0,0,0) 46%),
+        radial-gradient(90% 120% at 0% 120%, var(--header-glow-2) 0%, rgba(0,0,0,0) 50%),
+        var(--header-bg);
+      color: white;
+      padding: 32px 40px 0;
+      position: relative;
+      overflow: hidden;
+    }
+    .doc-header-eyebrow {
+      font-size: 8px;
+      font-weight: 600;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--eyebrow-color);
+      margin-bottom: 8px;
+    }
+    .doc-header-eyebrow::before,
+    .section-label::before {
+      content: '// ';
+      color: var(--eyebrow-prefix);
+      font-weight: 800;
+    }
+    .doc-header-property-name {
+      font-size: 28px;
+      font-weight: 700;
+      color: #ffffff;
+      margin: 8px 0 4px;
+      line-height: 1.2;
+    }
+    .doc-header-address {
+      font-size: 13px;
+      font-weight: 300;
+      color: rgba(255,255,255,0.65);
+      margin-bottom: 24px;
+    }
+    .doc-header-meta-strip {
+      background: #1A3550;
+      padding: 8px 40px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 11px;
+      color: rgba(255,255,255,0.5);
+    }
+    .doc-header-meta-strip span { color: rgba(255,255,255,0.5); }
+    .doc-header-logos {
+      display: flex; align-items: center; gap: 22px;
+      padding: 6px 0 26px;
+    }
+    .doc-header-logos svg, .doc-header-logos img { display: block; }
+    .doc-header-logos .logo-divider { width: 1px; height: 24px; background: rgba(255,255,255,0.22); }
+    .meta-confidential {
+      font-size: 9px;
+      font-weight: 600;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: #4CAF82;
+      font-variant: small-caps;
+    }
+    #cover-meta-date { white-space: nowrap; }
+
+    /* ─── Meta bar ─── */
+    .meta-bar {
+      display: flex;
+      gap: 32px;
+      padding: 14px 40px;
+      background: #F1F4F8;
+      border-top: 1px solid #CBD5E1;
+      font-size: 11px;
+    }
+    .meta-item { display: flex; flex-direction: column; gap: 2px; }
+    .meta-item .meta-label {
+      color: #64748B;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      font-size: 9px;
+    }
+    .meta-item .meta-value {
+      color: #12253A;
+      font-weight: 600;
+      font-size: 12px;
+    }
+
+    /* ─────────────────────────────────
+       EXECUTIVE SUMMARY (mirrors RSRA cover-signal-row)
+    ───────────────────────────────── */
+    #exec-summary-row {
+      background: #EDF7F2;
+      padding: 20px 40px;
+      margin: 0;
+      display: block;
+      border-left: 4px solid #1F6B45;
+    }
+    .exec-summary-label {
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: #64748B;
+      margin-bottom: 8px;
+      display: block;
+    }
+    #exec-summary-row .exec-headline {
+      display: block;
+      font-size: 20px;
+      font-weight: 700;
+      color: #0D5C39;
+      margin-bottom: 8px;
+      line-height: 1.2;
+    }
+    #exec-summary-row .exec-narrative {
+      display: block;
+      font-size: 13px;
+      line-height: 1.65;
+      color: #2C3E50;
+      max-width: 680px;
+    }
+
+    /* ─────────────────────────────────
+       SECTIONS — white cards with 2px gap
+    ───────────────────────────────── */
+    .section {
+      padding: 32px 40px;
+      background: white;
+      margin-bottom: 2px;
+    }
+    .section-label {
+      font-size: 9px;
+      font-weight: 600;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: #1F6B45;
+      margin-bottom: 4px;
+    }
+    .section-title {
+      font-size: 18px;
+      font-weight: 700;
+      color: #12253A;
+      margin-bottom: 16px;
+      border-bottom: 1.5px solid #12253A;
+      padding-bottom: 8px;
+    }
+    .section-intro {
+      font-size: 12px;
+      color: #475569;
+      margin-bottom: 16px;
+      line-height: 1.6;
+    }
+    .sub-heading {
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: #64748B;
+      margin-bottom: 8px;
+      margin-top: 20px;
+    }
+
+    /* ─── Headline metrics bar (baseline) ─── */
+    .metrics-bar {
+      display: flex;
+      flex-wrap: wrap;
+      background: #fff;
+      border: 1px solid #E2E8F0;
+      margin-bottom: 8px;
+    }
+    .metric {
+      flex: 1;
+      min-width: 120px;
+      padding: 16px 18px;
+      border-right: 1px solid #E2E8F0;
+    }
+    .metric:last-child { border-right: none; }
+    .m-label {
+      font-size: 9px;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: #64748B;
+      margin-bottom: 6px;
+    }
+    .m-val {
+      font-size: 24px;
+      font-weight: 700;
+      color: #12253A;
+      font-variant-numeric: tabular-nums;
+      line-height: 1;
+    }
+    .m-val.green { color: #1F6B45; }
+    .m-sub { font-size: 11px; color: #94A3B8; margin-top: 3px; }
+
+    /* ─── Profile definition list (mirrors RSRA) ─── */
+    .profile-dl {
+      display: table;
+      width: 100%;
+      border-collapse: collapse;
+      border-top: 1px solid #E2E8EF;
+      margin-top: 8px;
+    }
+    .profile-row { display: table-row; }
+    .profile-dt, .profile-dd {
+      display: table-cell;
+      padding: 10px 12px;
+      font-size: 13px;
+      border-bottom: 1px solid #E2E8EF;
+      line-height: 1.5;
+      vertical-align: top;
+    }
+    .profile-row:last-child .profile-dt,
+    .profile-row:last-child .profile-dd { border-bottom: none; }
+    .profile-dt {
+      font-weight: 600;
+      font-size: 11px;
+      color: #64748B;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      background: #F8F9FB;
+      width: 200px;
+    }
+    .profile-dd { color: var(--ink); background: var(--card); }
+
+    /* ─── SHARED TABLE (mirrors RSRA profile-table) ─── */
+    .profile-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+      margin-top: 4px;
+    }
+    .profile-table th {
+      background: #12253A;
+      color: #fff;
+      text-align: left;
+      padding: 8px 10px;
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+    .profile-table td {
+      padding: 8px 10px;
+      border-bottom: 1px solid #E2E8F0;
+      vertical-align: top;
+      color: #334155;
+    }
+    .profile-table tr:nth-child(even) td { background: #F8F9FB; }
+    .profile-table td.num, .profile-table th.num {
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+    }
+    .profile-table td.ctr, .profile-table th.ctr { text-align: center; }
+    .profile-table tr.totals-row td {
+      font-weight: 700;
+      background: #F1F4F8 !important;
+      color: #12253A;
+      border-top: 1.5px solid #12253A;
+    }
+    .profile-table tr.group-row td {
+      font-weight: 700;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: #64748B;
+      background: #F8FAFC;
+      padding-top: 12px;
+    }
+    .profile-table tr.subtotal-row td {
+      font-weight: 600;
+      color: #475569;
+      background: #FBFCFE;
+      border-top: 1px solid #E2E8F0;
+    }
+    .neg { color: #B45309; font-weight: 600; }
+
+    /* Plan Comparison: Plan column ~3× a data column; 5 columns fit with no scroll */
+    #comparison-section .profile-table { table-layout: fixed; width: 100%; }
+    #comparison-section .profile-table th:first-child,
+    #comparison-section .profile-table td:first-child { width: 46%; }
+
+    /* ─── Roadmap tables: give the Measure column ~2x width and compress the rest ───
+       Fixed layout + colgroup so long measure titles ("Gas WSHP boiler → air-source
+       heat pump — full central plant (734-ton, 2034)") stop wrapping to 4-5 lines,
+       while the short numeric values ($0 / $45K / $3.1M) sit in narrow columns.
+       Headers wrap (override the global th nowrap) so the compressed columns fit. */
+    .roadmap-table { table-layout: fixed; }
+    .roadmap-table th, .roadmap-table td { padding: 8px 7px; }
+    .roadmap-table th { white-space: normal; line-height: 1.25; vertical-align: bottom; overflow-wrap: normal; }
+    .roadmap-table td { overflow-wrap: break-word; }
+    .roadmap-table td:first-child, .roadmap-table th:first-child { line-height: 1.35; overflow-wrap: break-word; }
+    .pos { color: #1F6B45; font-weight: 600; }
+    /* Collapsible per-plan cashflow (mirrors the Sources section) */
+    .cashflow-collapse { margin: 12px 0 18px; border: 1px solid var(--border, #E2E8F0); background: var(--card, #fff); overflow: hidden; }
+    .cashflow-collapse summary {
+      padding: 10px 14px; font-size: 12px; font-weight: 600; color: #12253A; cursor: pointer;
+      list-style: none; display: flex; align-items: center; gap: 6px; letter-spacing: 0.03em;
+    }
+    .cashflow-collapse summary::-webkit-details-marker { display: none; }
+    .cashflow-collapse summary::before { content: '▶'; font-size: 9px; transition: transform 0.15s; }
+    .cashflow-collapse details[open] > summary::before,
+    .cashflow-collapse[open] > summary::before { transform: rotate(90deg); }
+    .cashflow-inner { padding: 0 14px 12px; }
+
+    /* ─── Chart wrap (mirrors decarb chart-wrap + RSRA chart chrome) ─── */
+    .chart-block { margin: 12px 0 4px; }
+    .chart-title {
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #64748B;
+      margin-bottom: 8px;
+    }
+    .chart-source { font-size: 11px; color: #94A3B8; margin-top: 6px; }
+    .chart-legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      margin-top: 10px;
+      font-size: 11px;
+      color: #475569;
+    }
+    .leg { display: flex; align-items: center; gap: 6px; }
+    .leg-swatch { width: 12px; height: 12px; border-radius: 2px; flex-shrink: 0; }
+    .leg-line { width: 24px; height: 2px; border-radius: 1px; flex-shrink: 0; }
+    /* Clickable legend: toggles its series on the chart. */
+    .leg-toggle { cursor: pointer; user-select: none; transition: opacity .12s; }
+    .leg-toggle:hover { color: #12253A; }
+    .leg-toggle:focus-visible { outline: 2px solid #94A3B8; outline-offset: 2px; border-radius: 3px; }
+    .leg-toggle.leg-off { opacity: .38; text-decoration: line-through; }
+
+    .eui-row { margin: 12px 0; }
+    .eui-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .eui-std { font-weight: 600; font-size: 13px; }
+    .eui-pill { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 9999px; }
+    .eui-bar { position: relative; height: 10px; background: #F1F5F9; border-radius: 6px; margin: 6px 0 4px; }
+    .eui-fill { position: absolute; left: 0; top: 0; height: 100%; background: #0E7490; border-radius: 6px; }
+    .eui-target { position: absolute; left: 100%; top: -3px; width: 2px; height: 16px; background: #12253A; transform: translateX(-1px); }
+    .eui-after { position: absolute; top: -3px; width: 2px; height: 16px; background: #059669; transform: translateX(-1px); }
+    .eui-nums { font-size: 12px; color: #334155; }
+
+    /* ─── Waterfall per-plan block ─── */
+    .plan-block { margin-bottom: 24px; }
+    .plan-summary { margin: 8px 0 14px 0; padding-left: 20px; }
+    .plan-summary li { font-size: 13px; line-height: 1.5; color: #334155; margin-bottom: 4px; }
+    .plan-heading {
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+      margin-bottom: 4px;
+    }
+    .plan-name {
+      display: inline-block;
+      background: #12253A;
+      color: #fff;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      padding: 3px 10px;
+      border-radius: 2px;
+    }
+    .plan-block.selected .plan-name { background: var(--plan1); }
+    .plan-label { font-size: 13px; font-weight: 600; color: #12253A; }
+    .plan-tag-selected {
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #1F6B45;
+    }
+    .plan-net {
+      margin-left: auto;
+      font-size: 12px;
+      color: #64748B;
+      font-variant-numeric: tabular-nums;
+    }
+    .plan-net strong { color: #12253A; font-size: 14px; }
+
+    /* ─── Data quality dots (mirrors old decarb) ─── */
+    .dq-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin: 10px 0;
+    }
+    .dq-item {
+      display: flex;
+      gap: 8px;
+      align-items: flex-start;
+      font-size: 12px;
+      color: #334155;
+      line-height: 1.5;
+    }
+    .dq-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      margin-top: 4px;
+    }
+    .dq-dot.green { background: #10B981; }
+    .dq-dot.amber { background: #F59E0B; }
+    .dq-dot.red   { background: #EF4444; }
+
+    /* ─── Sources (collapsible, mirrors RSRA) ─── */
+    #sources-section details {
+      background: var(--card);
+      border: 1px solid var(--border);
+      overflow: hidden;
+    }
+    #sources-section summary {
+      padding: 12px 16px;
+      font-size: 12px;
+      font-weight: 600;
+      color: #12253A;
+      cursor: pointer;
+      list-style: none;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+    #sources-section summary::before {
+      content: '▶';
+      font-size: 9px;
+      transition: transform 0.15s;
+    }
+    #sources-section details[open] summary::before { transform: rotate(90deg); }
+    #sources-section .sources-inner { padding: 0 16px 12px; }
+    .sources-list { list-style: none; margin: 0; padding: 0; }
+    .source-item {
+      display: flex;
+      gap: 10px;
+      padding: 8px 0;
+      border-bottom: 1px solid var(--rule);
+      font-size: 12px;
+      line-height: 1.4;
+    }
+    .source-item:last-child { border-bottom: none; }
+    .source-num { flex-shrink: 0; width: 18px; font-weight: 600; color: var(--muted); }
+    .source-body { flex: 1; }
+    .source-label { font-weight: 500; color: var(--ink); }
+    .source-value { color: var(--muted); }
+    .source-url {
+      font-family: 'Courier New', monospace;
+      font-size: 11px;
+      color: #1F6B45;
+      text-decoration: none;
+      word-break: break-all;
+    }
+
+    /* ─── Confidence note ─── */
+    .confidence-note {
+      margin-top: 8px;
+      font-size: 11px;
+      color: var(--muted);
+      line-height: 1.5;
+      font-style: italic;
+      padding: 0 40px;
+    }
+    .confidence-note strong { color: var(--ink); font-weight: 600; font-style: normal; }
+
+    .sr-only {
+      position: absolute; width: 1px; height: 1px;
+      overflow: hidden; clip: rect(0,0,0,0);
+    }
+
+    /* ═══════════════════════════════════════════════════════
+       DECISION DASHBOARD (Variant C) — scoped additions,
+       native to the system: navy/sage palette, 2px card
+       rhythm, tabular numerals. All prefixed .dash-.
+    ═══════════════════════════════════════════════════════ */
+    .dash-panel {
+      background: #fff;
+      margin-bottom: 2px;
+      padding: 24px 40px 28px;
+      border-top: 3px solid #12253A;
+    }
+    .dash-top {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 20px;
+      flex-wrap: wrap;
+      margin-bottom: 18px;
+    }
+    .dash-eyebrow {
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: #1F6B45;
+      margin-bottom: 6px;
+    }
+    .dash-title {
+      font-size: 20px;
+      font-weight: 700;
+      color: #12253A;
+      line-height: 1.15;
+    }
+
+    /* Compliance status chip — state encoded in color (dq-dot palette) */
+    .dash-chip {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      padding: 8px 14px;
+      border-radius: 14px;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      white-space: normal;      /* wrap long compliance messages instead of overflowing the page */
+      width: 100%;
+      max-width: none;
+      box-sizing: border-box;
+      text-align: left;
+      line-height: 1.35;
+    }
+    .dash-chip .dq-dot { margin-top: 4px; width: 9px; height: 9px; flex-shrink: 0; }
+    .dash-chip.ok   { background: #EDF7F2; color: #0D5C39; border: 1px solid #A7D7BF; }
+    .dash-chip.warn { background: #FFFBEB; color: #92400E; border: 1px solid #FCD34D; }
+    .dash-chip.risk { background: #FEF2F2; color: #B42318; border: 1px solid #F3B4AE; }
+    .dash-chips { display: flex; flex-direction: column; gap: 6px; align-items: stretch; }
+    .dash-chip-caption { font-size: 10px; color: #94A3B8; }
+
+    /* Hero KPI tile grid — built on the .metric type scale */
+    .dash-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      border: 1px solid #E2E8F0;
+      border-bottom: none;
+    }
+    .dash-tile {
+      padding: 15px 16px;
+      border-right: 1px solid #E2E8F0;
+      border-bottom: 1px solid #E2E8F0;
+    }
+    .dash-tile:nth-child(3n) { border-right: none; }
+    .dash-tile .m-label { margin-bottom: 6px; }
+    .dash-tile .m-val { font-size: 23px; }
+    .dash-tile .m-sub { margin-top: 4px; }
+    .dash-tile.hero { background: #F6FAF8; }
+
+    /* Recommendation strip + sparkline */
+    .dash-rec {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      margin-top: 16px;
+      padding: 14px 16px;
+      background: #EDF7F2;
+      border-left: 4px solid #1F6B45;
+      flex-wrap: wrap;
+    }
+    .dash-rec-body { flex: 1; min-width: 240px; }
+    .dash-rec-label {
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: #64748B;
+      margin-bottom: 3px;
+    }
+    .dash-rec-text {
+      font-size: 15px;
+      font-weight: 700;
+      color: #0D5C39;
+      line-height: 1.25;
+    }
+    /* Per-plan descriptions: spatially-separated blocks, one per plan, recommended one accented */
+    .dash-rec-plans { list-style: none; margin: 12px 0 0; padding: 0; display: flex; flex-direction: column; gap: 10px; width: 100%; }
+    .dash-rec-plan { padding: 10px 12px; background: #fff; border: 1px solid #D6E6DD; border-radius: 6px; }
+    .dash-rec-plan.sel { border-color: #1F6B45; background: #F3FBF7; box-shadow: inset 3px 0 0 #1F6B45; }
+    .drp-head { display: flex; align-items: baseline; flex-wrap: wrap; gap: 8px; }
+    .drp-name { font-size: 13px; font-weight: 700; color: #12253A; }
+    .drp-badge { font-size: 9px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #0D5C39; background: #D6F0E2; padding: 2px 7px; border-radius: 10px; }
+    .drp-metric { font-size: 11px; font-weight: 600; color: #475569; margin-left: auto; font-variant-numeric: tabular-nums; }
+    .drp-thesis { font-size: 12px; font-weight: 400; color: #2C3E50; line-height: 1.5; margin-top: 4px; }
+    .dash-rec-narrative {
+      font-size: 12px;
+      font-weight: 400;
+      color: #2C3E50;
+      line-height: 1.55;
+      margin-top: 6px;
+    }
+    .dash-spark { flex-shrink: 0; text-align: center; }
+    .dash-spark-cap {
+      font-size: 9px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #64748B;
+      margin-top: 2px;
+    }
+
+    @media (max-width: 560px) {
+      .dash-grid { grid-template-columns: repeat(2, 1fr); }
+      .dash-tile:nth-child(3n) { border-right: 1px solid #E2E8F0; }
+      .dash-tile:nth-child(2n) { border-right: none; }
+    }
+
+    @media print {
+      html, body { background: #fff; }
+      /* Let sections FLOW across pages so a section that doesn't fit its remaining
+         space doesn't jump to a fresh page (which stranded whitespace + orphaned
+         headings). Keep each heading with the content that follows it, and keep
+         atomic blocks (a single plan's waterfall, a chart, a table) unbroken. */
+      .section-head { break-inside: avoid; break-after: avoid; }
+      .section-label, .section-title, .section-intro { break-after: avoid; }
+      .metrics-bar, .profile-dl, .profile-table, .dash-grid, .dash-tile,
+      .dash-rec, .dash-rec-plan, .plan-block, .chart-block, .dq-grid, .chart-legend {
+        break-inside: avoid;
+      }
+      .doc-header, .doc-header-meta-strip, #exec-summary-row,
+      .dash-rec, .dash-rec-plan.sel, .drp-badge {
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+    }
+  </style>
+</head>
+<body>
+
+<script id="report-data" type="application/json">
+{}
+</script>
+<script>
+/* ORG BRAND APPLICATOR — standalone so it runs regardless of the main renderer's fate.
+   presentation.brand.tokens is the org design-system overlay injected server-side
+   (portfolios.brand_tokens, imported from the org's Claude Design project). All values
+   are data (colors, font stacks, an inline logo SVG) — never executed. */
+(function () {
+  function apply() {
+    try {
+      var el = document.getElementById('report-data');
+      if (!el) return;
+      var data = JSON.parse(el.textContent || '{}');
+      var brand = (data.presentation && data.presentation.brand) || {};
+      var t = brand.tokens;
+      if (!t || typeof t !== 'object') return;
+      var root = document.documentElement.style;
+      var c = t.colors || {};
+      var MAP = {
+        '--navy': c.primary, '--header-bg': c.header_bg || c.primary,
+        '--header-glow-1': c.header_glow_1, '--header-glow-2': c.header_glow_2,
+        '--eyebrow-color': c.eyebrow, '--eyebrow-prefix': c.eyebrow_prefix || c.accent,
+        '--orange': c.accent, '--orange-2': c.accent_2 || c.accent,
+        '--sage': c.positive, '--plan1': c.plan1 || c.accent, '--plan2': c.plan2 || c.primary,
+        '--bau-line': c.bau, '--cloud': c.page_bg, '--muted': c.muted,
+        '--border': c.border, '--rule': c.border_soft,
+        '--wf-add': c.positive, '--wf-decrement': c.negative, '--wf-net': c.primary,
+        '--red': c.negative, '--amber': c.warning
+      };
+      var HEX = /^#[0-9A-Fa-f]{3,8}$|^rgba?\([0-9.,\s%]+\)$/;
+      Object.keys(MAP).forEach(function (k) {
+        var v = MAP[k];
+        if (typeof v === 'string' && HEX.test(v.trim())) root.setProperty(k, v.trim());
+      });
+      var f = t.fonts || {};
+      if (typeof f.import_url === 'string' && /^https:\/\/fonts\.googleapis\.com\//.test(f.import_url)) {
+        var link = document.createElement('link');
+        link.rel = 'stylesheet'; link.href = f.import_url;
+        document.head.appendChild(link);
+      }
+      var FONT = /^[-\w"'(), .]+$/;
+      if (typeof f.body === 'string' && FONT.test(f.body)) root.setProperty('--brand-font-body', f.body);
+      if (typeof f.display === 'string' && FONT.test(f.display)) root.setProperty('--brand-font-display', f.display);
+      var logo = t.logo || {};
+      function sanitizeSvg(src) {
+        if (typeof src !== 'string' || src.length > 200000) return null;
+        var TAGS = { svg:1, g:1, path:1, polygon:1, rect:1, circle:1, ellipse:1, line:1, polyline:1, defs:1, title:1, desc:1, lineargradient:1, radialgradient:1, stop:1, clippath:1 };
+        var ATTRS = { id:1, fill:1, stroke:1, 'stroke-width':1, 'stroke-linecap':1, 'stroke-linejoin':1, viewbox:1, width:1, height:1, points:1, d:1, cx:1, cy:1, r:1, rx:1, ry:1, x:1, y:1, x1:1, x2:1, y1:1, y2:1, transform:1, opacity:1, 'fill-opacity':1, 'stroke-opacity':1, 'fill-rule':1, 'clip-rule':1, 'clip-path':1, offset:1, 'stop-color':1, 'stop-opacity':1, gradientunits:1, gradienttransform:1, xmlns:1 };
+        var docp;
+        try { docp = new DOMParser().parseFromString(src, 'image/svg+xml'); } catch (e) { return null; }
+        var rootEl = docp.documentElement;
+        if (!rootEl || rootEl.nodeName.toLowerCase() !== 'svg' || docp.querySelector('parsererror')) return null;
+        var walk = function (el) {
+          var kids = Array.prototype.slice.call(el.childNodes);
+          for (var i = 0; i < kids.length; i++) {
+            var n = kids[i];
+            if (n.nodeType === 1) {
+              if (!TAGS[n.nodeName.toLowerCase()]) { el.removeChild(n); continue; }
+              var atts = Array.prototype.slice.call(n.attributes);
+              for (var j = 0; j < atts.length; j++) {
+                var an = atts[j].name.toLowerCase(), av = String(atts[j].value);
+                if (!ATTRS[an] || an.indexOf('on') === 0 || /javascript:|url\s*\(/i.test(av)) n.removeAttribute(atts[j].name);
+              }
+              walk(n);
+            } else if (n.nodeType !== 3) { el.removeChild(n); }
+          }
+        };
+        var rootAtts = Array.prototype.slice.call(rootEl.attributes);
+        for (var k = 0; k < rootAtts.length; k++) {
+          var rn = rootAtts[k].name.toLowerCase(), rv = String(rootAtts[k].value);
+          if (!ATTRS[rn] || rn.indexOf('on') === 0 || /javascript:|url\s*\(/i.test(rv)) rootEl.removeAttribute(rootAtts[k].name);
+        }
+        walk(rootEl);
+        return new XMLSerializer().serializeToString(rootEl);
+      }
+      var cleanSvg = sanitizeSvg(logo.svg);
+      if (cleanSvg && cleanSvg.indexOf('<svg') !== -1) {
+        var slot = document.querySelector('.doc-header-logos');
+        if (slot) {
+          var h = Number(logo.height_px) > 0 ? Math.min(Number(logo.height_px), 64) : 32;
+          var pill = logo.background === 'transparent' ? 'background:transparent;padding:0;' : 'background:#FFFFFF;border-radius:4px;padding:5px 10px;';
+          slot.innerHTML = '<span style="display:inline-flex;align-items:center;' + pill + '">'
+            + cleanSvg.replace('<svg', '<svg style="height:' + h + 'px;width:auto;display:block"') + '</span>';
+        }
+      }
+      var pn = document.querySelector('.doc-header-property-name');
+      if (pn && typeof f.display === 'string' && FONT.test(f.display)) { pn.style.fontFamily = f.display; pn.style.fontWeight = '500'; }
+    } catch (e) { console.error('org-brand applicator failed (report renders unbranded):', e && e.message); }
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', apply);
+  else apply();
+})();
+</script>
+
+<script>
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function() { populateReport(); });
+  } else {
+    populateReport();
+  }
+
+  function populateReport() {
+    var dataEl = document.getElementById('report-data');
+    if (!dataEl) return;
+
+    var data;
+    try {
+      data = JSON.parse(dataEl.textContent);
+    } catch(e) {
+      console.error('decarb: failed to parse report-data JSON', e);
+      return;
+    }
+
+    var prop     = data.property     || {};
+    var scope    = data.scope        || {};
+    var baseline = data.baseline     || {};
+    var targets  = data.targets      || {};
+    var plans    = data.plans        || [];
+    var comp     = data.components   || [];
+
+    function safe(val) {
+      return (val !== undefined && val !== null && val !== '') ? String(val) : '—';
+    }
+    function esc(val) {
+      var s = (val !== undefined && val !== null && val !== '') ? String(val) : '—';
+      return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+    }
+    function safeUrl(url) {
+      if (!url) return null;
+      try { var u = new URL(String(url)); return (u.protocol === 'https:' || u.protocol === 'http:') ? u.href : null; } catch(e) { return null; }
+    }
+
+    function fmtCurrency(n) {
+      if (typeof n !== 'number' || !isFinite(n)) return '—';
+      var sign = n < 0 ? '−' : '';
+      var a = Math.abs(n);
+      if (a >= 1000000) {
+        var m = a / 1000000;
+        return sign + '$' + (m >= 10 ? Math.round(m) : parseFloat(m.toFixed(1))) + 'M';
+      }
+      if (a >= 1000) {
+        var k = a / 1000;
+        return sign + '$' + (k >= 100 ? Math.round(k) : parseFloat(k.toFixed(1))) + 'K';
+      }
+      return sign + '$' + Math.round(a);
+    }
+    function fmtSignedCurrency(n) {
+      if (typeof n !== 'number' || !isFinite(n)) return '—';
+      if (n < 0) return fmtCurrency(n);
+      if (n === 0) return fmtCurrency(0);
+      return '+' + fmtCurrency(n);
+    }
+
+    function fmt2sig(n) {
+      if (typeof n !== 'number' || !isFinite(n)) return '—';
+      if (n === 0) return '0';
+      var neg = n < 0;
+      var a = Math.abs(n);
+      var mag = Math.floor(Math.log10(a));
+      var round = Math.pow(10, mag - 1);
+      var r = Math.round(a / round) * round;
+      var out = (r >= 1000) ? Math.round(r).toLocaleString('en-US')
+              : parseFloat(r.toPrecision(2)).toString();
+      return (neg ? '−' : '') + out;
+    }
+
+    function formatEnergyKwh(kwh, perYear) {
+      var suffix = perYear === false ? '' : '/yr';
+      if (typeof kwh !== 'number' || !isFinite(kwh)) return { value: '—', unit: 'kWh' + suffix };
+      var a = Math.abs(kwh);
+      if (a >= 1e6) return { value: fmt2sig(kwh / 1e6), unit: 'GWh' + suffix };
+      if (a >= 1e3) return { value: fmt2sig(kwh / 1e3), unit: 'MWh' + suffix };
+      return { value: fmt2sig(kwh), unit: 'kWh' + suffix };
+    }
+
+    function fmtPct(dec) {
+      if (typeof dec !== 'number' || !isFinite(dec)) return '—';
+      var p = dec * 100;
+      return (Math.abs(p) >= 10 ? Math.round(p) : parseFloat(p.toFixed(1))) + '%';
+    }
+
+    function setText(id, val) { var el = document.getElementById(id); if (el) el.textContent = val; }
+    function setHtml(id, val) { var el = document.getElementById(id); if (el) el.innerHTML = val; }
+    function showEl(id) { var el = document.getElementById(id); if (el) el.style.display = ''; }
+    function capitalise(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : ''; }
+
+    setText('cover-property-name', safe(prop.name));
+    setText('cover-property-address', safe(prop.address));
+    setText('cover-meta-for',  safe(data.prepared_for));
+    var preparedBy = data.prepared_by;
+    if (!preparedBy || /\baris\b|soapbox ai/i.test(String(preparedBy))) preparedBy = 'Christopher Naismith, Soapbox';
+    setText('cover-meta-by',   preparedBy);
+    setText('cover-meta-date', safe(data.report_date));
+
+    setText('cover-meta-type', safe(capitalise(prop.type)));
+    var sizeStr = prop.units ? (prop.units + ' units')
+                : prop.gfa_sqft ? (prop.gfa_sqft.toLocaleString('en-US') + ' sqft')
+                : '—';
+    setText('cover-meta-size', sizeStr);
+    setText('cover-meta-built', prop.year_built ? String(prop.year_built) : '—');
+    setText('cover-meta-zone',  safe(prop.climate_zone));
+
+    var exec = data.executive_summary || {};
+    if (typeof exec === 'string') exec = { narrative: exec };
+
+    var dash = data.dashboard || {};
+    var dashSection = document.getElementById('dashboard-section');
+    var dashRendered = false;
+    if (dashSection && dash && typeof dash === 'object') {
+      dashRendered = renderDashboard(dash, exec, scope, plans);
+      if (dashRendered) dashSection.style.display = '';
+    }
+
+    function renderDashboard(d, ex, sc, pl) {
+      var anything = false;
+
+      if (d.title) { setText('dash-title', d.title); }
+
+      var chipHtml = '';
+      if (d.regulatory_status) {
+        chipHtml += '<span class="dash-chip"><span class="dq-dot" style="background:var(--bronze,#8F5A39)"></span>' + esc(d.regulatory_status) + '</span>';
+      }
+      var capBits = [];
+      if (sc.hold_period_years != null) capBits.push(sc.hold_period_years + '-year hold');
+      if (d.irr_hurdle_pct != null) capBits.push(fmt2sig(Number(d.irr_hurdle_pct)) + '% IRR hurdle');
+      if (capBits.length) chipHtml += '<span class="dash-chip-caption">' + capBits.join(' · ') + '</span>';
+      if (chipHtml) setHtml('dash-chips', chipHtml);
+
+      var tiles = '';
+      if (d.components_clearing_hurdle != null && d.components_evaluated != null) {
+        tiles += dashTile('Components Clearing Hurdle', d.components_clearing_hurdle + ' of ' + d.components_evaluated,
+          d.irr_hurdle_pct != null ? ('vs ' + fmt2sig(Number(d.irr_hurdle_pct)) + '% IRR hurdle') : 'per-component test', true,
+          d.components_clearing_hurdle >= d.components_evaluated);
+      }
+      if (d.total_incremental_capital_ask != null) {
+        tiles += dashTile('Incremental Capital Ask', fmtCurrency(Number(d.total_incremental_capital_ask)), 'efficient over similar, across all components', false, false);
+      }
+      if (d.whole_building_eui_reduction_pct != null) {
+        tiles += dashTile('Whole-Building EUI Reduction', fmt2sig(Number(d.whole_building_eui_reduction_pct)) + '%', 'if efficient tier taken throughout', false, true);
+      }
+      if (d.total_estimated_incentives != null) {
+        tiles += dashTile('Estimated Incentives', fmtCurrency(Number(d.total_estimated_incentives)), d.pending_incentives_note || 'pending eligibility confirmation', false, false);
+      }
+      if (tiles) { setHtml('dash-grid', tiles); showEl('dash-grid'); anything = true; }
+
+      if (d.recommendation) {
+        setHtml('dash-rec-plans', '<li class="dash-rec-plan"><div class="drp-thesis">' + esc(d.recommendation) + '</div></li>');
+        showEl('dash-rec');
+        anything = true;
+      } else if (Array.isArray(pl) && pl.length) {
+        var lis = pl.map(function(p) {
+          var met = [];
+          if (p.irr_incremental_pct != null) met.push('Aggregate IRR ' + fmt2sig(Number(p.irr_incremental_pct)) + '%');
+          var thesis = p.thesis || (Array.isArray(p.summary_points) && p.summary_points.length ? p.summary_points[0] : '');
+          return '<li class="dash-rec-plan"><div class="drp-head"><span class="drp-name">' + esc(p.name || 'Plan') + (p.label ? ' — ' + esc(p.label) : '') + '</span>'
+               + (met.length ? '<span class="drp-metric">' + met.join(' · ') + '</span>' : '') + '</div>'
+               + (thesis ? '<div class="drp-thesis">' + esc(String(thesis)) + '</div>' : '') + '</li>';
+        }).join('');
+        if (lis) { setHtml('dash-rec-plans', lis); showEl('dash-rec'); anything = true; }
+      }
+      return anything;
+    }
+
+    function dashTile(label, val, sub, hero, green) {
+      return '<div class="dash-tile' + (hero ? ' hero' : '') + '">' +
+             '<div class="m-label">' + esc(label) + '</div>' +
+             '<div class="m-val' + (green ? ' green' : '') + '">' + esc(val) + '</div>' +
+             '<div class="m-sub">' + esc(sub) + '</div></div>';
+    }
+
+    var execRow = document.getElementById('exec-summary-row');
+    if (execRow && !dashRendered && (exec.headline || exec.narrative)) {
+      if (exec.headline) {
+        execRow.querySelector('.exec-headline').textContent = exec.headline;
+      } else {
+        execRow.querySelector('.exec-headline').style.display = 'none';
+      }
+      execRow.querySelector('.exec-narrative').textContent = safe(exec.narrative);
+      execRow.style.display = '';
+    }
+
+    var trajSection = document.getElementById('trajectory-section');
+    var euiTraj = targets.eui_trajectory || [];
+    var ghgiTraj = targets.ghgi_trajectory || [];
+    if (trajSection && (euiTraj.length > 1 || ghgiTraj.length > 1)) {
+      if (euiTraj.length > 1) {
+        drawTrajectory(euiTraj, targets, {
+          containerId: 'eui-trajectory-chart', legendId: 'eui-trajectory-legend',
+          unit: 'kWh·m⁻²·yr⁻¹', chartTitle: 'Energy Use Intensity — Like-for-Similar vs. Like-for-Efficient vs. baseline (no action)',
+          ariaLabel: 'EUI trajectory chart', includeBpsTarget: false,
+          crremField: 'energy_kwh_m2yr', crremLabelSuffix: 'energy limit', strandLabel: 'CRREM 1.5°C energy limit crossed (Plan 1)'
+        });
+        showEl('eui-trajectory-block');
+      }
+      if (ghgiTraj.length > 1) {
+        drawTrajectory(ghgiTraj, targets, {
+          containerId: 'trajectory-chart', legendId: 'trajectory-legend',
+          unit: 'kgCO₂e·m⁻²·yr⁻¹', chartTitle: 'GHG Intensity — Like-for-Similar vs. Like-for-Efficient vs. baseline (no action)',
+          ariaLabel: 'GHGi trajectory chart', includeBpsTarget: true,
+          crremField: 'carbon_kgco2_m2yr', strandLabel: 'CRREM 1.5°C carbon limit crossed (Plan 1)'
+        });
+        showEl('ghgi-trajectory-block');
+      }
+      trajSection.style.display = '';
+    }
+
+    var euiSection = document.getElementById('eui-compliance-section');
+    var euiList = targets.eui_compliance || [];
+    if (euiSection && euiList.length) {
+      renderEuiCompliance(euiList);
+      euiSection.style.display = '';
+    }
+
+    function drawTrajectory(pts, tgt, opts) {
+      var crremField = opts.crremField || 'carbon_kgco2_m2yr';
+      var crrem = (tgt.crrem_pathway || []).filter(function(p){ return p && p.year != null && p[crremField] != null; });
+      var meta  = tgt.crrem_meta || {};
+      var crremLabel = 'CRREM 1.5°C pathway' + (meta.region ? ' (' + meta.region + ')' : '') + ' — stranding risk';
+
+      var yrs = pts.map(function(p){ return Number(p.year); });
+      var yMin = Math.min.apply(null, yrs), yMax = Math.max.apply(null, yrs);
+      crrem = crrem.filter(function(p){ var y = Number(p.year); return y >= yMin && y <= yMax; });
+      var css = getComputedStyle(document.documentElement);
+      var PLAN1 = (css.getPropertyValue('--plan1') || '#1F6B45').trim();
+      var PLAN2 = (css.getPropertyValue('--plan2') || '#A8823D').trim();
+      var BAU   = (css.getPropertyValue('--bau-line') || '#94A3B8').trim();
+      var series = [
+        { key: 'baseline',    label: 'Baseline (no action)', color: BAU, dash: '' },
+        { key: 'planned_1',   label: (tgt.plan1_label || 'Plan 1 — Like-for-Similar'), color: PLAN1, dash: '' },
+        { key: 'planned_2',   label: (tgt.plan2_label || 'Plan 2 — Like-for-Efficient'), color: PLAN2, dash: '' }
+      ];
+      if (opts.includeBpsTarget) {
+        series.push({ key: 'bps_target', label: (tgt.bps_label || 'BPS compliance target'), color: '#12253A', dash: '6,4', step: true });
+      }
+      var allV = [];
+      pts.forEach(function(p){ series.forEach(function(s){ if (p[s.key] != null) allV.push(Number(p[s.key])); }); });
+      crrem.forEach(function(p){ allV.push(Number(p[crremField])); });
+      if (!allV.length) return;
+      var vMax = Math.max.apply(null, allV) * 1.15 || 1;
+      var vMin = 0;
+
+      var X1=48, X2=540, Y1=16, Y2=190, W=X2-X1, H=Y2-Y1;
+      function px(yr){ return (X1 + (yMax===yMin?0:(yr-yMin)/(yMax-yMin))*W); }
+      function py(v){ return (Y2 - (v-vMin)/(vMax-vMin)*H); }
+
+      var grid='', xLabs='', yLabs='';
+      for (var i=0;i<=4;i++){
+        var gy = vMin + (vMax-vMin)*i/4;
+        grid += '<line x1="'+X1+'" y1="'+py(gy).toFixed(1)+'" x2="'+X2+'" y2="'+py(gy).toFixed(1)+'" stroke="#F1F4F8" stroke-width="1"/>';
+        yLabs += '<text x="'+(X1-6)+'" y="'+(py(gy)+3).toFixed(1)+'" font-size="9" fill="#94A3B8" text-anchor="end">'+fmt2sig(gy)+'</text>';
+      }
+      var labYears = [];
+      for (var ly=yMin; ly<=yMax; ly++) labYears.push(ly);
+      var skip = labYears.length > 12 ? 2 : 1;
+      labYears.forEach(function(y, idx){
+        if (idx % skip !== 0 && y !== yMax) return;
+        xLabs += '<text x="'+px(y).toFixed(1)+'" y="'+(Y2+14)+'" font-size="9" fill="#94A3B8" text-anchor="middle">'+esc(String(y))+'</text>';
+      });
+
+      var lines='';
+      var legendSeries = [];
+      series.forEach(function(s){
+        var sp = pts.filter(function(p){ return p[s.key] != null; });
+        if (sp.length < 2) return;
+        var poly = [];
+        sp.forEach(function(p, i){
+          if (s.step && i > 0) {
+            poly.push(px(p.year).toFixed(1)+','+py(Number(sp[i-1][s.key])).toFixed(1));
+          }
+          poly.push(px(p.year).toFixed(1)+','+py(Number(p[s.key])).toFixed(1));
+        });
+        lines += '<polyline data-si="'+legendSeries.length+'" points="'+poly.join(' ')+'" fill="none" stroke="'+s.color+'" stroke-width="2"'
+               + (s.dash ? ' stroke-dasharray="'+s.dash+'"' : '') + '/>';
+        legendSeries.push(s);
+      });
+
+      var crremSi = -1;
+      if (crrem.length > 1) {
+        crremSi = legendSeries.length;
+        var cpts = crrem.slice().sort(function(a,b){ return Number(a.year) - Number(b.year); });
+        var cpoly = cpts.map(function(p){ return px(Number(p.year)).toFixed(1)+','+py(Number(p[crremField])).toFixed(1); });
+        lines += '<polyline class="crrem-pathway" data-si="'+crremSi+'" points="'+cpoly.join(' ')+'" fill="none" stroke="#B91C1C" stroke-width="2" stroke-dasharray="5,4"/>';
+        legendSeries.push({ label: crremLabel, color: '#B91C1C', dash: '5,4' });
+      }
+
+      function plannedVal(p){ return p.planned_1 != null ? Number(p.planned_1) : null; }
+      var strandYear = null;
+      var crremByYear = {};
+      crrem.forEach(function(p){ crremByYear[Number(p.year)] = Number(p[crremField]); });
+      if (strandYear == null && crrem.length > 1) {
+        pts.forEach(function(p){
+          if (strandYear != null) return;
+          var cy = crremByYear[Number(p.year)], pv = plannedVal(p);
+          if (pv != null && cy != null && pv > cy) strandYear = Number(p.year);
+        });
+      }
+      var strandDot = '';
+      if (strandYear != null && crrem.length > 1) {
+        var sp2 = null;
+        pts.forEach(function(p){ if (Number(p.year) === strandYear && plannedVal(p) != null) sp2 = p; });
+        if (sp2) {
+          var sxp = px(strandYear), syp = py(plannedVal(sp2));
+          strandDot = '<g data-si="'+crremSi+'">'
+                    + '<circle cx="'+sxp.toFixed(1)+'" cy="'+syp.toFixed(1)+'" r="4" fill="#B91C1C" stroke="#fff" stroke-width="1.5"/>'
+                    + '<text x="'+sxp.toFixed(1)+'" y="'+(syp-8).toFixed(1)+'" font-size="9" font-weight="700" fill="#B91C1C" text-anchor="middle">Plan 1 strands '+esc(String(strandYear))+'</text>'
+                    + '</g>';
+        }
+      }
+
+      var svg = '<svg viewBox="0 0 560 210" width="100%" style="display:block;overflow:visible" aria-label="'+esc(opts.ariaLabel)+'">'
+              + grid + yLabs + xLabs + lines + strandDot
+              + '<line x1="'+X1+'" y1="'+Y2+'" x2="'+X2+'" y2="'+Y2+'" stroke="#E2E8F0" stroke-width="1"/>'
+              + '<text x="12" y="'+((Y1+Y2)/2).toFixed(0)+'" font-size="9" fill="#64748B" text-anchor="middle" transform="rotate(-90,12,'+((Y1+Y2)/2).toFixed(0)+')">'+esc(opts.unit)+'</text>'
+              + '</svg>';
+      var leg = '';
+      legendSeries.forEach(function(s, si){
+        var swatch = s.dash
+          ? 'background:repeating-linear-gradient(90deg,'+s.color+' 0 5px,transparent 5px 9px)'
+          : 'background:'+s.color;
+        leg += '<div class="leg leg-toggle" data-si="'+si+'" role="button" tabindex="0" aria-pressed="true" title="Click to show/hide this line">'
+             + '<div class="leg-line" style="'+swatch+'"></div>'+esc(s.label)+'</div>';
+      });
+      var notes = '';
+      if (strandYear != null) {
+        notes += '<div class="chart-source">'+esc(opts.strandLabel || 'CRREM 1.5°C stranding year (Plan 1)')+': <strong>'+esc(String(strandYear))+'</strong></div>';
+      }
+      if (opts.includeBpsTarget && tgt.bps_source && pts.some(function(p){ return p.bps_target != null; })) {
+        notes += '<div class="chart-source">' + esc(tgt.bps_label || 'BPS target') + ' source: ' + esc(tgt.bps_source) + '</div>';
+      }
+      setHtml(opts.containerId, '<div class="chart-title">'+esc(opts.chartTitle)+' ('+esc(opts.unit)+')</div>' + svg + '<div class="chart-legend" id="'+opts.legendId+'">'+leg+'</div>' + notes);
+
+      var chartEl = document.getElementById(opts.containerId);
+      var legEl = document.getElementById(opts.legendId);
+      if (chartEl && legEl) {
+        var toggleSeries = function(item){
+          var si = item.getAttribute('data-si');
+          if (si == null) return;
+          var els = chartEl.querySelectorAll('svg [data-si="'+si+'"]');
+          if (!els.length) return;
+          var hidden = item.classList.toggle('leg-off');
+          els.forEach(function(el){ el.style.display = hidden ? 'none' : ''; });
+          item.setAttribute('aria-pressed', hidden ? 'false' : 'true');
+        };
+        legEl.addEventListener('click', function(e){
+          var item = e.target.closest ? e.target.closest('.leg-toggle') : null;
+          if (item) toggleSeries(item);
+        });
+        legEl.addEventListener('keydown', function(e){
+          if (e.key !== 'Enter' && e.key !== ' ') return;
+          var item = e.target.closest ? e.target.closest('.leg-toggle') : null;
+          if (item) { e.preventDefault(); toggleSeries(item); }
+        });
+      }
+    }
+
+    function renderEuiCompliance(list) {
+      var pill = { compliant: ['#065F46','#D1FAE5','Compliant'],
+                   exempt:    ['#3730A3','#E0E7FF','Exempt'],
+                   'non-compliant': ['#991B1B','#FEE2E2','Non-compliant'] };
+      var rows = list.map(function(e){
+        var st = pill[e.status] || ['#334155', '#F1F5F9', (e.status || '—')];
+        var deadline = e.compliance_year ? ' · by ' + esc(String(e.compliance_year)) : '';
+        var head = '<div class="eui-head"><span class="eui-std">' + esc(e.standard) + '</span>'
+                 + '<span class="eui-pill" style="color:'+st[0]+';background:'+st[1]+'">' + esc(st[2]) + deadline + '</span></div>';
+        var fs = Array.isArray(e.fine_schedule)
+          ? e.fine_schedule.filter(function(p){ return p && p.year != null; }).sort(function(a,b){ return a.year - b.year; })
+          : [];
+        var body;
+        if (fs.length >= 2) {
+          var X1=54, X2=540, Y1=14, Y2=150, W=X2-X1, H=Y2-Y1;
+          var yMin=fs[0].year, yMax=fs[fs.length-1].year;
+          var vMax = Math.max.apply(null, fs.map(function(p){ return Math.max(Number(p.bau_fine)||0, Number(p.plan_fine)||0); })) * 1.15 || 1;
+          var px=function(yr){ return X1 + (yMax===yMin?0:(yr-yMin)/(yMax-yMin))*W; };
+          var py=function(v){ return Y2 - (v/vMax)*H; };
+          var grid='', yLabs='', xLabs='';
+          for (var i=0;i<=3;i++){ var gv=vMax*i/3, gy=py(gv);
+            grid+='<line x1="'+X1+'" y1="'+gy.toFixed(1)+'" x2="'+X2+'" y2="'+gy.toFixed(1)+'" stroke="#F1F4F8" stroke-width="1"/>';
+            yLabs+='<text x="'+(X1-6)+'" y="'+(gy+3).toFixed(1)+'" font-size="9" fill="#94A3B8" text-anchor="end">'+fmtCurrency(gv)+'</text>'; }
+          var skip = fs.length>10?2:1;
+          fs.forEach(function(p,idx){ if (idx%skip!==0 && p.year!==yMax) return;
+            xLabs+='<text x="'+px(p.year).toFixed(1)+'" y="'+(Y2+14)+'" font-size="9" fill="#94A3B8" text-anchor="middle">'+esc(String(p.year))+'</text>'; });
+          var areaFor=function(key, fill, stroke, dash){
+            var top = fs.map(function(p){ return px(p.year).toFixed(1)+','+py(Number(p[key])||0).toFixed(1); });
+            var path = 'M'+px(fs[0].year).toFixed(1)+','+Y2.toFixed(1)+' L'+top.join(' L')+' L'+px(fs[fs.length-1].year).toFixed(1)+','+Y2.toFixed(1)+' Z';
+            return '<path d="'+path+'" fill="'+fill+'"/><polyline points="'+top.join(' ')+'" fill="none" stroke="'+stroke+'" stroke-width="2"'+(dash?' stroke-dasharray="'+dash+'"':'')+'/>';
+          };
+          var svg = '<svg viewBox="0 0 560 172" width="100%" style="display:block;overflow:visible" aria-label="Annual BPS fine — no-action vs with-plan">'
+            + grid + yLabs + xLabs
+            + areaFor('bau_fine', 'rgba(185,28,28,0.15)', '#B91C1C', '5,4')
+            + areaFor('plan_fine', 'rgba(5,150,105,0.22)', '#059669', null)
+            + '<line x1="'+X1+'" y1="'+Y2+'" x2="'+X2+'" y2="'+Y2+'" stroke="#E2E8F0" stroke-width="1"/>'
+            + '<text x="12" y="'+((Y1+Y2)/2).toFixed(0)+'" font-size="9" fill="#64748B" text-anchor="middle" transform="rotate(-90,12,'+((Y1+Y2)/2).toFixed(0)+')">Annual fine ($/yr)</text>'
+            + '</svg>';
+          var leg = '<div class="chart-legend">'
+            + '<div class="leg"><div class="leg-line" style="background:repeating-linear-gradient(90deg,#B91C1C 0 5px,transparent 5px 9px)"></div>Fine if no action</div>'
+            + '<div class="leg"><div class="leg-line" style="background:#059669"></div>Fine with plan</div></div>';
+          var summary = e.projected_eui != null
+            ? '<div class="eui-nums">Projected EUI <strong style="color:#059669">' + esc(String(e.projected_eui)) + '</strong> vs target ' + esc(String(e.target_eui)) + ' ' + esc(e.unit) + ' (from ' + esc(String(e.building_eui)) + ' today)</div>'
+            : '<div class="eui-nums"><strong>' + esc(String(e.building_eui)) + '</strong> vs target ' + esc(String(e.target_eui)) + ' ' + esc(e.unit) + '</div>';
+          var afa = e.annual_fine_avoided != null
+            ? '<div class="chart-source"><strong>Annual fine avoided: ' + fmtCurrency(Number(e.annual_fine_avoided)) + '/yr</strong>' + (e.compliance_year ? ' once compliant (' + esc(String(e.compliance_year)) + ')' : '') + ' — owner-borne, not rebillable to tenants.</div>'
+            : '';
+          body = svg + leg + summary + afa + '<div class="chart-source">' + esc(e.standard) + ' fine basis: ' + esc(e.source) + '</div>';
+        } else {
+          var tgtV = Number(e.target_eui) || 1;
+          var bldg = Number(e.building_eui); if (!isFinite(bldg)) bldg = 0;
+          var pct = Math.max(0, Math.min(100, (bldg / tgtV) * 100));
+          var afterMark='', nums;
+          if (e.projected_eui != null) {
+            var apct = Math.max(0, Math.min(100, (Number(e.projected_eui)/tgtV)*100));
+            afterMark = '<div class="eui-after" style="left:'+apct.toFixed(0)+'%" title="After plan"></div>';
+            nums = '<strong>'+esc(String(e.building_eui))+'</strong> → <strong style="color:#059669">'+esc(String(e.projected_eui))+' after plan</strong> vs target '+esc(String(e.target_eui))+' '+esc(e.unit);
+          } else {
+            nums = '<strong>'+esc(String(e.building_eui))+'</strong> vs target '+esc(String(e.target_eui))+' '+esc(e.unit);
+          }
+          var afa2 = e.annual_fine_avoided != null
+            ? '<div class="chart-source"><strong>Annual fine avoided: '+fmtCurrency(Number(e.annual_fine_avoided))+'/yr</strong> — owner-borne.</div>' : '';
+          body = '<div class="eui-bar"><div class="eui-fill" style="width:'+pct.toFixed(0)+'%"></div><div class="eui-target" title="Target"></div>'+afterMark+'</div>'
+               + '<div class="eui-nums">'+nums+'</div>' + afa2
+               + '<div class="chart-source">' + esc(e.standard) + ' target source: ' + esc(e.source) + '</div>';
+        }
+        return '<div class="eui-row">' + head + body + '</div>';
+      }).join('');
+      setHtml('eui-compliance-block', '<div class="chart-title">BPS fine avoidance — annual fine vs. compliance target</div>' + rows);
+    }
+
+    var roadmapSection = document.getElementById('roadmap-section');
+    if (roadmapSection && comp.length > 0) {
+      function num(v) { return isFinite(Number(v)) ? Number(v) : null; }
+      function netCost(inc, incent) { return inc != null ? inc - (incent || 0) : null; }
+      var costRows = '', impRows = '';
+      var TLfL = 0, TInc = 0, TIncent = 0, TNet = 0, TCO2 = 0, TLL = 0, TTen = 0, TMaint = 0;
+      comp.forEach(function(c) {
+        var sim = c.similar_tier || {}, eff = c.efficient_tier || {};
+        var lfl = num(sim.total_cost), incr = num(c.incremental_cost), incent = num(eff.incentives) || 0;
+        var net = netCost(incr, incent);
+        var co2 = num(c.emissions_savings_tco2e), ll = num(c.annual_utility_savings_landlord),
+            ten = num(c.annual_utility_savings_tenant), maint = num(c.annual_maintenance_savings);
+        var irr = num(c.irr_pct), meets = c.meets_irr_hurdle;
+        var decisionLabel = { similar: 'Similar', efficient: 'Efficient', undecided: 'Undecided' }[c.decision] || 'Undecided';
+        var decisionColor = c.decision === 'efficient' ? '#1F6B45' : (c.decision === 'similar' ? '#64748B' : '#B45309');
+        if (lfl != null) TLfL += lfl; if (incr != null) TInc += incr; TIncent += incent; if (net != null) TNet += net;
+        if (co2 != null) TCO2 += co2; if (ll != null) TLL += ll; if (ten != null) TTen += ten; if (maint != null) TMaint += maint;
+
+        var simIncent = num(sim.incentives);
+        costRows += '<tr>'
+          + '<td><strong>' + esc(c.component) + '</strong> — Like-for-Similar<div style="font-size:10px;color:#64748B">' + esc(sim.spec) + '</div></td>'
+          + '<td class="num">' + (lfl != null ? fmtCurrency(lfl) : '—') + '</td>'
+          + '<td class="num">—</td>'
+          + '<td class="num">' + (simIncent != null ? fmtCurrency(simIncent) + '*' : '—') + '</td>'
+          + '<td class="num">' + (lfl != null ? fmtCurrency(lfl - (simIncent || 0)) : '—') + '</td>'
+          + '<td class="num">—</td>'
+          + '</tr>';
+        costRows += '<tr>'
+          + '<td><strong>' + esc(c.component) + '</strong> — Like-for-Efficient<div style="font-size:10px;color:#64748B">' + esc(eff.spec)
+            + (eff.excluded_candidates && eff.excluded_candidates.length ? '<br><em>excludes ' + eff.excluded_candidates.map(esc).join(', ') + '</em>' : '') + '</div></td>'
+          + '<td class="num">' + (lfl != null ? fmtCurrency(lfl) : '—') + '</td>'
+          + '<td class="num">' + (incr != null ? fmtCurrency(incr) : '—') + '</td>'
+          + '<td class="num">' + (incent != null ? fmtCurrency(incent) + (c.pending_incentive_note ? '*' : '') : '—') + '</td>'
+          + '<td class="num">' + (net != null ? fmtCurrency(net + (lfl || 0)) : '—') + '</td>'
+          + '<td class="num">' + (ll != null ? fmtCurrency(ll) + '/yr' : '—') + '</td>'
+          + '</tr>';
+
+        impRows += '<tr><td colspan="6" style="font-size:11px;color:#64748B;padding-top:10px;padding-bottom:0;border-bottom:none"><strong>' + esc(c.component) + '</strong>'
+          + (c.data_gaps && c.data_gaps.length ? ' — ' + c.data_gaps.map(esc).join('; ') : '') + '</td></tr>';
+        impRows += '<tr>'
+          + '<td>Like-for-Similar</td>'
+          + '<td class="num">—</td><td class="num">—</td><td class="num">—</td>'
+          + '<td class="num">—</td><td class="num">—</td>'
+          + '</tr>';
+        impRows += '<tr>'
+          + '<td>Like-for-Efficient</td>'
+          + '<td class="num">' + (co2 != null ? fmt2sig(co2) : '—') + '</td>'
+          + '<td class="num">' + (ll != null ? fmtCurrency(ll) : '—') + '</td>'
+          + '<td class="num">' + (ten != null ? fmtCurrency(ten) : '—') + '</td>'
+          + '<td class="num">' + (maint != null ? fmtCurrency(maint) : '—') + '</td>'
+          + '<td class="num">' + (irr != null ? fmt2sig(irr) + '%' : '—') + '</td>'
+          + '</tr>';
+        impRows += '<tr>'
+          + '<td style="border-top:none"></td>'
+          + '<td class="num" colspan="4" style="border-top:none;text-align:left;font-size:11px;color:#64748B">'
+          + (meets === true ? 'Clears hurdle' : meets === false ? 'Misses hurdle' : 'Hurdle not yet tested') + '</td>'
+          + '<td style="border-top:none;color:' + decisionColor + ';font-weight:600;text-align:right">' + decisionLabel + '</td>'
+          + '</tr>';
+      });
+      costRows += '<tr class="totals-row"><td>Total</td>'
+        + '<td class="num">' + fmtCurrency(TLfL) + '</td><td class="num">' + fmtCurrency(TInc) + '</td>'
+        + '<td class="num">' + fmtCurrency(TIncent) + '</td><td class="num">' + fmtCurrency(TLfL + TNet) + '</td>'
+        + '<td class="num">' + fmtCurrency(TLL) + '/yr</td></tr>';
+      setHtml('roadmap-tbody-cost', costRows);
+      setHtml('roadmap-tbody-impact', impRows);
+      roadmapSection.style.display = '';
+    }
+
+    var P = data.presentation || {};
+    var secCfg = P.sections || {};
+    Object.keys(secCfg).forEach(function(id) {
+      var el = document.querySelector('[data-section="' + id + '"]');
+      if (!el) return;
+      if (secCfg[id].visible === false) el.style.display = 'none';
+      else if (secCfg[id].visible === true) el.style.display = '';
+      if (typeof secCfg[id].order === 'number') el.style.order = String(secCfg[id].order);
+    });
+    if (P.identity) {
+      if (P.identity.prepared_by) setText('cover-meta-by', P.identity.prepared_by);
+      if (P.identity.prepared_for) setText('cover-meta-for', P.identity.prepared_for);
+      if (P.identity.report_date) setText('cover-meta-date', P.identity.report_date);
+    }
+    if (P.paged && P.paged.enabled) { paginateReport(P.paged); }
+
+    (function renderIncentivePrograms() {
+      var items = (data.incentive_programs || []);
+      if (!items.length) return;
+      var el = document.getElementById('incentive-programs-items');
+      var section = document.getElementById('incentive-programs-section');
+      if (!el || !section) return;
+      el.innerHTML = items.map(function(it) {
+        var dot = it.status === 'confirmed' ? 'green' : (it.status === 'excluded' ? 'red' : 'amber');
+        return '<div class="dq-item"><span class="dq-dot ' + dot + '"></span><span><strong>' + esc(it.program) + '</strong> — ' + esc(it.description) + '</span></div>';
+      }).join('');
+      el.style.display = '';
+      section.style.display = '';
+    })();
+  }
+
+  function paginateReport(paged) {
+    var report = document.querySelector('.report');
+    if (!report || document.getElementById('pages')) return;
+    var A4 = paged && paged.page_size === 'a4';
+    var PAGE_W = A4 ? 794 : 816, PAGE_H = A4 ? 1123 : 1056, CONTENT_H = PAGE_H - 112;
+    var pages = document.createElement('div');
+    pages.id = 'pages';
+    report.parentNode.insertBefore(pages, report);
+    report.style.display = 'none';
+    function newPage() {
+      var page = document.createElement('div');
+      page.className = 'page';
+      page.style.cssText = 'width:' + PAGE_W + 'px;min-height:' + PAGE_H + 'px;margin:0 auto 20px;background:#fff;'
+        + 'box-shadow:0 1px 6px rgba(18,37,58,.12);box-sizing:border-box;padding:48px 56px;position:relative;display:flex;flex-direction:column;';
+      var hdr = document.createElement('div');
+      hdr.className = 'pg-header';
+      hdr.style.cssText = 'font-size:10px;letter-spacing:.04em;color:#6B7A8D;text-transform:uppercase;border-bottom:1px solid #E4E9EF;padding-bottom:8px;margin-bottom:16px;';
+      hdr.textContent = (paged && paged.running_header) || '';
+      var body = document.createElement('div');
+      body.className = 'pg-body';
+      body.style.cssText = 'flex:1 1 auto;';
+      var ftr = document.createElement('div');
+      ftr.className = 'pg-footer';
+      ftr.style.cssText = 'font-size:10px;color:#6B7A8D;border-top:1px solid #E4E9EF;padding-top:8px;margin-top:16px;';
+      page.appendChild(hdr); page.appendChild(body); page.appendChild(ftr);
+      pages.appendChild(page);
+      return body;
+    }
+    var body = newPage();
+    var blocks = Array.prototype.slice.call(report.children);
+    blocks.forEach(function(block) {
+      body.appendChild(block);
+      if (body.offsetHeight > CONTENT_H && body.children.length > 1) {
+        body.removeChild(block);
+        body = newPage();
+        body.appendChild(block);
+      }
+    });
+    var footers = pages.querySelectorAll('.pg-footer');
+    for (var i = 0; i < footers.length; i++) {
+      footers[i].textContent = ((paged && paged.running_footer) ? paged.running_footer + '  ·  ' : '') + 'Page ' + (i + 1) + ' of ' + footers.length;
+    }
+  }
+</script>
+
+<div class="report">
+
+  <div class="doc-header">
+    <div class="doc-header-eyebrow">Soapbox Sustainability Intelligence — Rehabilitation Capital Plan</div>
+    <div class="doc-header-property-name" id="cover-property-name">Property Name</div>
+    <div class="doc-header-address" id="cover-property-address">Property Address</div>
+  </div>
+  <div class="doc-header-meta-strip">
+    <span>
+      Prepared for: <span id="cover-meta-for">—</span>
+      &nbsp;·&nbsp;
+      Prepared by: <span id="cover-meta-by">—</span>
+      &nbsp;·&nbsp;
+      <span id="cover-meta-date">—</span>
+    </span>
+    <span class="meta-confidential">Confidential</span>
+  </div>
+
+  <div class="meta-bar">
+    <div class="meta-item"><span class="meta-label">Asset Type</span><span class="meta-value" id="cover-meta-type">—</span></div>
+    <div class="meta-item"><span class="meta-label">Size</span><span class="meta-value" id="cover-meta-size">—</span></div>
+    <div class="meta-item"><span class="meta-label">Year Built</span><span class="meta-value" id="cover-meta-built">—</span></div>
+    <div class="meta-item"><span class="meta-label">Climate Zone</span><span class="meta-value" id="cover-meta-zone">—</span></div>
+  </div>
+
+  <div id="dashboard-section" class="dash-panel" style="display:none">
+    <div class="dash-top">
+      <div>
+        <div class="dash-eyebrow">Decision Dashboard</div>
+        <div class="dash-title" id="dash-title">Decision at a Glance</div>
+      </div>
+      <div class="dash-chips" id="dash-chips"></div>
+    </div>
+    <div class="dash-grid" id="dash-grid" style="display:none"></div>
+    <div class="dash-rec" id="dash-rec" style="display:none">
+      <div class="dash-rec-body">
+        <div class="dash-rec-label">Recommendation</div>
+        <ul class="dash-rec-plans" id="dash-rec-plans"></ul>
+      </div>
+    </div>
+  </div>
+
+  <div id="exec-summary-row" style="display:none">
+    <div class="exec-summary-label">Executive Summary</div>
+    <span class="exec-headline">—</span>
+    <span class="exec-narrative">—</span>
+  </div>
+
+  <div id="roadmap-section" data-section="roadmap" class="section" style="display:none">
+    <div class="section-head"><div class="section-label">Capital Planning</div>
+    <h2 class="section-title">Component Roadmap — Like-for-Similar vs. Like-for-Efficient</h2>
+    <p class="section-intro">Every component, both tiers. Split into a cost view and an impact/return view (same rows, keyed by component). Net Total Cost = incremental cost − incentives. The Impact &amp; Return table carries this report's actual decision mechanism: each component's own incremental IRR against the hurdle, and its decision status — never a package-level average.</p></div>
+    <div class="sub-heading">Cost &amp; Capital</div>
+    <div style="overflow-x:auto">
+      <table class="profile-table roadmap-table">
+        <colgroup>
+          <col style="width:32%">
+          <col style="width:13.6%"><col style="width:13.6%"><col style="width:13.6%"><col style="width:13.6%"><col style="width:13.6%">
+        </colgroup>
+        <thead><tr>
+          <th>Component &amp; Tier</th>
+          <th class="num">Similar-Tier Cost</th>
+          <th class="num">Incremental Cost</th>
+          <th class="num">Incentives</th>
+          <th class="num">Net Total Cost</th>
+          <th class="num">Landlord Savings</th>
+        </tr></thead>
+        <tbody id="roadmap-tbody-cost"></tbody>
+      </table>
+    </div>
+    <p class="chart-source" style="margin-top:8px">* Estimated — pending eligibility confirmation, not yet realized.</p>
+  </div>
+
+  <div id="trajectory-section" data-section="trajectory" class="section" style="display:none">
+    <div class="section-head"><div class="section-label">Energy &amp; Carbon</div>
+    <h2 class="section-title">EUI &amp; GHGi Trajectory — Like-for-Similar vs. Like-for-Efficient</h2></div>
+    <div class="chart-block" id="eui-trajectory-block" style="display:none">
+      <div class="chart-block" id="eui-trajectory-chart"></div>
+    </div>
+    <div class="chart-block" id="ghgi-trajectory-block" style="display:none">
+      <div class="chart-block" id="trajectory-chart"></div>
+    </div>
+  </div>
+
+  <div id="eui-compliance-section" data-section="eui-compliance" class="section" style="display:none">
+    <div class="section-head"><div class="section-label">Energy Compliance</div>
+    <h2 class="section-title">Building Performance Standard — Energy (EUI)</h2></div>
+    <div class="chart-block" id="eui-compliance-block"><!-- JS-rendered --></div>
+  </div>
+
+  <div id="dataquality-section" data-section="dq-summary" class="section" style="display:none">
+    <div class="section-head"><div class="section-label">Appendix</div>
+    <h2 class="section-title">Data Quality</h2></div>
+    <p class="section-intro" id="dq-summary" style="display:none"></p>
+    <div class="dq-grid" id="dq-items" style="display:none"><!-- JS --></div>
+  </div>
+
+  <div id="incentive-programs-section" data-section="incentive-programs" class="section" style="display:none">
+    <div class="section-head"><div class="section-label">Notes</div>
+    <h2 class="section-title">Incentive Programs</h2></div>
+    <div class="dq-grid" id="incentive-programs-items" style="display:none"><!-- JS --></div>
+  </div>
+
+  <div id="compliance-notes-section" data-section="compliance-notes" class="section" style="display:none">
+    <div class="section-head"><div class="section-label">Notes</div>
+    <h2 class="section-title">Compliance Notes</h2></div>
+    <div class="dq-grid" id="compliance-notes-items" style="display:none"><!-- JS --></div>
+  </div>
+
+  <div id="methodology-section" data-section="methodology" class="section" style="display:none">
+    <div class="section-head"><div class="section-label">Appendix</div>
+    <h2 class="section-title">Methodology &amp; Sources</h2></div>
+    <p class="section-intro" id="methodology-intro" style="display:none"></p>
+    <div id="sources-section" style="display:none">
+      <details>
+        <summary>Sources &amp; Citations</summary>
+        <div class="sources-inner">
+          <ol class="sources-list" id="sources-list"></ol>
+        </div>
+      </details>
+    </div>
+  </div>
+
+</div><!-- /report -->
+</body>
+</html>

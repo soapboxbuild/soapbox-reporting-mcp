@@ -1,0 +1,360 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "portfolio-analysis",
+  "title": "Portfolio Decarbonization Analysis",
+  "description": "Schema for the portfolio-analysis report type — portfolio-scale decarbonization analysis across all analysis-ready assets in a Soapbox portfolio (Audette physics + Soapbox DCF engine). CLIENT-RENDER template: the server injects this object into <script id=\"report-data\"> and templates/portfolio-analysis/layout-agent.html renders every section and chart from it (fill_report path, same as RSRA/decarb). Base fields are the Phase-5 keys documented in skills/portfolio-analysis/SKILL.md. The signature Asset-Prioritization quadrant renders from the prioritization[] block, which is folded from the Audette \"<client> Asset Prioritization Sheet.xlsx\" (Prioritization / Values and Cap Rates / Cost and Savings Splits / Emissions Splits sheets). Every section hides gracefully when its data is absent. 2 significant figures; energy kWh / kWh·m⁻²; currency via fmtCurrency ($M/$K).",
+  "type": "object",
+  "required": ["client_name", "portfolio_id", "report_date"],
+  "additionalProperties": true,
+  "properties": {
+
+    "client_name": { "type": "string", "description": "Client name. Renders the header title as '<client_name> Portfolio'." },
+    "portfolio_id": { "type": "string", "description": "Soapbox portfolio ID or name (identification only; not displayed)." },
+    "report_date": { "type": "string", "description": "Report date string (e.g. '2026-06-18'). Renders in the meta strip." },
+    "prepared_by": { "type": "string", "description": "Human preparer for the meta strip — 'Christopher Naismith, Soapbox' (default if omitted). NEVER an AI persona ('Aris', 'Soapbox AI'); these deliverables are attributed to the human/firm." },
+    "prepared_for": { "type": "string", "description": "Optional 'prepared for' org label." },
+    "fund_list": { "type": "string", "description": "Optional human-readable fund list for the header subline. If omitted, derived from fund_summary[].fund." },
+
+    "org_goal": { "type": "string", "description": "Optional organizational sustainability goal statement. When set with portfolio_kpis.org_goal_pct, a 5th KPI tile renders." },
+    "org_goal_label": { "type": "string", "description": "Short label for the org-goal KPI tile (e.g. 'Net Zero 2040'). Defaults to 'Goal'." },
+
+    "parameters": {
+      "type": "object",
+      "description": "Run configuration. Percent fields accept either a decimal fraction (0.15) or an already-percent number (15) — the template normalizes. Renders the footer parameters line and IRR-hurdle references throughout.",
+      "additionalProperties": true,
+      "properties": {
+        "irr_hurdle": { "type": "number", "description": "Minimum IRR for a measure to be recommended (e.g. 0.15 or 15)." },
+        "utility_escalation": { "type": "number", "description": "Annual escalation applied to energy savings (e.g. 0.03 or 3)." },
+        "discount_rate": { "type": "number", "description": "Discount rate for NPV (e.g. 0.08 or 8)." },
+        "exit_year_floor": { "type": "integer", "description": "Assets exiting before this year are moved to the floor date." },
+        "value_method": { "type": "string", "enum": ["inclusive", "standalone"], "description": "'inclusive' = NOI uplift capitalised at exit cap + added to terminal CF; 'standalone' = IRR on savings only." },
+        "target_years": { "type": "array", "items": { "type": "integer" }, "description": "Emissions scenario target years. Drives the trajectory summary-table columns. Defaults to [2030, 2035, 2040, 2050]." }
+      }
+    },
+
+    "executive_summary": {
+      "description": "Executive summary block. Accepts a plain string (rendered as narrative) or an object with headline + narrative. Hidden if absent.",
+      "oneOf": [
+        { "type": "string" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "headline": { "type": "string", "description": "One-line factual takeaway. State magnitudes with numbers; NO hyperbolic/marketing adjectives ('massive', 'huge', 'game-changing', 'transformative')." },
+            "narrative": { "type": "string", "description": "Summary written as SEVERAL SHORT PARAGRAPHS separated by blank lines (\\n\\n) — one distinct point per paragraph (e.g. ¶ scope + headline economics, ¶ CRREM/carbon position, ¶ where the value vs the carbon sits, ¶ regulatory exposure, ¶ org-goal gap). Do NOT write one dense block. Plain, factual tone — no hyperbole. Define every acronym on first use, e.g. 'retro-commissioning (RCx)', 'gross floor area (GFA)', 'behind-the-meter (BTM)', 'building performance standard (BPS)'." }
+          }
+        }
+      ]
+    },
+
+    "portfolio_kpis": {
+      "type": "object",
+      "description": "Headline KPI tiles (Phase 4A). Section hides if none of the four core fields are present.",
+      "additionalProperties": true,
+      "properties": {
+        "total_capex_net": { "type": "number", "description": "Total net-of-IRA CapEx across all recommended measures, USD. Tile 1." },
+        "total_capex_gross": { "type": "number", "description": "Total gross CapEx, USD (optional; not tiled)." },
+        "value_creation": { "type": "number", "description": "Total value creation at exit cap, USD. Tile 2 (accent green)." },
+        "emissions_reduction_tco2": { "type": "number", "description": "Total emissions reduction potential, tCO2e. Tile 3." },
+        "assets_above_hurdle": { "type": "integer", "description": "Count of assets with at least one recommended measure above the IRR hurdle. Tile 4 numerator." },
+        "assets_total": { "type": "integer", "description": "Total analyzed assets. Tile 4 denominator; also feeds the header asset count." },
+        "avg_irr": { "type": "number", "description": "Portfolio average IRR (optional)." },
+        "compliance_exposure": { "type": "number", "description": "Σ compliance cost if no action, USD (only meaningful with BPS)." },
+        "pathway_aligned_2035": { "type": "integer", "description": "Count of assets pathway-aligned at 2035 after measures (only with CRREM)." },
+        "org_goal_pct": { "type": "number", "description": "Percent of org_goal achieved under the IRR pathway. With org_goal set, renders a 5th tile." }
+      }
+    },
+
+    "prioritization": {
+      "type": "array",
+      "description": "SIGNATURE BLOCK — one object per asset, folded from the Audette '<client> Asset Prioritization Sheet.xlsx' Prioritization sheet (columns confirmed against the 2026-06-18 Greystar sheet). Drives the Asset-Prioritization quadrant: X = pct_reduction (emissions-reduction potential), Y = value_creation ($, from the DCF — the sheet's 'Value Creation Impact'), bubble radius ∝ reduction_potential_tco2e, color = above_hurdle (or derived from irr vs parameters.irr_hurdle), quadrant dividers at the medians of X and Y. Rows missing pct_reduction OR value_creation are silently omitted from the plot (real sheets carry #N/A rows, e.g. assets with no decarb model or already past exit). Section hides unless >= 2 plottable points exist.",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "properties": {
+          "asset": { "type": "string", "description": "Property Name (sheet col 1). Labels the point." },
+          "rank": { "type": "integer", "description": "Optional explicit priority rank; the sheet orders rows by Modeled Emissions descending." },
+          "modeled_emissions_tco2e": { "type": "number", "description": "Modeled Emissions (tCO2e) — sheet col 2." },
+          "eui_kwh_m2": { "type": "number", "description": "Site EUI. The sheet reports EUI (kWh/ft2, col 3); convert to kWh·m⁻² for reporting (× 10.7639) or store as provided and label the unit." },
+          "ghgi_kg_m2": { "type": "number", "description": "GHG intensity. Sheet col 4 is GHGi (kg/ft2); convert to kg·m⁻² for reporting." },
+          "reduction_potential_tco2e": { "type": "number", "description": "'2050 Reduction possible (tCO2e)' — sheet col 5. Drives the quadrant bubble SIZE (the sheet's GAV column is a corrupted date-serial; do not size by GAV). HARD BOUND: a building cannot cut more than it emits — this MUST be <= modeled_emissions_tco2e. If the source cell is blank, corrupted, or exceeds baseline emissions, clamp to modeled_emissions_tco2e (or omit). Never emit a value larger than the asset's own baseline." },
+          "pct_reduction": { "type": "number", "description": "'2050 % Reduction possible' — sheet col 6. Quadrant X-AXIS (%-savings scale). MUST be a FRACTION in [0,1], defined as reduction_potential_tco2e / modeled_emissions_tco2e (e.g. 0.30 = a 30% cut). NEVER a percent (do NOT emit 30) and NEVER > 1 (>100% reduction is impossible). Compute it from the two fields above rather than copying the sheet cell, and clamp to 1.0 if the arithmetic exceeds it." },
+          "residual_at_exit": { "type": "number", "description": "'Residual at Exit' — sheet col 7 (residual value/emissions at exit, USD or as modeled)." },
+          "value_creation": { "type": "number", "description": "'Value Creation Impact' — sheet col 8, USD. Quadrant Y-AXIS. Comes from the DCF engine; may be negative (e.g. Union Tempe = -$2.1M)." },
+          "irr": { "type": "number", "description": "'IRR on Incremental CapEx (w Asset Value)' — sheet col 9 (value-inclusive; matches parameters.value_method 'inclusive'). Used to derive above_hurdle when above_hurdle is absent. Accepts fraction or percent." },
+          "irr_ex_value": { "type": "number", "description": "'IRR on Incremental CapEX (w/o Asset Value)' — sheet col 10 (mostly blank in the source; standalone method)." },
+          "npv": { "type": "number", "description": "'NPV' — sheet col 11, USD." },
+          "exit_year": { "type": "integer", "description": "'Exit Year' — sheet col 12." },
+          "exit_cap": { "type": "number", "description": "'Exit Cap' — sheet col 13, decimal (e.g. 0.05)." },
+          "gav": { "type": "number", "description": "'GAV' — sheet col 14, gross asset value USD. NOTE: in the 2026-06-18 Greystar sheet this column held corrupted Excel date-serials; validate before trusting, and never size the quadrant by it." },
+          "asset_value_impact": { "type": "number", "description": "'Asset Value Impact' — sheet col 15, USD." },
+          "above_hurdle": { "type": "boolean", "description": "Whether the asset's bundle meets the IRR hurdle. If omitted, the template derives it from irr vs parameters.irr_hurdle. Sets the point color (green = above, grey = below)." }
+        }
+      }
+    },
+
+    "fund_summary": {
+      "type": "array",
+      "description": "Fund-level rollup (Phase 4B). Section hides if empty. A 'Portfolio' totals row is appended when > 1 fund.",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "properties": {
+          "fund": { "type": "string" },
+          "assets": { "type": "integer" },
+          "capex_net": { "type": "number", "description": "Net CapEx, USD." },
+          "value_creation": { "type": "number", "description": "USD." },
+          "emissions_reduction_tco2": { "type": "number", "description": "tCO2e." },
+          "avg_irr": { "type": "number", "description": "Fraction or percent." }
+        }
+      }
+    },
+
+    "top_assets": {
+      "type": "array",
+      "description": "Top-N assets by value creation (Phase 4C). Section hides if empty. Title auto-sizes to the array length. Rank defaults to array order.",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "properties": {
+          "rank": { "type": "integer" },
+          "asset": { "type": "string" },
+          "fund": { "type": "string" },
+          "exit_year": { "type": "integer" },
+          "emissions_tco2e": { "type": "number", "description": "Current modeled emissions, tCO2e." },
+          "pct_reduction": { "type": "number", "description": "Fraction (0–1) of this asset's baseline emissions cut by its in-hold measures. MUST be a fraction, never a percent, never > 1." },
+          "capex_net": { "type": "number", "description": "USD." },
+          "value_creation": { "type": "number", "description": "USD." },
+          "lead_measure": { "type": "string", "description": "Highest-impact recommended measure." }
+        }
+      }
+    },
+
+    "measure_categories": {
+      "type": "array",
+      "description": "Measure-category aggregate (Phase 4D). Renders a table with an inline CapEx bar per row and an 'All categories' totals row. Section hides if empty. $/tCO2 is computed as value_creation ÷ tco2_reduced.",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "properties": {
+          "category": { "type": "string" },
+          "assets": { "type": "integer" },
+          "capex_net": { "type": "number", "description": "USD." },
+          "value_creation": { "type": "number", "description": "USD." },
+          "tco2_reduced": { "type": "number", "description": "tCO2e." }
+        }
+      }
+    },
+
+    "programmatic_recommendation": {
+      "type": "object",
+      "description": "Portfolio-scale sequenced program (Phase 4G) — the SAME recommended measures executed as a phased portfolio program rather than asset-by-asset. Renders the 'Portfolio-Scale Program & Economies of Scale' section (hidden if neither this nor scale_opportunities is present). Derive from the aggregation; every capex/reduction figure is engine-sourced, not invented.",
+      "additionalProperties": true,
+      "properties": {
+        "thesis": { "type": "string", "description": "1-3 sentence portfolio-program thesis (section intro). Plain, factual." },
+        "phases": {
+          "type": "array",
+          "description": "Sequenced phases (e.g. by CRREM-stranding urgency, capital-event timing, or measure family). Rendered as a table.",
+          "items": {
+            "type": "object",
+            "additionalProperties": true,
+            "properties": {
+              "name": { "type": "string", "description": "Phase label, e.g. 'Phase 1 — portfolio controls/RCx rollout'." },
+              "years": { "type": "string", "description": "e.g. '2026-2027'." },
+              "assets": { "type": "integer", "description": "Count of assets in this phase." },
+              "program": { "type": "string", "description": "What the phase deploys across those assets." },
+              "capex_net": { "type": "number", "description": "Aggregate net CapEx for the phase, USD (engine-sourced)." },
+              "reduction_pct": { "type": "number", "description": "Portfolio GHGI reduction the phase delivers (fraction 0-1 or percent; both render)." }
+            }
+          }
+        }
+      }
+    },
+
+    "scale_opportunities": {
+      "type": "array",
+      "description": "Economies-of-scale levers (Phase 4G) available BECAUSE this is a portfolio, not single assets — bulk procurement, clustered-contractor mobilization, aggregated solar/VNM or community solar, portfolio green loan / C-PACE, shared M&V subscription, IRA bonus stacking, GRESB/reporting leverage. Each must be grounded in the run data (which measures/assets/geographies it applies to); a quantified benefit needs a basis — mark assumed discounts (est.).",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "properties": {
+          "lever": { "type": "string", "description": "e.g. 'Bulk HPWH procurement', 'Clustered-metro contractor mobilization', 'Aggregated VNM / community solar', 'Portfolio C-PACE'." },
+          "applies_to": { "type": "string", "description": "Which assets/measures/geographies — e.g. '28 assets (LED)', '9 TX-metro assets'." },
+          "description": { "type": "string", "description": "The opportunity and how scale unlocks it." },
+          "quantified_benefit": { "type": "string", "description": "Est. savings/benefit with units, e.g. '~$0.4M procurement savings (est.)'. Leave '—' if not quantifiable; never invent a figure." },
+          "basis": { "type": "string", "description": "Source or the explicit assumption behind the quantified benefit (e.g. '10% bulk discount assumption', 'IRA §48E domestic-content bonus')." }
+        }
+      }
+    },
+
+    "emissions_trajectory": {
+      "type": "array",
+      "description": "Portfolio carbon-intensity time series 2025-2050 (Phase 4E, only if include_crrem). Drives the 5-line curve (BAU + three deployment screens + CRREM) + the target-year summary table. Values are portfolio GFA-weighted kgCO2e/m2. Section hides if < 2 rows.",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["year"],
+        "properties": {
+          "year": { "type": "integer" },
+          "bau": { "type": "number", "description": "Business-as-usual (no decarb capital), grey dashed line." },
+          "scenario_a": { "type": "number", "description": "Scenario A — measures with irr_excl_exit >= hurdle (IRR excluding exit residual), blue line." },
+          "scenario_b": { "type": "number", "description": "Scenario B — measures with irr_incremental >= hurdle (IRR including exit residual), green line." },
+          "scenario_c": { "type": "number", "description": "Scenario C — B plus max solar (BTM self-consumption + VNM export at 80% owner), purple line." },
+          "scenario_d": { "type": "number", "description": "Scenario D — Next Owner's Perspective: the B screen re-run at exit_year=2040 (deepest), amber line." },
+          "crrem_target": { "type": "number", "description": "CRREM 1.5°C target, red dashed line." }
+        }
+      }
+    },
+
+    "exit_price_protection": {
+      "type": "object",
+      "description": "The seller's payoff on a short hold (Phase 4G / Scenario D): the buyer price chip that decarb avoids at the 2031 exit. Renders as a callout in the Portfolio-Scale section. Values may be $ (number → formatted) or a string (e.g. '25-50 bps'). Every figure needs a cited basis — do not invent.",
+      "additionalProperties": true,
+      "properties": {
+        "headline": { "type": "string", "description": "1-2 sentence framing — decarb protects the exit price by removing the buyer's ACTUAL-BPS-fine and electrification price-chip levers. Do NOT claim a stranding/'brown-discount' price chip: CRREM stranding is a timing signal, never a capitalized haircut." },
+        "compliance_discount_avoided": { "description": "The exit-price chip a buyer would apply for ACTUAL BPS fine exposure they would inherit (real jurisdiction fines), avoided by decarb. This is NOT driven by CRREM stranding or a generic 'brown discount' — stranding is never monetized. $0 unless the asset faces real fines. Number (USD) or string (e.g. '25 bps cap-rate') tied to the actual-fine basis." },
+        "electrification_reserve_avoided": { "description": "Deferred gas→electric retrofit reserve a buyer would deduct from their bid, avoided. Number (USD) or string." },
+        "total": { "description": "Total exit-price protection. Number (USD) or string." },
+        "basis": { "type": "string", "description": "The cited assumption/source behind the figures (discount bps, reserve $/unit, comparable, etc.)." }
+      }
+    },
+
+    "crrem_trajectory": {
+      "type": "object",
+      "description": "CRREM pathway summary (only if include_crrem). Section hides unless current_intensity or stranding_today_2030 is present. Intensity fields in kgCO2e·m⁻².",
+      "additionalProperties": true,
+      "properties": {
+        "current_intensity": { "type": "number" },
+        "with_measures_intensity": { "type": "number" },
+        "crrem_2030": { "type": "number" },
+        "crrem_2035": { "type": "number" },
+        "crrem_2040": { "type": "number" },
+        "stranding_today_2030": { "type": "integer", "description": "Assets stranding before 2030 with no action." },
+        "stranding_measures_2030": { "type": "integer", "description": "Assets stranding before 2030 with recommended measures." },
+        "stranding_today_2035": { "type": "integer" },
+        "stranding_measures_2035": { "type": "integer" },
+        "excluded_note": { "type": "string", "description": "Note on assets excluded from the pathway (estimated EUI)." }
+      }
+    },
+
+    "bps_assets": {
+      "type": "array",
+      "description": "Building Performance Standards exposure (only if include_bps). Section hides if empty. A warning callout with the summed annual fine renders when the total > 0.",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "properties": {
+          "asset": { "type": "string" },
+          "fund": { "type": "string" },
+          "jurisdiction": { "type": "string" },
+          "status": { "type": "string", "enum": ["liable", "not liable", "not-liable", "unknown"], "description": "Renders a colored badge." },
+          "basis": { "type": "string", "enum": ["carbon", "eui", "benchmarking"], "description": "Penalty basis from the Regulations & Fines connector. 'eui' (DC BEPS, Denver) rows with a null annual_fine render as 'liable · unquantified' (need an EUI target), NOT $0. Omit and the renderer infers 'eui' from the jurisdiction name." },
+          "annual_fine": { "type": ["number", "null"], "description": "Projected annual fine if no action, USD. Use null (not 0) when liable but not yet quantified — e.g. an EUI-based standard with no EUI target supplied — so it renders 'needs EUI target' rather than a misleading $0. 0 means liable-but-currently-compliant." },
+          "fine_avoidance": { "type": ["number", "null"], "description": "Fine avoidance captured by measures, USD (100% landlord). null when unquantified." }
+        }
+      }
+    },
+
+    "assets": {
+      "type": "array",
+      "description": "Asset-by-asset detail (Phase 5). Section hides if empty. CRREM Status and BPS Exposure columns auto-appear only when at least one row carries crrem_status / bps_exposure. Flag a row with flagged:true to mark a data point that needs follow-up (⚠).",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "properties": {
+          "asset": { "type": "string" },
+          "fund": { "type": "string" },
+          "exit_year": { "type": "integer" },
+          "capex_net": { "type": "number", "description": "USD." },
+          "value_creation": { "type": "number", "description": "USD." },
+          "pct_reduction": { "type": "number", "description": "Fraction (0–1) of the asset's baseline emissions cut by its in-hold measures. MUST be a fraction, never a percent, never > 1." },
+          "irr": { "type": "number", "description": "IRR as a DECIMAL fraction where 1.0 = 100% (e.g. 0.18 = 18%). Never a percent-number. The renderer multiplies by 100 for display." },
+          "crrem_status": { "type": "string", "description": "'aligned' | 'at risk' | 'stranded' (badged) or free text. Only if include_crrem." },
+          "bps_exposure": { "description": "Annual fine (number → currency) or free text. Only if include_bps.", "type": ["number", "string"] },
+          "flagged": { "type": "boolean", "description": "Data point needs follow-up → ⚠ marker (client-facing tooltip)." }
+        }
+      }
+    },
+
+    "below_hurdle": {
+      "type": "array",
+      "description": "Below-hurdle measures reference table. Section hides if empty. IRR shown in red (neg) for transparency.",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "properties": {
+          "asset": { "type": "string" },
+          "measure": { "type": "string" },
+          "capex_net": { "type": "number", "description": "USD." },
+          "irr": { "type": "number", "description": "Fraction or percent." },
+          "barrier": { "type": "string", "description": "Why it misses (e.g. 'NNN tenant-metered — low LL capture')." }
+        }
+      }
+    },
+
+    "deferred": {
+      "type": "array",
+      "description": "Measures deferred due to retrofit lead-time vs hold period. Section hides if empty.",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "properties": {
+          "asset": { "type": "string" },
+          "measure": { "type": "string" },
+          "install_year": { "type": "integer" },
+          "capex_net": { "type": "number", "description": "USD." },
+          "reason": { "type": "string" }
+        }
+      }
+    },
+
+    "all_measures": {
+      "type": "array",
+      "description": "Flat list of every measure across all assets (recommended + below-hurdle + deferred). Consumed by the XLSX companion (Phase 3E) for analyst verification; not rendered by this HTML template. Shape per SKILL.md Phase 3E.",
+      "items": { "type": "object", "additionalProperties": true }
+    },
+
+    "asset_source_data": {
+      "type": "array",
+      "description": "Raw per-asset inputs (Audette data + DCF parameters). Consumed by the XLSX companion (Phase 3E) for analyst verification; not rendered by this HTML template. Shape per SKILL.md Phase 3E.",
+      "items": { "type": "object", "additionalProperties": true }
+    },
+
+    "data_quality": {
+      "type": "object",
+      "description": "Client-facing data-quality summary and confidence dots. EXTERNAL DELIVERABLE: no internal-process language (no 'verifier', 'finding id', 'Gate', 'adjudicated', 'phase'). Do NOT include an internal conflict/findings table. Section hides unless summary or items is present.",
+      "additionalProperties": true,
+      "properties": {
+        "summary": { "type": "string", "description": "Client-facing prose summary: how many assets use metered/measured EUI vs. peer-benchmark estimates, and the basis of confidence. No internal-process terms." },
+        "items": {
+          "type": "array",
+          "description": "Dotted confidence items — client-facing text only (cite the data source, not the internal QA step).",
+          "items": {
+            "type": "object",
+            "additionalProperties": true,
+            "properties": {
+              "dot": { "type": "string", "enum": ["green", "amber", "red"], "description": "Defaults to green." },
+              "text": { "type": "string", "description": "Client-facing confidence note. No internal-process terms." }
+            }
+          }
+        }
+      }
+    },
+
+    "methodology": { "type": "string", "description": "Methodology prose for the appendix, written as SEVERAL SHORT PARAGRAPHS separated by blank lines (\\n\\n) — group by topic (e.g. ¶ data sources, ¶ LL/TT capture, ¶ economics engine, ¶ CRREM, ¶ BPS, ¶ escalation & uncertainty). Not one dense block. Plain factual tone, no hyperbole; define acronyms on first use. Section hides if this and sources are both absent." },
+
+    "sources": {
+      "type": "array",
+      "description": "Citations for the collapsible sources block. URLs are validated (http/https only) and open in a new tab.",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "properties": {
+          "label": { "type": "string" },
+          "value_cited": { "type": "string", "description": "Optional cited value." },
+          "url": { "type": "string" }
+        }
+      }
+    }
+  }
+}

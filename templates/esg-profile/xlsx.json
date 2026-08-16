@@ -1,0 +1,311 @@
+{
+  "$comment": "ESG Profile Excel companion — analyst verification workbook. Structure mirrors rsra/xlsx.json. Two layout groups: Sponsor Profile sheets (emitted when data.sponsor present) and Fund Overview sheets (emitted when data.fund_overview present). Sheets whose data_path resolves empty are omitted via omit_if_empty. Every number in the HTML report traces to a row here. Driven by build_xlsx.py --template esg-profile. Only directives implemented by build_xlsx.py are used here (sheet types key_value/table/list, explicit columns, omit_if_empty) — no flatten, no columns:auto, no omit_if_path_null.",
+
+  "filename_pattern": "ESG_Profile_{fund}_{YYYY-MM-DD}.xlsx",
+
+  "sheets": [
+
+    {
+      "id": "sponsor_summary",
+      "name": "Sponsor Summary",
+      "order": 1,
+      "type": "key_value",
+      "description": "Sponsor identity, investment overview and transition/physical risk profile — the header of the Sponsor Profile page. Omitted when no sponsor.",
+      "data_path": "sponsor",
+      "omit_if_empty": true,
+      "rows": [
+        { "label": "Fund",                 "data_path": "meta.fund" },
+        { "label": "Reporting Year",        "data_path": "meta.reporting_year" },
+        { "label": "Generated Period",      "data_path": "meta.generated_period",             "omit_if_null": true },
+        { "label": "Anonymized",            "data_path": "meta.anonymized" },
+        { "label": "",                      "type": "spacer" },
+        { "label": "Sponsor",               "data_path": "sponsor.name" },
+        { "label": "Asset Class",           "data_path": "sponsor.investment_overview.asset_class" },
+        { "label": "Location",              "data_path": "sponsor.investment_overview.location" },
+        { "label": "Size",                  "data_path": "sponsor.investment_overview.size" },
+        { "label": "Standing / Dev",        "data_path": "sponsor.investment_overview.standing_dev" },
+        { "label": "Target Exit",           "data_path": "sponsor.investment_overview.exit_date" },
+        { "label": "",                      "type": "spacer" },
+        { "label": "Transition — Green Street Rating", "data_path": "sponsor.risk_profile.transition.green_street_rating" },
+        { "label": "Transition — CRREM Stranding Year","data_path": "sponsor.risk_profile.transition.crrem_stranding_year" },
+        { "label": "Transition — Market / Regulation", "data_path": "sponsor.risk_profile.transition.market_regulation", "style": "wrap", "row_height": 45 },
+        { "label": "Transition — Fine Exposure",       "data_path": "sponsor.risk_profile.transition.fine_exposure" },
+        { "label": "Physical — Impact",     "data_path": "sponsor.risk_profile.physical.impact" },
+        { "label": "Physical — Source",     "data_path": "sponsor.risk_profile.physical.source" },
+        { "label": "",                      "type": "spacer" },
+        { "label": "Scorecard — Total",                 "data_path": "sponsor.scorecard.total",                        "format": "0.0" },
+        { "label": "Scorecard — Policy & Strategy",     "data_path": "sponsor.scorecard.pillars.policy_strategy",      "format": "0.0" },
+        { "label": "Scorecard — Governance & Resourcing","data_path": "sponsor.scorecard.pillars.governance_resourcing","format": "0.0" },
+        { "label": "Scorecard — Portfolio Management",  "data_path": "sponsor.scorecard.pillars.portfolio_management", "format": "0.0" },
+        { "label": "Scorecard — Monitoring & Reporting","data_path": "sponsor.scorecard.pillars.monitoring_reporting", "format": "0.0" },
+        { "label": "",                      "type": "spacer" },
+        { "label": "Energy — EUI (kWh/m²)", "data_path": "sponsor.energy.eui_kwh_m2",          "format": "#,##0", "omit_if_null": true },
+        { "label": "Energy — Carbon Intensity", "data_path": "sponsor.energy.carbon_intensity", "omit_if_null": true },
+        { "label": "Energy — Renewable %",  "data_path": "sponsor.energy.renewable_pct",        "format": "0", "omit_if_null": true },
+        { "label": "Energy — Energy-Rated %","data_path": "sponsor.energy.energy_rating_pct",    "format": "0", "omit_if_null": true },
+        { "label": "",                      "type": "spacer" },
+        { "label": "Governance — Annual Budget",        "data_path": "sponsor.governance_rights.annual_budget" },
+        { "label": "Governance — Leasing",              "data_path": "sponsor.governance_rights.leasing" },
+        { "label": "Governance — CapEx Variance",       "data_path": "sponsor.governance_rights.capex_variance" },
+        { "label": "Governance — Contractor Engagement","data_path": "sponsor.governance_rights.contractor_engagement" }
+      ],
+      "columns": [
+        { "header": "Field", "width": 38 },
+        { "header": "Value", "width": 58, "wrap": true }
+      ],
+      "style": { "label_column": { "bold": true, "fill": "accent" } }
+    },
+
+    {
+      "id": "scorecard_trend",
+      "name": "Scorecard Trend",
+      "order": 2,
+      "type": "table",
+      "description": "Year-over-year total ESG scorecard — source data behind the YoY trend line.",
+      "data_path": "sponsor.scorecard.trend",
+      "omit_if_empty": true,
+      "columns": [
+        { "header": "Year",        "data_key": "year",  "width": 12 },
+        { "header": "Total Score", "data_key": "total", "width": 16, "format": "0.0" }
+      ],
+      "charts": [
+        {
+          "id": "scorecard_trend_line",
+          "type": "LineChart",
+          "title": "YoY Total ESG Score",
+          "x_axis": "year",
+          "y_axis": "total",
+          "y_axis_label": "Total Score",
+          "series_color": "accent",
+          "placement": "right_of_table",
+          "width_cols": 8,
+          "height_rows": 14
+        }
+      ],
+      "freeze_panes": "A2"
+    },
+
+    {
+      "id": "initiatives_completed",
+      "name": "Initiatives Completed",
+      "order": 3,
+      "type": "list",
+      "description": "Completed ESG initiatives (plain-string list) — one row per initiative.",
+      "data_path": "sponsor.initiatives.completed",
+      "omit_if_empty": true,
+      "columns": [
+        { "header": "#",           "type": "row_index", "width": 5 },
+        { "header": "Initiative",  "data_key": "_value", "width": 70, "wrap": true }
+      ]
+    },
+
+    {
+      "id": "initiatives_in_progress",
+      "name": "Initiatives In Progress",
+      "order": 4,
+      "type": "table",
+      "description": "In-progress ESG initiatives with budgets and regression flags.",
+      "data_path": "sponsor.initiatives.in_progress",
+      "omit_if_empty": true,
+      "columns": [
+        { "header": "Initiative", "data_key": "item",       "width": 52, "wrap": true },
+        { "header": "Budget",     "data_key": "budget",     "width": 16, "omit_if_all_null": true },
+        { "header": "Regression", "data_key": "regression", "width": 14, "omit_if_all_null": true }
+      ],
+      "conditional_formatting": {
+        "regression": { "true": { "fill": "#FEF9EC" } }
+      },
+      "note": "Regression = true means the initiative moved backward (from in-progress/completed) or has a multi-year gap against commitment."
+    },
+
+    {
+      "id": "initiatives_planned",
+      "name": "Initiatives Planned",
+      "order": 5,
+      "type": "table",
+      "description": "Planned ESG initiatives with budgets and regression flags.",
+      "data_path": "sponsor.initiatives.planned",
+      "omit_if_empty": true,
+      "columns": [
+        { "header": "Initiative", "data_key": "item",       "width": 52, "wrap": true },
+        { "header": "Budget",     "data_key": "budget",     "width": 16, "omit_if_all_null": true },
+        { "header": "Regression", "data_key": "regression", "width": 14, "omit_if_all_null": true }
+      ],
+      "conditional_formatting": {
+        "regression": { "true": { "fill": "#FEF9EC" } }
+      },
+      "note": "Regression = true means the initiative moved backward (from in-progress/completed) or has a multi-year gap against commitment."
+    },
+
+    {
+      "id": "regressions",
+      "name": "Regressions",
+      "order": 6,
+      "type": "list",
+      "description": "Narrative regressions and gaps flagged for this sponsor.",
+      "data_path": "sponsor.regressions",
+      "omit_if_empty": true,
+      "columns": [
+        { "header": "#",          "type": "row_index", "width": 5 },
+        { "header": "Regression", "data_key": "_value", "width": 90, "wrap": true }
+      ]
+    },
+
+    {
+      "id": "benchmark",
+      "name": "Benchmark",
+      "order": 7,
+      "type": "table",
+      "description": "Sponsor vs. peer benchmarks — MIEPPI, asset-class group, and MIR. Peer comparisons only; not national medians.",
+      "data_path": "sponsor.benchmark.metrics",
+      "omit_if_empty": true,
+      "columns": [
+        { "header": "Metric",      "data_key": "metric",      "width": 40, "wrap": true },
+        { "header": "Sponsor",     "data_key": "sponsor",     "width": 16 },
+        { "header": "MIEPPI",      "data_key": "mieppi",      "width": 14 },
+        { "header": "Asset Class", "data_key": "asset_class", "width": 14 },
+        { "header": "MIR",         "data_key": "mir",         "width": 14 }
+      ],
+      "freeze_panes": "B2",
+      "note": "Benchmarks are peer comparisons (MIEPPI / asset-class group / MIR). Not national medians."
+    },
+
+    {
+      "id": "provenance",
+      "name": "Provenance",
+      "order": 8,
+      "type": "table",
+      "description": "Data source provenance — live vs static vs estimate labeling for each source used.",
+      "data_path": "sponsor.provenance",
+      "omit_if_empty": true,
+      "columns": [
+        { "header": "Source",  "data_key": "source_id", "width": 22 },
+        { "header": "Mode",    "data_key": "mode",      "width": 12 },
+        { "header": "Origin",  "data_key": "origin",    "width": 40, "wrap": true },
+        { "header": "Period",  "data_key": "period",    "width": 12 }
+      ],
+      "conditional_formatting": {
+        "mode": {
+          "live":     { "fill": "#EDF7F2" },
+          "static":   { "fill": "#F1F4F8" },
+          "estimate": { "fill": "#FEF9EC" }
+        }
+      }
+    },
+
+    {
+      "id": "fund_stats",
+      "name": "Fund Stats",
+      "order": 9,
+      "type": "key_value",
+      "description": "Fund-level ESG statistics — the Fund Overview tiles. Omitted when no fund_overview.",
+      "data_path": "fund_overview",
+      "omit_if_empty": true,
+      "rows": [
+        { "label": "Fund",                    "data_path": "meta.fund" },
+        { "label": "Reporting Year",          "data_path": "meta.reporting_year" },
+        { "label": "",                        "type": "spacer" },
+        { "label": "Asset Classes",           "data_path": "fund_overview.stats.asset_classes" },
+        { "label": "Locations",               "data_path": "fund_overview.stats.locations" },
+        { "label": "Total Size",              "data_path": "fund_overview.stats.total_size" },
+        { "label": "Standing / Dev",          "data_path": "fund_overview.stats.standing_dev" },
+        { "label": "Avg CRREM Stranding Year","data_path": "fund_overview.stats.avg_crrem_stranding_year" },
+        { "label": "Response Rate",           "data_path": "fund_overview.stats.response_rate" },
+        { "label": "YoY Performance",         "data_path": "fund_overview.stats.yoy_performance" },
+        { "label": "Fine Exposure",           "data_path": "fund_overview.stats.fine_exposure" }
+      ],
+      "columns": [
+        { "header": "Field", "width": 34 },
+        { "header": "Value", "width": 56, "wrap": true }
+      ],
+      "style": { "label_column": { "bold": true, "fill": "accent" } }
+    },
+
+    {
+      "id": "sponsor_metrics",
+      "name": "Sponsor Metrics",
+      "order": 10,
+      "type": "table",
+      "description": "Sponsor-metrics matrix — one row per sponsor, headline metrics per skills/esg-profile/SKILL.md fund-rollup spec (green cert %, energy rating %, GRESB status, Net Zero policy status, energy data coverage, renewable %, plus MIEPPI/MIR comparison columns).",
+      "data_path": "fund_overview.sponsor_metrics",
+      "omit_if_empty": true,
+      "columns": [
+        { "header": "Sponsor",                 "data_key": "sponsor",                  "width": 24 },
+        { "header": "Green Cert %",            "data_key": "green_cert_pct",           "width": 14, "omit_if_all_null": true },
+        { "header": "Energy-Rated %",          "data_key": "energy_rating_pct",        "width": 14, "omit_if_all_null": true },
+        { "header": "GRESB Status",            "data_key": "gresb_status",             "width": 16, "omit_if_all_null": true },
+        { "header": "Net Zero Policy Status",  "data_key": "net_zero_policy_status",   "width": 20, "omit_if_all_null": true, "wrap": true },
+        { "header": "Energy Data Coverage",    "data_key": "energy_data_coverage",     "width": 18, "omit_if_all_null": true },
+        { "header": "Renewable %",             "data_key": "renewable_pct",            "width": 14, "omit_if_all_null": true },
+        { "header": "vs MIEPPI",               "data_key": "mieppi",                   "width": 14, "omit_if_all_null": true },
+        { "header": "vs MIR",                  "data_key": "mir",                      "width": 14, "omit_if_all_null": true }
+      ],
+      "freeze_panes": "B2",
+      "note": "Columns per the fund-rollup sponsor_metrics spec in skills/esg-profile/SKILL.md. Columns whose values are null across every sponsor row are omitted."
+    },
+
+    {
+      "id": "ranking",
+      "name": "Ranking",
+      "order": 11,
+      "type": "table",
+      "description": "Sponsor ranking within the Fund with YoY change and peer comparisons (MIEPPI / MIR).",
+      "data_path": "fund_overview.ranking",
+      "omit_if_empty": true,
+      "columns": [
+        { "header": "Rank",      "data_key": "rank",      "width": 8,  "format": "0" },
+        { "header": "Sponsor",   "data_key": "sponsor",   "width": 26 },
+        { "header": "Score",     "data_key": "score",     "width": 12, "format": "0.0" },
+        { "header": "YoY Change","data_key": "yoy_change", "width": 14 },
+        { "header": "vs MIEPPI", "data_key": "vs_mieppi",  "width": 14 },
+        { "header": "vs MIR",    "data_key": "vs_mir",     "width": 14 }
+      ],
+      "freeze_panes": "B2",
+      "note": "Ranked within Fund. YoY / vs MIEPPI / vs MIR are peer comparisons — not national medians."
+    },
+
+    {
+      "id": "underperformers",
+      "name": "Underperformers",
+      "order": 12,
+      "type": "table",
+      "description": "Sponsors below Fund and MIR scorecard averages — identified risk and mitigation.",
+      "data_path": "fund_overview.underperformers",
+      "omit_if_empty": true,
+      "columns": [
+        { "header": "Sponsor",         "data_key": "sponsor",         "width": 26 },
+        { "header": "Identified Risk",  "data_key": "identified_risk", "width": 46, "wrap": true },
+        { "header": "Mitigation",       "data_key": "mitigation",      "width": 46, "wrap": true }
+      ]
+    }
+
+  ],
+
+  "workbook_style": {
+    "body_font": "Calibri",
+    "header_fill_color": "brand.primary_color",
+    "header_font_color": "#FFFFFF",
+    "header_font_size": 9,
+    "body_font_size": 9,
+    "alternate_row_fill": "#F8F9FB",
+    "tab_colors": {
+      "Sponsor Summary":           "brand.primary_color",
+      "Scorecard Trend":           "brand.accent_color",
+      "Initiatives Completed":     "brand.secondary_color",
+      "Initiatives In Progress":   "brand.secondary_color",
+      "Initiatives Planned":       "brand.secondary_color",
+      "Regressions":               "#9CA3AF",
+      "Benchmark":                 "brand.accent_color",
+      "Provenance":                "#6B7280",
+      "Fund Stats":                "brand.primary_color",
+      "Sponsor Metrics":           "brand.secondary_color",
+      "Ranking":                   "brand.accent_color",
+      "Underperformers":           "brand.highlight_color"
+    },
+    "print_settings": {
+      "fit_to_page": true,
+      "orientation": "landscape",
+      "repeat_header_rows": 1
+    }
+  }
+}

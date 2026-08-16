@@ -1,0 +1,567 @@
+{
+  "_comment": "Authoritative example payload for templates/decarb/layout-agent.html (CLIENT-RENDER: the server injects this object into <script id=\"report-data\"> and the template's populateReport() renders every section and chart — the fill_report path, same as RSRA). Validates against templates/decarb/schema.json. Exercises the full dashboard-first structure: decision dashboard, 2-plan scenario comparison, per-plan waterfall + cashflow, phased roadmap, and the emissions trajectory with the REAL CRREM 1.5C pathway (US / RMPAc_Cool_5A/5B / Large Multi-Family - Low Rise) alongside the stepped BPS target. All intensities kgCO2e/m2/yr. Fictional asset — 'Example Gardens' — for schema documentation only.",
+  "property": {
+    "name": "Example Gardens",
+    "address": "4820 Aldergate Lane, Springfield Heights, OH 45215",
+    "type": "multifamily",
+    "units": 196,
+    "gfa_sqft": 182400,
+    "gfa_m2": 16946,
+    "year_built": 1988,
+    "climate_zone": "ASHRAE Zone 5A",
+    "zip": "45215"
+  },
+  "prepared_for": "Meridian Multifamily Partners",
+  "prepared_by": "Aris / Soapbox Sustainability Intelligence",
+  "report_date": "2026-07-03",
+  "executive_summary": {
+    "headline": "Fund Plan 2 — CRREM-aligned electrification is value-accretive at exit",
+    "narrative": "Plan 2 (full electrification roadmap) creates $2.9M of net value at exit against a $1.18M incremental capital ask, clears the 8% unlevered IRR hurdle, achieves Columbus BPS compliance from 2027, and holds the asset under the CRREM 1.5°C pathway through 2030 (stranding deferred to 2031 vs 2025 under BAU)."
+  },
+  "dashboard": {
+    "compliance": {
+      "status": "green",
+      "label": "Columbus BPS: compliant from 2027 (with plan)"
+    },
+    "net_value_creation": 2917000,
+    "irr": 0.09,
+    "irr_hurdle": 0.08,
+    "capital_ask": 1184000,
+    "ghgi_change_pct": -0.46,
+    "ghgi_target_year": 2030,
+    "downside_avoided": 466000,
+    "cf_positive_year": 2032,
+    "recommendation": "Fund Plan 2 — the CRREM-aligned full electrification roadmap.",
+    "sparkline": [
+      {
+        "year": 2026,
+        "cumulative": -179000
+      },
+      {
+        "year": 2027,
+        "cumulative": -221000
+      },
+      {
+        "year": 2028,
+        "cumulative": -91000
+      },
+      {
+        "year": 2029,
+        "cumulative": -164000
+      },
+      {
+        "year": 2030,
+        "cumulative": -127000
+      },
+      {
+        "year": 2031,
+        "cumulative": -139000
+      },
+      {
+        "year": 2032,
+        "cumulative": 55000
+      },
+      {
+        "year": 2033,
+        "cumulative": 3166000
+      }
+    ]
+  },
+  "baseline": {
+    "model_validation": "Geometry reconciled against ALTA/PCA; equipment inventory from on-site survey 2026-05, cross-checked against the Audette equipment model.",
+    "calibrated_kwh": 3410000,
+    "eui_kwh_m2": 201,
+    "energy_star_score": 48,
+    "emissions_tco2e": 929,
+    "fuel_profile": "Dual-fuel — gas space heat + DHW (4 central boiler plants), electric cooling.",
+    "utility_structure": "Owner-paid common areas + central plants; tenant-paid in-unit electric (68% sub-metered).",
+    "calibration_basis": "24 months of ESPM-linked actuals; conflicting source values resolved with the owner; zero-variance GFA-weighted building allocation."
+  },
+  "targets": {
+    "bps_label": "Seattle BEPS (GHGI target)",
+    "bps_source": "Seattle OSE Director's Rule — office GHGI targets (verify at seattle.gov/ose)",
+    "eui_compliance": [
+      {
+        "standard": "Energize Denver — interim 2028 / final 2032",
+        "unit": "kBtu/sf/yr",
+        "building_eui": 52.4,
+        "target_eui": 44.2,
+        "projected_eui": 40.1,
+        "annual_fine_avoided": 205000,
+        "compliance_year": 2028,
+        "status": "non-compliant",
+        "source": "energizedenver.com Performance Requirements Look-Up (Building ID example); fine = $0.30/kBtu over target × GFA per Denver DPHE penalty schedule.",
+        "fine_schedule": [
+          { "year": 2026, "bau_fine": 0, "plan_fine": 0 },
+          { "year": 2027, "bau_fine": 0, "plan_fine": 0 },
+          { "year": 2028, "bau_fine": 118000, "plan_fine": 118000 },
+          { "year": 2029, "bau_fine": 118000, "plan_fine": 45000 },
+          { "year": 2030, "bau_fine": 118000, "plan_fine": 0 },
+          { "year": 2031, "bau_fine": 118000, "plan_fine": 0 },
+          { "year": 2032, "bau_fine": 205000, "plan_fine": 0 },
+          { "year": 2033, "bau_fine": 205000, "plan_fine": 0 },
+          { "year": 2034, "bau_fine": 205000, "plan_fine": 0 },
+          { "year": 2035, "bau_fine": 205000, "plan_fine": 0 }
+        ]
+      }
+    ],
+    "crrem_stranding_year": 2031,
+    "crrem_meta": {
+      "country": "US",
+      "region": "RMPAc_Cool_5A/5B",
+      "property_type": "Large Multi-Family - Low Rise",
+      "scenario": "1.5C"
+    },
+    "crrem_pathway": [
+      {
+        "year": 2024,
+        "carbon_kgco2_m2yr": 57.1
+      },
+      {
+        "year": 2025,
+        "carbon_kgco2_m2yr": 52.2
+      },
+      {
+        "year": 2026,
+        "carbon_kgco2_m2yr": 47.2
+      },
+      {
+        "year": 2027,
+        "carbon_kgco2_m2yr": 42.5
+      },
+      {
+        "year": 2028,
+        "carbon_kgco2_m2yr": 38.1
+      },
+      {
+        "year": 2029,
+        "carbon_kgco2_m2yr": 34
+      },
+      {
+        "year": 2030,
+        "carbon_kgco2_m2yr": 30
+      },
+      {
+        "year": 2031,
+        "carbon_kgco2_m2yr": 26.5
+      },
+      {
+        "year": 2032,
+        "carbon_kgco2_m2yr": 23.2
+      },
+      {
+        "year": 2033,
+        "carbon_kgco2_m2yr": 20.1
+      }
+    ],
+    "trajectory": [
+      {
+        "year": 2024,
+        "bau": 54.8,
+        "planned": 54.8
+      },
+      {
+        "year": 2025,
+        "bau": 54.5,
+        "planned": 50.5
+      },
+      {
+        "year": 2026,
+        "bau": 54.2,
+        "planned": 45
+      },
+      {
+        "year": 2027,
+        "bau": 53.9,
+        "planned": 40.2,
+        "bps_target": 48
+      },
+      {
+        "year": 2028,
+        "bau": 53.6,
+        "planned": 36,
+        "bps_target": 48
+      },
+      {
+        "year": 2029,
+        "bau": 53.3,
+        "planned": 32.4,
+        "bps_target": 48
+      },
+      {
+        "year": 2030,
+        "bau": 53,
+        "planned": 29.6,
+        "bps_target": 38
+      },
+      {
+        "year": 2031,
+        "bau": 52.7,
+        "planned": 28.9,
+        "bps_target": 38
+      },
+      {
+        "year": 2032,
+        "bau": 52.4,
+        "planned": 28.4,
+        "bps_target": 38
+      },
+      {
+        "year": 2033,
+        "bau": 52.1,
+        "planned": 28,
+        "bps_target": 38
+      }
+    ]
+  },
+  "economics": {
+    "exit_cap": 0.0575,
+    "exit_year": 2033,
+    "selected_plan": "Plan 2",
+    "measures": [
+      {
+        "name": "LED Lighting Retrofit (Interior + Common Area)",
+        "type": "Add-on",
+        "install_year": 2026,
+        "like_for_like_cost": 0,
+        "incremental_cost": 186000,
+        "elec_reduction_kwh": 260000
+      },
+      {
+        "name": "Columbus BPS Benchmarking Compliance Filing System",
+        "type": "Compliance",
+        "install_year": 2026,
+        "like_for_like_cost": 0,
+        "incremental_cost": 14000
+      },
+      {
+        "name": "Condensing Boiler Replacement (2 of 4 plants)",
+        "type": "Replacement-at-RUL",
+        "install_year": 2027,
+        "like_for_like_cost": 140000,
+        "incremental_cost": 96000,
+        "gas_reduction_kwh": 410000
+      },
+      {
+        "name": "Building Envelope Air Sealing",
+        "type": "Add-on",
+        "install_year": 2027,
+        "like_for_like_cost": 0,
+        "incremental_cost": 112000,
+        "gas_reduction_kwh": 180000,
+        "elec_reduction_kwh": 42000
+      },
+      {
+        "name": "Air-Source Heat Pump Conversion (remaining 2 boiler plants)",
+        "type": "Electrification",
+        "install_year": 2029,
+        "like_for_like_cost": 130000,
+        "incremental_cost": 318000,
+        "gas_reduction_kwh": 940000,
+        "elec_reduction_kwh": -310000
+      },
+      {
+        "name": "Domestic Hot Water Heat Pump Retrofit",
+        "type": "Electrification",
+        "install_year": 2030,
+        "like_for_like_cost": 88000,
+        "incremental_cost": 164000,
+        "gas_reduction_kwh": 560000,
+        "elec_reduction_kwh": -170000
+      },
+      {
+        "name": "Rooftop Solar PV (No-Export, 210kW)",
+        "type": "Solar PV",
+        "install_year": 2031,
+        "like_for_like_cost": 0,
+        "incremental_cost": 294000,
+        "elec_reduction_kwh": 265000
+      }
+    ],
+    "plans": [
+      {
+        "name": "Plan 1",
+        "label": "Near-term positive-IRR set",
+        "irr_incremental": 0.22,
+        "ghgi_reduction_pct": 0.34,
+        "compliant": false,
+        "waterfall": {
+          "incremental_capex": -408000,
+          "incentives": 52000,
+          "capitalized_utility_savings": 1096000,
+          "capitalized_ancillary_revenue": 813000,
+          "pv_bps_fine_avoidance": 54000,
+          "net_value_creation": 1607000
+        },
+        "cashflow": [
+          {
+            "year": 2026,
+            "revenue": 0,
+            "utility_savings": 21000,
+            "like_for_like_capex": 0,
+            "incremental_capex": 200000,
+            "incentives": 0,
+            "bps_fine_avoidance": 0,
+            "noi_impact": 21000,
+            "unlevered_incremental_cashflow": -179000,
+            "cumulative": -179000,
+            "asset_value_impact": 0
+          },
+          {
+            "year": 2027,
+            "revenue": 6000,
+            "utility_savings": 47000,
+            "like_for_like_capex": 140000,
+            "incremental_capex": 208000,
+            "incentives": 52000,
+            "bps_fine_avoidance": 61000,
+            "noi_impact": 114000,
+            "unlevered_incremental_cashflow": -42000,
+            "cumulative": -221000,
+            "asset_value_impact": 0
+          },
+          {
+            "year": 2028,
+            "revenue": 6000,
+            "utility_savings": 63000,
+            "like_for_like_capex": 0,
+            "incremental_capex": 0,
+            "incentives": 0,
+            "bps_fine_avoidance": 61000,
+            "noi_impact": 130000,
+            "unlevered_incremental_cashflow": 130000,
+            "cumulative": -91000,
+            "asset_value_impact": 0
+          },
+          {
+            "year": 2029,
+            "revenue": 6000,
+            "utility_savings": 63000,
+            "like_for_like_capex": 0,
+            "incremental_capex": 0,
+            "incentives": 0,
+            "bps_fine_avoidance": 61000,
+            "noi_impact": 130000,
+            "unlevered_incremental_cashflow": 130000,
+            "cumulative": 39000,
+            "asset_value_impact": 0
+          },
+          {
+            "year": 2030,
+            "revenue": 6000,
+            "utility_savings": 63000,
+            "like_for_like_capex": 0,
+            "incremental_capex": 0,
+            "incentives": 0,
+            "bps_fine_avoidance": 61000,
+            "noi_impact": 130000,
+            "unlevered_incremental_cashflow": 130000,
+            "cumulative": 169000,
+            "asset_value_impact": 0
+          },
+          {
+            "year": 2031,
+            "revenue": 6000,
+            "utility_savings": 63000,
+            "like_for_like_capex": 0,
+            "incremental_capex": 0,
+            "incentives": 0,
+            "bps_fine_avoidance": 61000,
+            "noi_impact": 130000,
+            "unlevered_incremental_cashflow": 130000,
+            "cumulative": 299000,
+            "asset_value_impact": 0
+          },
+          {
+            "year": 2032,
+            "revenue": 6000,
+            "utility_savings": 63000,
+            "like_for_like_capex": 0,
+            "incremental_capex": 0,
+            "incentives": 0,
+            "bps_fine_avoidance": 61000,
+            "noi_impact": 130000,
+            "unlevered_incremental_cashflow": 130000,
+            "cumulative": 429000,
+            "asset_value_impact": 0
+          },
+          {
+            "year": 2033,
+            "revenue": 6000,
+            "utility_savings": 63000,
+            "like_for_like_capex": 0,
+            "incremental_capex": 0,
+            "incentives": 0,
+            "bps_fine_avoidance": 61000,
+            "noi_impact": 130000,
+            "unlevered_incremental_cashflow": 130000,
+            "cumulative": 559000,
+            "asset_value_impact": 1607000
+          }
+        ]
+      },
+      {
+        "name": "Plan 2",
+        "label": "CRREM-aligned full electrification",
+        "irr_incremental": 0.09,
+        "ghgi_reduction_pct": 0.49,
+        "compliant": true,
+        "waterfall": {
+          "incremental_capex": -1184000,
+          "incentives": 277000,
+          "capitalized_utility_savings": 2957000,
+          "capitalized_ancillary_revenue": 813000,
+          "pv_bps_fine_avoidance": 54000,
+          "net_value_creation": 2917000
+        },
+        "cashflow": [
+          {
+            "year": 2026,
+            "revenue": 0,
+            "utility_savings": 21000,
+            "like_for_like_capex": 0,
+            "incremental_capex": 200000,
+            "incentives": 0,
+            "bps_fine_avoidance": 0,
+            "noi_impact": 21000,
+            "unlevered_incremental_cashflow": -179000,
+            "cumulative": -179000,
+            "asset_value_impact": 0
+          },
+          {
+            "year": 2027,
+            "revenue": 6000,
+            "utility_savings": 47000,
+            "like_for_like_capex": 140000,
+            "incremental_capex": 208000,
+            "incentives": 52000,
+            "bps_fine_avoidance": 61000,
+            "noi_impact": 114000,
+            "unlevered_incremental_cashflow": -42000,
+            "cumulative": -221000,
+            "asset_value_impact": 0
+          },
+          {
+            "year": 2028,
+            "revenue": 6000,
+            "utility_savings": 63000,
+            "like_for_like_capex": 0,
+            "incremental_capex": 0,
+            "incentives": 0,
+            "bps_fine_avoidance": 61000,
+            "noi_impact": 130000,
+            "unlevered_incremental_cashflow": 130000,
+            "cumulative": -91000,
+            "asset_value_impact": 0
+          },
+          {
+            "year": 2029,
+            "revenue": 6000,
+            "utility_savings": 82000,
+            "like_for_like_capex": 130000,
+            "incremental_capex": 318000,
+            "incentives": 96000,
+            "bps_fine_avoidance": 61000,
+            "noi_impact": 149000,
+            "unlevered_incremental_cashflow": -73000,
+            "cumulative": -164000,
+            "asset_value_impact": 0
+          },
+          {
+            "year": 2030,
+            "revenue": 6000,
+            "utility_savings": 93000,
+            "like_for_like_capex": 88000,
+            "incremental_capex": 164000,
+            "incentives": 41000,
+            "bps_fine_avoidance": 61000,
+            "noi_impact": 160000,
+            "unlevered_incremental_cashflow": 37000,
+            "cumulative": -127000,
+            "asset_value_impact": 0
+          },
+          {
+            "year": 2031,
+            "revenue": 23000,
+            "utility_savings": 110000,
+            "like_for_like_capex": 0,
+            "incremental_capex": 294000,
+            "incentives": 88000,
+            "bps_fine_avoidance": 61000,
+            "noi_impact": 194000,
+            "unlevered_incremental_cashflow": -12000,
+            "cumulative": -139000,
+            "asset_value_impact": 0
+          },
+          {
+            "year": 2032,
+            "revenue": 23000,
+            "utility_savings": 110000,
+            "like_for_like_capex": 0,
+            "incremental_capex": 0,
+            "incentives": 0,
+            "bps_fine_avoidance": 61000,
+            "noi_impact": 194000,
+            "unlevered_incremental_cashflow": 194000,
+            "cumulative": 55000,
+            "asset_value_impact": 0
+          },
+          {
+            "year": 2033,
+            "revenue": 23000,
+            "utility_savings": 110000,
+            "like_for_like_capex": 0,
+            "incremental_capex": 0,
+            "incentives": 0,
+            "bps_fine_avoidance": 61000,
+            "noi_impact": 194000,
+            "unlevered_incremental_cashflow": 194000,
+            "cumulative": 249000,
+            "asset_value_impact": 2917000
+          }
+        ]
+      }
+    ]
+  },
+  "data_quality": {
+    "summary": "Baseline energy is metered (24 months of ESPM-linked actuals); measure costs carry ±30% pre-inspection uncertainty.",
+    "items": [
+      {
+        "dot": "green",
+        "text": "Electricity and gas consumption: ESPM-linked actuals, 24 months trailing."
+      },
+      {
+        "dot": "green",
+        "text": "Equipment inventory: on-site survey 2026-05, cross-checked against the Audette equipment model."
+      },
+      {
+        "dot": "amber",
+        "text": "Tenant sub-metered usage: partial coverage (68% of units) — remainder estimated from master-meter allocation."
+      },
+      {
+        "dot": "red",
+        "text": "Envelope R-values: no as-built documentation located; assumed from 1988 vintage code baseline pending destructive testing."
+      }
+    ]
+  },
+  "methodology": "Every reported number traces to an engine output, Audette modeled analysis, or a cited source; no figure in this report is LLM-computed. The BAU carbon curve is the Audette-modeled baseline (grid-factor drift included); the CRREM pathway is the published CRREM v2 curve for US / RMPAc_Cool_5A/5B / Large Multi-Family - Low Rise (1.5C), retrieved via crrem tooling. Recurring NOI changes are capitalized at the 5.75% exit cap; BPS fine avoidance is a discounted PV of the finite penalty stream.",
+  "sources": [
+    {
+      "label": "Columbus BPS Period 1 (2027) compliance deadline and fine structure",
+      "value_cited": "City of Columbus Building Performance Standard Ordinance No. 1847-2023"
+    },
+    {
+      "label": "IRA §48E direct-pay eligibility for heat pump measures",
+      "value_cited": "IRS Notice 2023-38, IRA §48E guidance"
+    },
+    {
+      "label": "AEP Ohio net-metering tariff for sub-1MW systems",
+      "value_cited": "AEP Ohio Schedule NM-1 (effective 2025)",
+      "url": "https://www.aepohio.com/account/rates/"
+    },
+    {
+      "label": "CRREM 1.5°C pathway intensities — US, RMPAc_Cool_5A/5B, Large Multi-Family - Low Rise",
+      "value_cited": "CRREM v2 (2024) pathway dataset via crrem get_pathway, run 2026-07-04"
+    }
+  ]
+}

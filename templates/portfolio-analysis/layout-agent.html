@@ -1,0 +1,1329 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Portfolio Decarbonization Analysis</title>
+<!--
+  CLIENT-RENDER TEMPLATE (portfolio-analysis / layout-agent.html)
+  ---------------------------------------------------------------
+  Mirrors templates/rsra/layout-agent.html and templates/decarb/layout-agent.html:
+  the server injects a JSON data object into the report-data script block and THIS
+  template's own JavaScript renders every section and chart from it. The agent
+  writes no HTML and draws no charts — populateReport() does everything.
+  This is the fill_report render path (report_type 'portfolio-analysis'). It
+  REPLACES the old [[TOKEN]] hand-fill mechanism entirely.
+
+  Data contract: see templates/portfolio-analysis/schema.json. Base fields are the
+  Phase-5 keys from skills/portfolio-analysis/SKILL.md. The signature Asset-
+  Prioritization quadrant renders from data.prioritization[] (folded from the
+  Audette "<client> Asset Prioritization Sheet.xlsx" — Prioritization sheet).
+
+  Grounded in real Audette portfolio deliverables (Greystar / Camden preview decks
+  + prioritization sheets). The prioritization quadrant is the analog of decarb's
+  waterfall — it stack-ranks assets by returns (value creation $) vs. emissions-
+  reduction potential (%), exactly as Camden slide 7 "Outcome-focused asset
+  prioritization" plots ("stack ranked based on returns and reduction potential").
+
+  Hard prohibitions (match RSRA/decarb): self-contained single file — inline CSS +
+  inline JS only. NO external stylesheets, NO CDN scripts, NO Paged.js, NO web
+  fonts, NO canvas, NO external images. All charts are JS-drawn inline SVG.
+-->
+<style>
+  /* ─── DESIGN TOKENS (copied from RSRA/decarb for visual consistency) ─── */
+  :root {
+    --navy:   #12253A;
+    --stone:  #2C3E50;
+    --ink:    #1A1A2E;
+    --sage:   #1F6B45;
+    --cloud:  #F8F9FB;
+    --card:   #FFFFFF;
+    --muted:  #64748B;
+    --border: #CBD5E1;
+    --rule:   #E2E8EF;
+    --neg:    #B45309;
+    --pos:    #1F6B45;
+
+    /* ─── Shared brand + status tokens (design kit) ─── */
+    --orange:    #EA580C;
+    --orange-2:  #F97316;
+    --orange-bg: #FEF4EC;
+    --sage-bg:   #EDF7F2;
+    --amber:     #B45309;
+    --amber-bg:  #FEF9EC;
+    --red:       #B91C1C;
+    --red-bg:    #FEF2F2;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    background: #F8F9FB;
+    margin: 0;
+    font-family: -apple-system, 'Helvetica Neue', Arial, sans-serif;
+    font-size: 13px;
+    color: var(--ink);
+    line-height: 1.6;
+  }
+
+  .report { max-width: 960px; margin: 0 auto; padding: 40px 0 80px; }
+
+  /* ─── DOCUMENT HEADER (mirrors RSRA/decarb) ─── */
+  .doc-header {
+    background:
+      radial-gradient(120% 140% at 88% -20%, rgba(234,88,12,0.55) 0%, rgba(234,88,12,0) 46%),
+      radial-gradient(90% 120% at 0% 120%, rgba(31,107,69,0.35) 0%, rgba(31,107,69,0) 50%),
+      #12253A;
+    position: relative; overflow: hidden;
+    color: #fff; padding: 32px 40px 0;
+  }
+  .doc-header-eyebrow {
+    font-size: 8px; font-weight: 600; letter-spacing: 0.18em;
+    text-transform: uppercase; color: #4CAF82; margin-bottom: 10px;
+  }
+  /* ─── `//` eyebrow treatment (design kit) — applies to short uppercase kicker labels ─── */
+  .doc-header-eyebrow::before,
+  .section-label::before,
+  .exec-summary-label::before {
+    content: '// '; color: var(--orange-2); font-weight: 800;
+  }
+  .doc-header-title { font-size: 26px; font-weight: 700; line-height: 1.2; margin-bottom: 6px; }
+  .doc-header-sub { font-size: 13px; font-weight: 300; color: rgba(255,255,255,0.65); margin-bottom: 24px; }
+  .doc-header-logos {
+    display: flex; align-items: center; gap: 22px;
+    padding: 6px 0 26px;
+  }
+  .doc-header-logos svg, .doc-header-logos img { display: block; }
+  .doc-header-logos .logo-divider { width: 1px; height: 24px; background: rgba(255,255,255,0.22); }
+  .meta-strip {
+    background: #1A3550; padding: 8px 40px; display: flex; justify-content: space-between;
+    align-items: center; font-size: 11px; color: rgba(255,255,255,0.5); letter-spacing: 0.04em;
+  }
+  .meta-confidential { color: #4CAF82; font-weight: 600; }
+
+  /* ─── EXECUTIVE SUMMARY (mirrors decarb exec-summary-row) ─── */
+  #exec-summary-row {
+    background: #EDF7F2; padding: 20px 40px; margin: 0; display: block;
+    border-left: 4px solid #1F6B45;
+  }
+  .exec-summary-label {
+    font-size: 9px; font-weight: 700; letter-spacing: 0.15em; text-transform: uppercase;
+    color: #64748B; margin-bottom: 8px; display: block;
+  }
+  #exec-summary-row .exec-headline {
+    display: block; font-size: 20px; font-weight: 700; color: #0D5C39;
+    margin-bottom: 8px; line-height: 1.2;
+  }
+  #exec-summary-row .exec-narrative {
+    display: block; font-size: 13px; line-height: 1.65; color: #2C3E50; max-width: 760px;
+  }
+  #exec-summary-row .exec-narrative p { margin: 0 0 8px; }
+  #exec-summary-row .exec-bullets { margin: 0 0 10px; padding-left: 18px; max-width: 760px; }
+  #exec-summary-row .exec-bullets li { font-size: 13px; line-height: 1.5; color: #2C3E50; margin-bottom: 5px; }
+  .chart-legend .leg-off { opacity: 0.35; text-decoration: line-through; }
+
+  /* ─── KPI BAR (from old portfolio template) ─── */
+  .kpi-bar { display: flex; gap: 0; border-bottom: 2px solid #E2E8F0; }
+  .kpi-tile { flex: 1; padding: 20px 24px; background: #fff; border-right: 1px solid #E2E8F0; }
+  .kpi-tile:last-child { border-right: none; }
+  .kpi-label {
+    font-size: 9px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase;
+    color: #64748B; margin-bottom: 6px;
+  }
+  .kpi-value { font-size: 24px; font-weight: 700; color: #12253A; font-variant-numeric: tabular-nums; line-height: 1; }
+  .kpi-value.accent { color: #1F6B45; }
+  .kpi-sub { font-size: 11px; color: #64748B; margin-top: 4px; }
+
+  /* ─── SECTIONS ─── */
+  .section { padding: 32px 40px; background: #fff; margin-bottom: 2px; }
+  .section-label {
+    font-size: 9px; font-weight: 600; letter-spacing: 0.15em; text-transform: uppercase;
+    color: #1F6B45; margin-bottom: 4px;
+  }
+  .section-title {
+    font-size: 18px; font-weight: 700; color: #12253A; margin-bottom: 16px;
+    border-bottom: 1.5px solid #12253A; padding-bottom: 8px;
+  }
+  .section-intro { font-size: 12px; color: #475569; margin-bottom: 16px; line-height: 1.6; }
+
+  /* ─── SHARED TABLE (mirrors decarb profile-table) ─── */
+  .profile-table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 4px; }
+  .profile-table th {
+    background: #12253A; color: #fff; text-align: left; padding: 8px 10px;
+    font-size: 10px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; white-space: nowrap;
+  }
+  .profile-table td { padding: 8px 10px; border-bottom: 1px solid #E2E8F0; vertical-align: top; color: #334155; }
+  .profile-table tr:nth-child(even) td { background: #F8F9FB; }
+  .profile-table td.num, .profile-table th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .profile-table td.ctr, .profile-table th.ctr { text-align: center; }
+  .profile-table tr.totals-row td {
+    font-weight: 700; background: #F1F4F8 !important; color: #12253A; border-top: 1.5px solid #12253A;
+  }
+  .neg { color: #B45309; font-weight: 600; }
+  .pos { color: #1F6B45; font-weight: 600; }
+  .rank-badge {
+    display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px;
+    background: #12253A; color: #fff; border-radius: 50%; font-size: 10px; font-weight: 700;
+  }
+
+  /* ─── Badges ─── */
+  .badge { display: inline-block; padding: 2px 7px; border-radius: 3px; font-size: 10px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; }
+  .badge-green { background: #D1FAE5; color: #065F46; }
+  .badge-amber { background: #FEF3C7; color: #92400E; }
+  .badge-red   { background: #FEE2E2; color: #991B1B; }
+  .badge-grey  { background: #F1F5F9; color: #475569; }
+
+  /* ─── Chart chrome (mirrors decarb) ─── */
+  .chart-block { margin: 12px 0 4px; }
+  .chart-title {
+    font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase;
+    color: #64748B; margin-bottom: 8px;
+  }
+  .chart-source { font-size: 11px; color: #94A3B8; margin-top: 6px; }
+  .chart-legend { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 10px; font-size: 11px; color: #475569; }
+  .leg { display: flex; align-items: center; gap: 6px; }
+  .leg-swatch { width: 12px; height: 12px; border-radius: 2px; flex-shrink: 0; }
+  .leg-line { width: 24px; height: 2px; border-radius: 1px; flex-shrink: 0; }
+.chart-tip { position: absolute; pointer-events: none; z-index: 10; background: #0F172A; color: #fff; font-size: 11px; line-height: 1.45; padding: 7px 10px; border-radius: 6px; box-shadow: 0 4px 14px rgba(15,23,42,0.22); white-space: nowrap; }
+
+  /* ─── Measure-category bar cell ─── */
+  .catbar-track { background: #EEF2F6; border-radius: 2px; height: 12px; width: 100%; min-width: 60px; overflow: hidden; }
+  .catbar-fill { height: 12px; background: #1F6B45; border-radius: 2px; }
+
+  /* ─── Callout (BPS) ─── */
+  .callout { background: #F0FDF4; border-left: 3px solid #4CAF82; padding: 12px 16px; margin: 12px 0; border-radius: 0 4px 4px 0; }
+  .callout-warn { background: #FFFBEB; border-left-color: #F59E0B; }
+  .callout-value { font-size: 18px; font-weight: 700; color: #12253A; margin-bottom: 2px; }
+  .callout-text { font-size: 12px; color: #334155; line-height: 1.6; }
+
+  /* ─── Data quality dots (mirrors decarb) ─── */
+  .dq-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 10px 0; }
+  .dq-item { display: flex; gap: 8px; align-items: flex-start; font-size: 12px; color: #334155; line-height: 1.5; }
+  .dq-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; margin-top: 4px; }
+  .dq-dot.green { background: #10B981; }
+  .dq-dot.amber { background: #F59E0B; }
+  .dq-dot.red   { background: #EF4444; }
+
+  /* ─── Sources (collapsible, mirrors decarb) ─── */
+  #sources-block details { background: var(--card); border: 1px solid var(--border); overflow: hidden; }
+  #sources-block summary {
+    padding: 12px 16px; font-size: 12px; font-weight: 600; color: #12253A; cursor: pointer;
+    list-style: none; display: flex; align-items: center; gap: 6px; letter-spacing: 0.04em; text-transform: uppercase;
+  }
+  #sources-block summary::before { content: '▶'; font-size: 9px; transition: transform 0.15s; }
+  #sources-block details[open] summary::before { transform: rotate(90deg); }
+  #sources-block .sources-inner { padding: 0 16px 12px; }
+  .sources-list { list-style: none; margin: 0; padding: 0; }
+  .source-item { display: flex; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--rule); font-size: 12px; line-height: 1.4; }
+  .source-item:last-child { border-bottom: none; }
+  .source-num { flex-shrink: 0; width: 18px; font-weight: 600; color: var(--muted); }
+  .source-body { flex: 1; }
+  .source-label { font-weight: 500; color: var(--ink); }
+  .source-value { color: var(--muted); }
+  .source-url { font-family: 'Courier New', monospace; font-size: 11px; color: #1F6B45; text-decoration: none; word-break: break-all; }
+
+  /* ─── Footer ─── */
+  .report-footer { padding: 24px 40px; background: #F1F4F8; border-top: 2px solid #E2E8F0; font-size: 11px; color: #64748B; line-height: 1.6; }
+  .footer-sources { font-weight: 600; color: #475569; margin-bottom: 4px; }
+  .footer-params { margin-bottom: 8px; }
+  .footer-limitation { font-style: italic; color: #94A3B8; font-size: 10px; }
+
+  .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); }
+
+  /* ─── Print discipline (design kit) ─── */
+  @media print {
+    html, body { background: #fff; }
+    .section-label, .section-title, .section-intro { break-after: avoid; }
+    .kpi-bar,
+    #exec-summary-row,
+    .profile-table,
+    .chart-block,
+    .callout,
+    #sources-block { break-inside: avoid; }
+    .doc-header,
+    .meta-strip,
+    .kpi-tile,
+    .badge,
+    .callout { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
+</style>
+</head>
+<body>
+
+<script id="report-data" type="application/json">
+{}
+</script>
+
+<script>
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function() { populateReport(); });
+  } else {
+    populateReport();
+  }
+
+  function populateReport() {
+    var dataEl = document.getElementById('report-data');
+    if (!dataEl) return;
+
+    var data;
+    try {
+      data = JSON.parse(dataEl.textContent);
+    } catch(e) {
+      console.error('portfolio-analysis: failed to parse report-data JSON', e);
+      return;
+    }
+
+    var params = data.parameters      || {};
+    var kpis   = data.portfolio_kpis  || {};
+    var prio   = data.prioritization  || [];
+    var funds  = data.fund_summary    || [];
+    var topA   = data.top_assets      || [];
+    var cats   = data.measure_categories || [];
+    var traj   = data.emissions_trajectory || [];
+    var crrem  = data.crrem_trajectory || null;
+    var bps    = data.bps_assets      || [];
+    var assets = data.assets          || [];
+    var below  = data.below_hurdle    || [];
+    var deferred = data.deferred      || [];
+    var dq     = data.data_quality    || {};
+    var prog   = data.programmatic_recommendation || null;
+    var scaleOpps = data.scale_opportunities || [];
+    var epp    = data.exit_price_protection || null;
+
+    /* ════ Helpers (reused from RSRA/decarb) ════ */
+    function safe(val) {
+      return (val !== undefined && val !== null && val !== '') ? String(val) : '—';
+    }
+    function esc(val) {
+      var s = (val !== undefined && val !== null && val !== '') ? String(val) : '—';
+      return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+    }
+    function safeUrl(url) {
+      if (!url) return null;
+      try { var u = new URL(String(url)); return (u.protocol === 'https:' || u.protocol === 'http:') ? u.href : null; } catch(e) { return null; }
+    }
+    /* fmtCurrency — decarb's, handles negatives ($M / $K, 2 sig figs). */
+    function fmtCurrency(n) {
+      if (typeof n !== 'number' || !isFinite(n)) return '—';
+      var sign = n < 0 ? '−' : '';
+      var a = Math.abs(n);
+      if (a >= 1000000) {
+        var m = a / 1000000;
+        return sign + '$' + (m >= 10 ? Math.round(m) : parseFloat(m.toFixed(1))) + 'M';
+      }
+      if (a >= 1000) {
+        var k = a / 1000;
+        return sign + '$' + (k >= 100 ? Math.round(k) : parseFloat(k.toFixed(1))) + 'K';
+      }
+      return sign + '$' + Math.round(a);
+    }
+    function fmtSignedCurrency(n) {
+      if (typeof n !== 'number' || !isFinite(n)) return '—';
+      if (n < 0) return fmtCurrency(n);
+      if (n === 0) return fmtCurrency(0);
+      return '+' + fmtCurrency(n);
+    }
+    /* 2 significant figures for energy / emissions metrics. */
+    function fmt2sig(n) {
+      if (typeof n !== 'number' || !isFinite(n)) return '—';
+      if (n === 0) return '0';
+      var neg = n < 0;
+      var a = Math.abs(n);
+      var mag = Math.floor(Math.log10(a));
+      var round = Math.pow(10, mag - 1);
+      var r = Math.round(a / round) * round;
+      var out = (r >= 1000) ? Math.round(r).toLocaleString('en-US')
+              : parseFloat(r.toPrecision(2)).toString();
+      return (neg ? '−' : '') + out;
+    }
+    /* Percent from a fraction OR an already-percent value. Accepts 0.25 → "25%"
+       and 25 → "25%" (values > 1 are treated as already-percent). */
+    function fmtPct(v) {
+      if (typeof v !== 'number' || !isFinite(v)) return '—';
+      var p = (Math.abs(v) <= 1) ? v * 100 : v;
+      return (Math.abs(p) >= 10 ? Math.round(p) : parseFloat(p.toFixed(1))) + '%';
+    }
+    function num(v) {
+      if (v === null || v === undefined || v === '') return null;
+      var n = Number(v);
+      return isFinite(n) ? n : null;
+    }
+    function normHurdle(v) { var n = Number(v); if (!isFinite(n)) return Infinity; return (Math.abs(n) <= 1) ? n : n / 100; }
+
+    /* ── DOM helpers ── */
+    function setText(id, val) { var el = document.getElementById(id); if (el) el.textContent = val; }
+    function setHtml(id, val) { var el = document.getElementById(id); if (el) el.innerHTML = val; }
+    function showEl(id) { var el = document.getElementById(id); if (el) el.style.display = ''; }
+    function median(arr) {
+      var a = arr.filter(function(x){ return x != null && isFinite(x); }).slice().sort(function(p,q){ return p-q; });
+      if (!a.length) return null;
+      var mid = Math.floor(a.length/2);
+      return (a.length % 2) ? a[mid] : (a[mid-1] + a[mid]) / 2;
+    }
+    function shortName(s) {
+      s = (s == null) ? '' : String(s);
+      return s.length > 16 ? s.slice(0, 15) + '…' : s;
+    }
+
+    /* ════════════════════════════════
+       1. DOCUMENT HEADER
+    ════════════════════════════════ */
+    setText('hdr-title', (safe(data.client_name) === '—' ? 'Portfolio' : data.client_name + ' Portfolio'));
+    var subBits = [];
+    if (assets.length || kpis.assets_total != null) {
+      subBits.push((kpis.assets_total != null ? kpis.assets_total : assets.length) + ' assets');
+    }
+    if (data.fund_list) subBits.push(safe(data.fund_list));
+    else if (funds.length) subBits.push(funds.map(function(f){ return f.fund; }).filter(Boolean).join(' · '));
+    setText('hdr-sub', subBits.length ? subBits.join('  ·  ') : '—');
+    setText('hdr-date', data.report_date ? ('Prepared: ' + data.report_date) : '');
+    /* Attribute to the human preparer (Soapbox), never the AI persona. Every Soapbox
+       deliverable is prepared BY Soapbox FOR the client (client_name / prepared_for),
+       so default here and treat the retired 'Aris (Soapbox AI)' persona as unset. */
+    var preparedBy = data.prepared_by;
+    if (!preparedBy || /\baris\b|soapbox ai/i.test(String(preparedBy))) preparedBy = 'Christopher Naismith, Soapbox';
+    setText('hdr-by', 'Prepared by: ' + preparedBy);
+
+    /* ════════════════════════════════
+       2. EXECUTIVE SUMMARY
+    ════════════════════════════════ */
+    var execRow = document.getElementById('exec-summary-row');
+    var exec = data.executive_summary || {};
+    if (typeof exec === 'string') exec = { narrative: exec };
+    if (execRow && (exec.headline || exec.narrative)) {
+      if (exec.headline) { execRow.querySelector('.exec-headline').textContent = exec.headline; }
+      else { execRow.querySelector('.exec-headline').style.display = 'none'; }
+      var narrEl = execRow.querySelector('.exec-narrative'); var narrHtml = '';
+      if (Array.isArray(exec.bullets) && exec.bullets.length) { narrHtml += '<ul class="exec-bullets">' + exec.bullets.map(function(b){ return '<li>' + esc(b) + '</li>'; }).join('') + '</ul>'; }
+      if (exec.narrative) { narrHtml += String(exec.narrative).split(/\n\n+/).map(function(pp){ return '<p>' + esc(pp) + '</p>'; }).join(''); }
+      narrEl.innerHTML = narrHtml;
+      execRow.style.display = '';
+    }
+
+    /* ════════════════════════════════
+       3. PORTFOLIO KPIs (4-tile grid + optional org-goal tile)
+    ════════════════════════════════ */
+    var kpiBar = document.getElementById('kpi-bar');
+    var hasKpis = kpis.total_capex_net != null || kpis.value_creation != null ||
+                  kpis.emissions_reduction_tco2 != null || kpis.ghgi_reduction_pct != null || kpis.assets_above_hurdle != null;
+    if (kpiBar && hasKpis) {
+      var tiles = '';
+      tiles += kpiTile('Total CapEx (Net)', kpis.total_capex_net != null ? fmtCurrency(Number(kpis.total_capex_net)) : '—', 'after incentives', false);
+      tiles += kpiTile('Value Creation', kpis.value_creation != null ? fmtCurrency(Number(kpis.value_creation)) : '—', 'at exit cap, NOI uplift', true);
+      tiles += kpiTile('Emissions Reduction', kpis.ghgi_reduction_pct != null ? fmtPct(Number(kpis.ghgi_reduction_pct)) : (kpis.emissions_reduction_tco2 != null ? (fmt2sig(Number(kpis.emissions_reduction_tco2)) + ' tCO₂e') : '—'), (kpis.ghgi_reduction_year != null ? ('GHGI reduction by ' + kpis.ghgi_reduction_year) : 'reduction potential'), false);
+      var ah = kpis.assets_above_hurdle != null ? String(kpis.assets_above_hurdle) : '—';
+      var at = kpis.assets_total != null ? kpis.assets_total : (assets.length || null);
+      var ahVal = ah + (at != null ? ' <span style="font-size:14px;font-weight:400;color:#64748B">/ ' + at + '</span>' : '');
+      tiles += kpiTile('Assets Above Hurdle', ahVal, 'at ' + fmtPct(num(params.irr_hurdle)) + ' IRR', false);
+      if (data.org_goal && kpis.org_goal_pct != null) {
+        tiles += kpiTile(esc(data.org_goal_label || 'Goal') + ' Progress', fmtPct(Number(kpis.org_goal_pct)), 'under ' + fmtPct(num(params.irr_hurdle)) + ' IRR pathway', false);
+      }
+      kpiBar.innerHTML = tiles;
+      kpiBar.style.display = '';
+    }
+    function kpiTile(label, valHtml, sub, accent) {
+      return '<div class="kpi-tile"><div class="kpi-label">' + esc(label) + '</div>' +
+             '<div class="kpi-value' + (accent ? ' accent' : '') + '">' + valHtml + '</div>' +
+             '<div class="kpi-sub">' + esc(sub) + '</div></div>';
+    }
+
+    /* ════════════════════════════════
+       4. ASSET-PRIORITIZATION QUADRANT  (signature JS-drawn inline SVG)
+       X = emissions-reduction potential (% of 2050 reduction possible)
+       Y = value creation ($, from DCF — "Value Creation Impact" in the sheet)
+       point radius ∝ absolute emissions-reduction potential (tCO₂e)
+       color = above/below IRR hurdle
+       quadrant divider lines at the medians of X and Y
+    ════════════════════════════════ */
+    var quadSection = document.getElementById('quadrant-section');
+    /* Only points with BOTH axis values render (real sheets carry #N/A rows). */
+    var pts = prio.filter(function(p) {
+      return num(p.pct_reduction) != null && num(p.value_creation) != null;
+    });
+    if (quadSection && pts.length >= 2) {
+      drawQuadrant(pts);
+      quadSection.style.display = '';
+    }
+
+    function drawQuadrant(rows) {
+      var xs = rows.map(function(r){ return num(r.pct_reduction); });
+      var ys = rows.map(function(r){ return num(r.value_creation); });
+      /* X is `pct_reduction` — the fraction of the asset's OWN baseline emissions cut
+         by its in-hold measures. It is ALWAYS a fraction (0–1); we render it as a percent.
+         A building cannot cut more than it emits, so clamp to [0,100%]: this keeps the axis
+         a genuine %-savings scale and prevents one malformed value (e.g. a bad
+         reduction_potential/emissions ratio > 1) from stretching the whole axis and
+         crushing every legitimate asset into the left margin. */
+      var xv = xs.map(function(v){ return v == null ? 0 : Math.max(0, Math.min(100, v * 100)); });
+
+      var xMin = Math.min.apply(null, xv), xMax = Math.max.apply(null, xv);
+      var yMin = Math.min.apply(null, ys), yMax = Math.max.apply(null, ys);
+      /* Always include 0 on the value axis so the sign is legible. */
+      yMin = Math.min(yMin, 0); yMax = Math.max(yMax, 0);
+      if (xMin === xMax) { xMin -= 1; xMax += 1; }
+      if (yMin === yMax) { yMax = yMin + 1; }
+      var xPad = (xMax - xMin) * 0.10, yPad = (yMax - yMin) * 0.12;
+      xMin -= xPad; xMax += xPad; yMin -= yPad; yMax += yPad;
+
+      var X1 = 60, X2 = 620, Y1 = 20, Y2 = 300, W = X2 - X1, H = Y2 - Y1;
+      function px(v){ return X1 + (v - xMin) / (xMax - xMin) * W; }
+      function py(v){ return Y2 - (v - yMin) / (yMax - yMin) * H; }
+
+      /* Median divider lines (outlier-robust). */
+      var mX = median(xv), mY = median(ys);
+
+      /* Radius scale by absolute emissions-reduction potential (clean column). */
+      var sizeVals = rows.map(function(r){ return num(r.reduction_potential_tco2e); });
+      var sMax = Math.max.apply(null, sizeVals.map(function(v){ return v != null ? Math.abs(v) : 0; }));
+      function radius(v){
+        if (v == null || sMax <= 0) return 5;
+        return 4 + Math.sqrt(Math.abs(v) / sMax) * 9;   /* 4–13px */
+      }
+
+      /* Grid + axis labels */
+      var grid = '', xLabs = '', yLabs = '';
+      for (var i = 0; i <= 4; i++) {
+        var gx = xMin + (xMax - xMin) * i / 4;
+        var gy = yMin + (yMax - yMin) * i / 4;
+        grid += '<line x1="' + px(gx).toFixed(1) + '" y1="' + Y1 + '" x2="' + px(gx).toFixed(1) + '" y2="' + Y2 + '" stroke="#F1F4F8" stroke-width="1"/>';
+        grid += '<line x1="' + X1 + '" y1="' + py(gy).toFixed(1) + '" x2="' + X2 + '" y2="' + py(gy).toFixed(1) + '" stroke="#F1F4F8" stroke-width="1"/>';
+        xLabs += '<text x="' + px(gx).toFixed(1) + '" y="' + (Y2 + 14) + '" font-size="9" fill="#94A3B8" text-anchor="middle">' + esc(Math.round(gx) + '%') + '</text>';
+        yLabs += '<text x="' + (X1 - 6) + '" y="' + (py(gy) + 3).toFixed(1) + '" font-size="9" fill="#94A3B8" text-anchor="end">' + esc(fmtCurrency(gy)) + '</text>';
+      }
+
+      /* Quadrant dividers at medians */
+      var divs = '';
+      if (mX != null) divs += '<line x1="' + px(mX).toFixed(1) + '" y1="' + Y1 + '" x2="' + px(mX).toFixed(1) + '" y2="' + Y2 + '" stroke="#CBD5E1" stroke-width="1" stroke-dasharray="4,3"/>';
+      if (mY != null) divs += '<line x1="' + X1 + '" y1="' + py(mY).toFixed(1) + '" x2="' + X2 + '" y2="' + py(mY).toFixed(1) + '" stroke="#CBD5E1" stroke-width="1" stroke-dasharray="4,3"/>';
+      /* Zero line on the value axis if not coincident with the median */
+      if (yMin < 0 && yMax > 0) divs += '<line x1="' + X1 + '" y1="' + py(0).toFixed(1) + '" x2="' + X2 + '" y2="' + py(0).toFixed(1) + '" stroke="#E2E8F0" stroke-width="1"/>';
+
+      /* "Priority" quadrant label (upper-right = high reduction + high value) */
+      var qLab = '';
+      if (mX != null && mY != null) {
+        qLab = '<text x="' + (X2 - 4) + '" y="' + (Y1 + 12) + '" font-size="8.5" font-weight="600" fill="#1F6B45" text-anchor="end" letter-spacing="0.06em">HIGH IMPACT · HIGH RETURN</text>';
+      }
+
+      /* Points + labels */
+      var dots = '', labs = '';
+      var labelSet = rows.slice().sort(function(a, b){ return (Math.abs(num(b.value_creation)) || 0) - (Math.abs(num(a.value_creation)) || 0); }).slice(0, Math.min(12, rows.length));
+      var labelNames = {}; labelSet.forEach(function(r){ labelNames[r.asset] = true; });
+      rows.forEach(function(r, i) {
+        var x = px(xv[i]), y = py(ys[i]), rad = radius(sizeVals[i]);
+        var above = (r.above_hurdle === true) || (r.above_hurdle == null && num(r.irr) != null && num(params.irr_hurdle) != null && num(r.irr) >= normHurdle(params.irr_hurdle));
+        var fill = above ? '#1F6B45' : '#94A3B8';
+        dots += '<circle cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) + '" r="' + rad.toFixed(1) + '" fill="' + fill + '" fill-opacity="0.72" stroke="#fff" stroke-width="1" data-name="' + esc(String(r.asset || '')) + '" data-vc="' + (num(r.value_creation) || 0) + '" data-pr="' + (num(r.pct_reduction) || 0) + '" data-rp="' + (num(r.reduction_potential_tco2e) || 0) + '" data-ah="' + (above ? '1' : '0') + '"/>';
+        if (labelNames[r.asset]) { labs += '<text x="' + x.toFixed(1) + '" y="' + (y - rad - 3).toFixed(1) + '" font-size="8" fill="#334155" text-anchor="middle">' + esc(shortName(r.asset)) + '</text>'; }
+      });
+
+      var svg = '<svg viewBox="0 0 660 330" width="100%" style="display:block;overflow:visible" aria-label="Asset prioritization quadrant">'
+              + grid + divs + qLab + dots + labs
+              + '<line x1="' + X1 + '" y1="' + Y2 + '" x2="' + X2 + '" y2="' + Y2 + '" stroke="#E2E8F0" stroke-width="1"/>'
+              + '<line x1="' + X1 + '" y1="' + Y1 + '" x2="' + X1 + '" y2="' + Y2 + '" stroke="#E2E8F0" stroke-width="1"/>'
+              + '<text x="' + ((X1 + X2) / 2).toFixed(0) + '" y="' + (Y2 + 30) + '" font-size="9.5" font-weight="600" fill="#64748B" text-anchor="middle">Emissions-reduction potential by 2040 (%)</text>'
+              + '<text x="16" y="' + ((Y1 + Y2) / 2).toFixed(0) + '" font-size="9.5" font-weight="600" fill="#64748B" text-anchor="middle" transform="rotate(-90,16,' + ((Y1 + Y2) / 2).toFixed(0) + ')">Value creation ($)</text>'
+              + '</svg>';
+
+      var leg = '<div class="leg"><span class="leg-swatch" style="background:#1F6B45"></span>Meets ' + fmtPct(num(params.irr_hurdle)) + ' IRR hurdle</div>'
+              + '<div class="leg"><span class="leg-swatch" style="background:#94A3B8"></span>Below hurdle</div>'
+              + '<div class="leg"><span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:#CBD5E1"></span>Bubble size ∝ tCO₂e reduction potential</div>';
+
+      setHtml('quadrant-chart',
+        '<div class="chart-title">Outcome-focused prioritization — returns vs. reduction potential</div>' +
+        svg + '<div class="chart-legend">' + leg + '</div>' +
+        '<div class="chart-source">Dashed lines mark the portfolio medians, splitting assets into four action quadrants. All ' + pts.length + ' of ' + prio.length + ' assets are plotted' + (pts.length < prio.length ? ' (rows missing value or reduction data are omitted)' : '') + '; the ' + labelSet.length + ' highest-value are labeled — hover any bubble for the rest.</div>');
+      (function(){
+        var wrap = document.getElementById('quadrant-chart'); if (!wrap) return;
+        wrap.style.position = 'relative';
+        var tip = document.createElement('div'); tip.className = 'chart-tip'; tip.style.display = 'none'; wrap.appendChild(tip);
+        wrap.querySelectorAll('svg circle[data-name]').forEach(function(c){
+          c.style.cursor = 'pointer';
+          c.addEventListener('mouseenter', function(){
+            var vc = Number(c.getAttribute('data-vc')), pr = Number(c.getAttribute('data-pr')), rp = Number(c.getAttribute('data-rp')), ah = c.getAttribute('data-ah') === '1';
+            tip.innerHTML = '<strong>' + esc(c.getAttribute('data-name')) + '</strong>'
+              + '<br>Value creation: ' + fmtSignedCurrency(vc)
+              + '<br>Reduction potential: ' + fmtPct(pr) + ' (' + fmt2sig(rp) + ' tCO₂e)'
+              + '<br>' + (ah ? '≥ 15% hurdle' : 'below hurdle');
+            tip.style.display = 'block';
+          });
+          c.addEventListener('mousemove', function(e){
+            var rb = wrap.getBoundingClientRect();
+            var lx = e.clientX - rb.left + 14, ty = e.clientY - rb.top + 14;
+            if (lx > wrap.clientWidth - 160) lx = e.clientX - rb.left - 150;
+            tip.style.left = lx + 'px'; tip.style.top = ty + 'px';
+          });
+          c.addEventListener('mouseleave', function(){ tip.style.display = 'none'; });
+        });
+      })();
+    }
+
+    /* ════════════════════════════════
+       5. FUND-LEVEL SUMMARY
+    ════════════════════════════════ */
+    var fundSection = document.getElementById('fund-section');
+    if (fundSection && funds.length > 0) {
+      var fHtml = '', tA = 0, tCx = 0, tVc = 0, tEm = 0;
+      funds.forEach(function(f) {
+        fHtml += '<tr>';
+        fHtml += '<td><strong>' + esc(f.fund) + '</strong></td>';
+        fHtml += '<td class="num">' + esc(f.assets != null ? String(f.assets) : '—') + '</td>';
+        fHtml += '<td class="num">' + (f.capex_net != null ? fmtCurrency(Number(f.capex_net)) : '—') + '</td>';
+        fHtml += '<td class="num">' + (f.value_creation != null ? fmtCurrency(Number(f.value_creation)) : '—') + '</td>';
+        fHtml += '<td class="num">' + (f.emissions_reduction_tco2 != null ? (fmt2sig(Number(f.emissions_reduction_tco2)) + ' tCO₂e') : '—') + '</td>';
+        fHtml += '</tr>';
+        tA += Number(f.assets) || 0; tCx += Number(f.capex_net) || 0; tVc += Number(f.value_creation) || 0; tEm += Number(f.emissions_reduction_tco2) || 0;
+      });
+      if (funds.length > 1) {
+        fHtml += '<tr class="totals-row"><td>Portfolio</td><td class="num">' + tA + '</td>' +
+                 '<td class="num">' + fmtCurrency(tCx) + '</td><td class="num">' + fmtCurrency(tVc) + '</td>' +
+                 '<td class="num">' + fmt2sig(tEm) + ' tCO₂e</td></tr>';
+      }
+      setHtml('fund-tbody', fHtml);
+      fundSection.style.display = '';
+    }
+
+    /* ════════════════════════════════
+       6. TOP ASSETS BY VALUE CREATION
+    ════════════════════════════════ */
+    var topSection = document.getElementById('top-section');
+    if (topSection && topA.length > 0) {
+      setText('top-section-title', 'Top ' + topA.length + ' Assets by Value Creation');
+      var tHtml = '';
+      topA.forEach(function(a, i) {
+        var rank = a.rank != null ? a.rank : (i + 1);
+        tHtml += '<tr>';
+        tHtml += '<td><span class="rank-badge">' + esc(String(rank)) + '</span></td>';
+        tHtml += '<td><strong>' + esc(a.asset) + '</strong></td>';
+        tHtml += '<td>' + esc(a.fund) + '</td>';
+        tHtml += '<td class="num">' + esc(a.exit_year != null ? String(a.exit_year) : '—') + '</td>';
+        tHtml += '<td class="num">' + (a.emissions_tco2e != null ? fmt2sig(Number(a.emissions_tco2e)) : '—') + '</td>';
+        tHtml += '<td class="num">' + (a.pct_reduction != null ? fmtPct(Number(a.pct_reduction)) : '—') + '</td>';
+        tHtml += '<td class="num">' + (a.capex_net != null ? fmtCurrency(Number(a.capex_net)) : '—') + '</td>';
+        tHtml += '<td class="num pos">' + (a.value_creation != null ? fmtSignedCurrency(Number(a.value_creation)) : '—') + '</td>';
+        tHtml += '<td>' + esc(a.lead_measure) + '</td>';
+        tHtml += '</tr>';
+      });
+      setHtml('top-tbody', tHtml);
+      topSection.style.display = '';
+    }
+
+    /* ════════════════════════════════
+       7. EMISSIONS TRAJECTORY (4-series JS-drawn inline SVG, absolute tCO₂e)
+       Series: BAU / IRR-hurdle pathway / Max decarb / CRREM target.
+       Reuses decarb's multi-line min/max-scaling technique.
+    ════════════════════════════════ */
+    var trajSection = document.getElementById('trajectory-section');
+    if (trajSection && traj.length > 1) {
+      drawTrajectory(traj);
+      trajSection.style.display = '';
+    }
+    function drawTrajectory(rowsT) {
+      var yrs = rowsT.map(function(p){ return Number(p.year); });
+      var yMinYr = Math.min.apply(null, yrs), yMaxYr = Math.max.apply(null, yrs);
+      var series = [
+        { key: 'bau',          label: 'Business-as-Usual',            color: '#94A3B8', dash: '5,4' },
+        { key: 'scenario_a',   label: 'A · IRR≥hurdle (excl. exit)',  color: '#2563EB', dash: '' },
+        { key: 'scenario_b',   label: 'B · IRR≥hurdle (incl. exit)',  color: '#059669', dash: '' },
+        { key: 'scenario_c',   label: 'C · B + max solar (BTM+VNM)',  color: '#7C3AED', dash: '' },
+        { key: 'scenario_d',   label: 'D · Next owner (2040 horizon)', color: '#D97706', dash: '' },
+        { key: 'crrem_target', label: 'CRREM 1.5°C Target',           color: '#DC2626', dash: '5,4' }
+      ];
+      var allV = [];
+      rowsT.forEach(function(p){ series.forEach(function(s){ if (p[s.key] != null) allV.push(Number(p[s.key])); }); });
+      if (!allV.length) return;
+      var vMax = Math.max.apply(null, allV) * 1.12 || 1;
+      var vMin = 0;
+
+      var X1 = 56, X2 = 620, Y1 = 16, Y2 = 250, W = X2 - X1, H = Y2 - Y1;
+      function px(yr){ return X1 + (yMaxYr === yMinYr ? 0 : (yr - yMinYr) / (yMaxYr - yMinYr)) * W; }
+      function py(v){ return Y2 - (v - vMin) / (vMax - vMin) * H; }
+
+      var grid = '', xLabs = '', yLabs = '';
+      for (var i = 0; i <= 4; i++) {
+        var gy = vMin + (vMax - vMin) * i / 4;
+        grid += '<line x1="' + X1 + '" y1="' + py(gy).toFixed(1) + '" x2="' + X2 + '" y2="' + py(gy).toFixed(1) + '" stroke="#F1F4F8" stroke-width="1"/>';
+        yLabs += '<text x="' + (X1 - 6) + '" y="' + (py(gy) + 3).toFixed(1) + '" font-size="9" fill="#94A3B8" text-anchor="end">' + fmt2sig(gy) + '</text>';
+      }
+      var step = Math.max(1, Math.ceil(rowsT.length / 6));
+      rowsT.forEach(function(p, i) {
+        if (rowsT.length <= 8 || i % step === 0 || i === rowsT.length - 1) {
+          xLabs += '<text x="' + px(p.year).toFixed(1) + '" y="' + (Y2 + 14) + '" font-size="9" fill="#94A3B8" text-anchor="middle">' + esc(String(p.year)) + '</text>';
+        }
+      });
+      /* Smooth Catmull-Rom → cubic-Bézier path. CRREM/emissions pathways are smooth
+         convex decays, not piecewise-linear; a straight polyline through annual points
+         (and the sparse 2040→2045→2050 tail) reads as faceted/"stepped". Control-point Y
+         is clamped to each segment's endpoints so the spline cannot overshoot into
+         spurious humps on monotonic data. */
+      function smoothPath(pts) {
+        if (pts.length < 2) return '';
+        if (pts.length === 2) return 'M' + pts[0][0].toFixed(1) + ',' + pts[0][1].toFixed(1) + 'L' + pts[1][0].toFixed(1) + ',' + pts[1][1].toFixed(1);
+        var d = 'M' + pts[0][0].toFixed(1) + ',' + pts[0][1].toFixed(1);
+        for (var i = 0; i < pts.length - 1; i++) {
+          var p0 = pts[i - 1] || pts[i], p1 = pts[i], p2 = pts[i + 1], p3 = pts[i + 2] || pts[i + 1];
+          var c1x = p1[0] + (p2[0] - p0[0]) / 6, c1y = p1[1] + (p2[1] - p0[1]) / 6;
+          var c2x = p2[0] - (p3[0] - p1[0]) / 6, c2y = p2[1] - (p3[1] - p1[1]) / 6;
+          var lo = Math.min(p1[1], p2[1]), hi = Math.max(p1[1], p2[1]);
+          c1y = Math.max(lo, Math.min(hi, c1y)); c2y = Math.max(lo, Math.min(hi, c2y));
+          d += 'C' + c1x.toFixed(1) + ',' + c1y.toFixed(1) + ' ' + c2x.toFixed(1) + ',' + c2y.toFixed(1) + ' ' + p2[0].toFixed(1) + ',' + p2[1].toFixed(1);
+        }
+        return d;
+      }
+      var lines = '';
+      series.forEach(function(s, si){
+        var pts = rowsT.filter(function(p){ return p[s.key] != null; })
+                       .map(function(p){ return [px(p.year), py(Number(p[s.key]))]; });
+        if (pts.length > 1) {
+          lines += '<path data-si="' + si + '" d="' + smoothPath(pts) + '" fill="none" stroke="' + s.color + '" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"' + (s.dash ? ' stroke-dasharray="' + s.dash + '"' : '') + '/>';
+        }
+      });
+      var svg = '<svg viewBox="0 0 660 272" width="100%" style="display:block;overflow:visible" aria-label="Portfolio emissions trajectory">'
+              + grid + yLabs + xLabs + lines
+              + '<line x1="' + X1 + '" y1="' + Y2 + '" x2="' + X2 + '" y2="' + Y2 + '" stroke="#E2E8F0" stroke-width="1"/>'
+              + '<text x="14" y="' + ((Y1 + Y2) / 2).toFixed(0) + '" font-size="9" fill="#64748B" text-anchor="middle" transform="rotate(-90,14,' + ((Y1 + Y2) / 2).toFixed(0) + ')">GHGI (kgCO₂e·m⁻²)</text>'
+              + '</svg>';
+      var leg = '';
+      series.forEach(function(s, si){
+        leg += '<div class="leg" data-si="' + si + '"><span class="leg-line" style="' + (s.dash ? 'height:2px;background:repeating-linear-gradient(90deg,' + s.color + ' 0 5px,transparent 5px 9px)' : 'background:' + s.color) + '"></span>' + esc(s.label) + '</div>';
+      });
+      setHtml('trajectory-chart',
+        '<div class="chart-title">Portfolio GHGI 2025–2040 — scenarios vs. CRREM 1.5°C target</div>' +
+        svg + '<div class="chart-legend">' + leg + '</div>');
+      (function(){
+        var chartEl = document.getElementById('trajectory-chart');
+        if (!chartEl) return;
+        chartEl.querySelectorAll('.chart-legend .leg[data-si]').forEach(function(legItem){
+          legItem.style.cursor = 'pointer';
+          legItem.addEventListener('click', function(){
+            var si = legItem.getAttribute('data-si');
+            var off = legItem.classList.toggle('leg-off');
+            chartEl.querySelectorAll('svg [data-si="' + si + '"]').forEach(function(el){ el.style.display = off ? 'none' : ''; });
+          });
+        });
+      })();
+
+      /* Scenario summary table at target years */
+      var tgtYears = (params.target_years && params.target_years.length) ? params.target_years : [2030, 2035, 2040];
+      var tblSeries = [
+        { key: 'bau', label: 'Business-as-Usual' },
+        { key: 'scenario_a', label: 'A · IRR≥hurdle (excl. exit)' },
+        { key: 'scenario_b', label: 'B · IRR≥hurdle (incl. exit)' },
+        { key: 'scenario_c', label: 'C · B + max solar (BTM+VNM)' },
+        { key: 'scenario_d', label: 'D · Next owner (2040 horizon)' },
+        { key: 'crrem_target', label: 'CRREM 1.5°C Target' }
+      ];
+      var byYear = {};
+      rowsT.forEach(function(p){ byYear[Number(p.year)] = p; });
+      var baseVal = null;
+      if (rowsT.length) { var _yrs = rowsT.map(function(p){ return Number(p.year); }); baseVal = Number((byYear[Math.min.apply(null, _yrs)] || {}).bau); }
+      var head = '<tr><th>Scenario</th>' + tgtYears.map(function(y){ return '<th class="num">' + esc(String(y)) + '</th>'; }).join('') + '</tr>';
+      var body = '';
+      tblSeries.forEach(function(s){
+        var anyVal = tgtYears.some(function(y){ return byYear[y] && byYear[y][s.key] != null; });
+        if (!anyVal) return;
+        body += '<tr><td>' + esc(s.label) + '</td>' + tgtYears.map(function(y){
+          var v = byYear[y] ? byYear[y][s.key] : null;
+          var pct = (v != null && baseVal) ? (baseVal - Number(v)) / baseVal : null;
+          return '<td class="num">' + (pct != null ? fmtPct(pct) : '—') + '</td>';
+        }).join('') + '</tr>';
+      });
+      if (body) {
+        setHtml('trajectory-table', '<table class="profile-table" style="margin-top:16px"><thead>' + head + '</thead><tbody>' + body + '</tbody></table>' +
+          '<div class="chart-source">% GHGI reduction vs the 2025 baseline, by scenario, at target years.</div>');
+      }
+    }
+
+    /* ════════════════════════════════
+       8. CRREM PATHWAY TABLE (optional — hide-gated)
+    ════════════════════════════════ */
+    var crremSection = document.getElementById('crrem-section');
+    if (crremSection && crrem && (crrem.current_intensity != null || crrem.stranding_today_2030 != null)) {
+      var cr = crrem;
+      var trBody = '';
+      trBody += '<tr><td>Portfolio carbon intensity (kgCO₂e·m⁻²)</td>' +
+                '<td class="num">' + (cr.current_intensity != null ? fmt2sig(Number(cr.current_intensity)) : '—') + '</td>' +
+                '<td class="num">' + (cr.with_measures_intensity != null ? fmt2sig(Number(cr.with_measures_intensity)) : '—') + '</td>' +
+                '<td class="num">' + (cr.crrem_2030 != null ? fmt2sig(Number(cr.crrem_2030)) : '—') + '</td>' +
+                '<td class="num">' + (cr.crrem_2035 != null ? fmt2sig(Number(cr.crrem_2035)) : '—') + '</td>' +
+                '<td class="num">' + (cr.crrem_2040 != null ? fmt2sig(Number(cr.crrem_2040)) : '—') + '</td></tr>';
+      setHtml('crrem-traj-tbody', trBody);
+      var strBody = '';
+      if (cr.stranding_today_2030 != null || cr.stranding_measures_2030 != null) {
+        strBody += '<tr><td>Assets stranding before 2030</td><td class="num">' + safe(cr.stranding_today_2030) + '</td><td class="num">' + safe(cr.stranding_measures_2030) + '</td></tr>';
+      }
+      if (cr.stranding_today_2035 != null || cr.stranding_measures_2035 != null) {
+        strBody += '<tr><td>Assets stranding before 2035</td><td class="num">' + safe(cr.stranding_today_2035) + '</td><td class="num">' + safe(cr.stranding_measures_2035) + '</td></tr>';
+      }
+      if (strBody) { setHtml('crrem-strand-tbody', strBody); showEl('crrem-strand-wrap'); }
+      if (cr.excluded_note) { setText('crrem-excluded-note', cr.excluded_note); showEl('crrem-excluded-note'); }
+      crremSection.style.display = '';
+    }
+
+    /* ════════════════════════════════
+       9. BPS EXPOSURE (optional — hide-gated)
+    ════════════════════════════════ */
+    var bpsSection = document.getElementById('bps-section');
+    if (bpsSection && bps.length > 0) {
+      /* A liable asset has one of three states, and they must NOT all read as "$0":
+         (1) quantified exposure (annual_fine > 0), (2) currently compliant (annual_fine === 0),
+         (3) unquantified — EUI-based (DC BEPS / Denver) with no fine computed yet (annual_fine == null).
+         An EUI-basis row is inferred from an explicit `basis:'eui'` OR the jurisdiction name. */
+      function isLiable(b){ var s = String(b.status||'').toLowerCase(); return s === 'liable'; }
+      function isEuiBasis(b){ return String(b.basis||'').toLowerCase() === 'eui' || /beps|denver|energize/i.test(String(b.jurisdiction||'')); }
+      function fineState(b){
+        if (!isLiable(b)) return 'not-liable';
+        if (b.annual_fine == null) return 'unquantified';
+        return Number(b.annual_fine) > 0 ? 'fined' : 'compliant';
+      }
+      var liableRows = bps.filter(isLiable);
+      var finedRows = liableRows.filter(function(b){ return fineState(b) === 'fined'; });
+      var unquantRows = liableRows.filter(function(b){ return fineState(b) === 'unquantified'; });
+      var compliantRows = liableRows.filter(function(b){ return fineState(b) === 'compliant'; });
+      var quantifiedTotal = finedRows.reduce(function(s,b){ return s + (Number(b.annual_fine) || 0); }, 0);
+      if (liableRows.length > 0) {
+        setHtml('bps-callout-value', quantifiedTotal > 0 ? fmtCurrency(quantifiedTotal) + '/yr' : 'See below');
+        var parts = [];
+        parts.push('<strong>' + finedRows.length + '</strong> asset' + (finedRows.length === 1 ? '' : 's') + ' with quantified annual fine exposure' + (quantifiedTotal > 0 ? ' (' + fmtCurrency(quantifiedTotal) + '/yr)' : ''));
+        if (unquantRows.length) parts.push('<strong>' + unquantRows.length + '</strong> EUI-based (DC / Denver) liable but <em>not yet quantified</em> — require an EUI target to compute');
+        if (compliantRows.length) parts.push('<strong>' + compliantRows.length + '</strong> liable but currently compliant ($0)');
+        setHtml('bps-callout-text', parts.join(' · ') + '. Fine avoidance is captured as a measure benefit in IRR where a fine is quantified.');
+        showEl('bps-callout');
+      }
+      var bHtml = '';
+      bps.forEach(function(b) {
+        var state = fineState(b);
+        var badge = state === 'fined' ? '<span class="badge badge-red">liable · fine</span>'
+                  : state === 'unquantified' ? '<span class="badge badge-amber">liable · unquantified</span>'
+                  : state === 'compliant' ? '<span class="badge badge-grey">liable · compliant</span>'
+                  : (String(b.status||'').toLowerCase().replace(' ','-') === 'not-liable') ? '<span class="badge badge-green">not liable</span>'
+                  : '<span class="badge badge-grey">unknown</span>';
+        var fineCell = state === 'unquantified' ? '<span style="color:#B45309">needs EUI target</span>'
+                     : (b.annual_fine != null ? fmtCurrency(Number(b.annual_fine)) : '—');
+        var avoidCell = state === 'unquantified' ? '—'
+                      : (b.fine_avoidance != null ? fmtCurrency(Number(b.fine_avoidance)) : '—');
+        bHtml += '<tr>';
+        bHtml += '<td><strong>' + esc(b.asset) + '</strong></td>';
+        bHtml += '<td>' + esc(b.fund) + '</td>';
+        bHtml += '<td>' + esc(b.jurisdiction) + '</td>';
+        bHtml += '<td>' + badge + '</td>';
+        bHtml += '<td class="num">' + fineCell + '</td>';
+        bHtml += '<td class="num pos">' + avoidCell + '</td>';
+        bHtml += '</tr>';
+      });
+      setHtml('bps-tbody', bHtml);
+      bpsSection.style.display = '';
+    }
+
+    /* ════════════════════════════════
+       10. MEASURE CATEGORY SUMMARY (table + inline CapEx bar)
+    ════════════════════════════════ */
+    var catSection = document.getElementById('cat-section');
+    if (catSection && cats.length > 0) {
+      var maxCx = Math.max.apply(null, cats.map(function(c){ return Number(c.capex_net) || 0; })) || 1;
+      var cHtml = '', tCx = 0, tVc = 0, tCo = 0;
+      cats.forEach(function(c) {
+        var cx = Number(c.capex_net) || 0;
+        var pctW = Math.max(2, Math.round(cx / maxCx * 100));
+        var perT = (c.value_creation != null && c.tco2_reduced) ? (Number(c.value_creation) / Number(c.tco2_reduced)) : null;
+        cHtml += '<tr>';
+        cHtml += '<td><strong>' + esc(c.category) + '</strong></td>';
+        cHtml += '<td class="num">' + esc(c.assets != null ? String(c.assets) : '—') + '</td>';
+        cHtml += '<td class="num">' + (c.capex_net != null ? fmtCurrency(cx) : '—') + '<div class="catbar-track" style="margin-top:4px"><div class="catbar-fill" style="width:' + pctW + '%"></div></div></td>';
+        cHtml += '<td class="num">' + (c.value_creation != null ? fmtCurrency(Number(c.value_creation)) : '—') + '</td>';
+        cHtml += '<td class="num">' + (c.tco2_reduced != null ? (fmt2sig(Number(c.tco2_reduced)) + ' tCO₂e') : '—') + '</td>';
+        cHtml += '<td class="num">' + (perT != null && isFinite(perT) ? fmtCurrency(perT) : '—') + '</td>';
+        cHtml += '</tr>';
+        tCx += cx; tVc += Number(c.value_creation) || 0; tCo += Number(c.tco2_reduced) || 0;
+      });
+      cHtml += '<tr class="totals-row"><td>All categories</td><td class="num"></td>' +
+               '<td class="num">' + fmtCurrency(tCx) + '</td><td class="num">' + fmtCurrency(tVc) + '</td>' +
+               '<td class="num">' + fmt2sig(tCo) + ' tCO₂e</td><td class="num"></td></tr>';
+      setHtml('cat-tbody', cHtml);
+      catSection.style.display = '';
+    }
+
+    /* ════════════════════════════════
+       10b. PORTFOLIO-SCALE PROGRAM & ECONOMIES OF SCALE (hide-gated)
+    ════════════════════════════════ */
+    var scaleSection = document.getElementById('scale-section');
+    if (scaleSection && (prog || scaleOpps.length > 0 || epp)) {
+      if (prog && prog.thesis) setHtml('scale-thesis', esc(prog.thesis));
+      /* Exit-price-protection callout — the seller's payoff on a short hold (avoided price chip). */
+      if (epp) {
+        var eppRows = '';
+        if (epp.compliance_discount_avoided != null) eppRows += '<tr><td>BPS fine exposure avoided</td><td class="num">' + esc(typeof epp.compliance_discount_avoided === 'number' ? fmtCurrency(Number(epp.compliance_discount_avoided)) : String(epp.compliance_discount_avoided)) + '</td></tr>';
+        if (epp.electrification_reserve_avoided != null) eppRows += '<tr><td>Electrification deferred-retrofit reserve avoided</td><td class="num">' + esc(typeof epp.electrification_reserve_avoided === 'number' ? fmtCurrency(Number(epp.electrification_reserve_avoided)) : String(epp.electrification_reserve_avoided)) + '</td></tr>';
+        if (epp.total != null) eppRows += '<tr class="totals-row"><td>Total exit-price protection</td><td class="num">' + esc(typeof epp.total === 'number' ? fmtCurrency(Number(epp.total)) : String(epp.total)) + '</td></tr>';
+        var eppHtml = '<div class="section-label" style="margin-top:4px">Exit-Price Protection — Next Owner\'s Perspective</div>'
+          + (epp.headline ? '<p class="section-intro">' + esc(epp.headline) + '</p>' : '')
+          + (eppRows ? '<div style="overflow-x:auto"><table class="profile-table"><thead><tr><th>Avoided buyer price chip</th><th class="num">Value protected at 2031 exit</th></tr></thead><tbody>' + eppRows + '</tbody></table></div>' : '')
+          + (epp.basis ? '<div class="chart-source">' + esc(epp.basis) + '</div>' : '');
+        setHtml('exit-price-protection', eppHtml);
+      }
+      var pHtml = '';
+      ((prog && prog.phases) || []).forEach(function(ph){
+        pHtml += '<tr>'
+          + '<td><strong>' + esc(ph.name || '') + '</strong></td>'
+          + '<td>' + esc(ph.years || '—') + '</td>'
+          + '<td class="num">' + esc(ph.assets != null ? String(ph.assets) : '—') + '</td>'
+          + '<td>' + esc(ph.program || ph.measures || '') + '</td>'
+          + '<td class="num">' + (ph.capex_net != null ? fmtCurrency(Number(ph.capex_net)) : '—') + '</td>'
+          + '<td class="num">' + (ph.reduction_pct != null ? fmtPct(Number(ph.reduction_pct)) : '—') + '</td>'
+          + '</tr>';
+      });
+      setHtml('scale-prog-tbody', pHtml || '<tr><td colspan="6" style="color:#94A3B8">No phased program provided.</td></tr>');
+      var oHtml = '';
+      scaleOpps.forEach(function(o){
+        oHtml += '<tr>'
+          + '<td><strong>' + esc(o.lever || '') + '</strong></td>'
+          + '<td class="num">' + esc(o.applies_to != null ? String(o.applies_to) : '—') + '</td>'
+          + '<td>' + esc(o.description || o.opportunity || '') + '</td>'
+          + '<td class="num">' + esc(o.quantified_benefit || o.est_benefit || '—') + '</td>'
+          + '<td>' + esc(o.basis || o.source || '—') + '</td>'
+          + '</tr>';
+      });
+      setHtml('scale-opps-tbody', oHtml || '<tr><td colspan="5" style="color:#94A3B8">No scale opportunities identified.</td></tr>');
+      scaleSection.style.display = '';
+    }
+
+    /* ════════════════════════════════
+       11. ASSET-BY-ASSET DETAIL (optional — hide-gated)
+    ════════════════════════════════ */
+    var assetSection = document.getElementById('asset-section');
+    if (assetSection && assets.length > 0) {
+      var showCrrem = assets.some(function(a){ return a.crrem_status != null; });
+      var showBps = assets.some(function(a){ return a.bps_exposure != null; });
+      if (showCrrem) showEl('asset-th-crrem');
+      if (showBps) showEl('asset-th-bps');
+      var aHtml = '';
+      assets.forEach(function(a) {
+        aHtml += '<tr>';
+        aHtml += '<td><strong>' + esc(a.asset) + '</strong>' + (a.flagged ? ' <span title="Data point flagged for follow-up">⚠</span>' : '') + '</td>';
+        aHtml += '<td>' + esc(a.fund) + '</td>';
+        aHtml += '<td class="num">' + esc(a.exit_year != null ? String(a.exit_year) : '—') + '</td>';
+        aHtml += '<td class="num">' + (a.capex_net != null ? fmtCurrency(Number(a.capex_net)) : '—') + '</td>';
+        aHtml += '<td class="num">' + (a.value_creation != null ? fmtSignedCurrency(Number(a.value_creation)) : '—') + '</td>';
+        aHtml += '<td class="num">' + (a.pct_reduction != null ? fmtPct(Number(a.pct_reduction)) : '—') + '</td>';
+        aHtml += '<td class="num">' + (a.irr != null ? (typeof a.irr === 'number' ? (Math.round(Number(a.irr) * 100) + '%') : esc(a.irr)) : '—') + '</td>';
+        if (showCrrem) {
+          var cs = String(a.crrem_status || '').toLowerCase();
+          var csb = cs === 'aligned' ? '<span class="badge badge-green">aligned</span>'
+                  : (cs === 'at risk' || cs === 'at-risk') ? '<span class="badge badge-amber">at risk</span>'
+                  : cs === 'stranded' ? '<span class="badge badge-red">stranded</span>'
+                  : (a.crrem_status != null ? esc(a.crrem_status) : '—');
+          aHtml += '<td>' + csb + '</td>';
+        }
+        if (showBps) {
+          aHtml += '<td class="num">' + (a.bps_exposure != null && a.bps_exposure !== '' ? (typeof a.bps_exposure === 'number' ? fmtCurrency(a.bps_exposure) : esc(a.bps_exposure)) : '<span class="badge badge-grey">n/a</span>') + '</td>';
+        }
+        aHtml += '</tr>';
+      });
+      setHtml('asset-tbody', aHtml);
+      assetSection.style.display = '';
+    }
+
+    /* ════════════════════════════════
+       12. BELOW-HURDLE MEASURES
+    ════════════════════════════════ */
+    var belowSection = document.getElementById('below-section');
+    if (belowSection && below.length > 0) {
+      setText('below-hurdle-pct', fmtPct(num(params.irr_hurdle)));
+      setText('below-escal', fmtPct(num(params.utility_escalation)));
+      var bHtml = '';
+      below.forEach(function(m) {
+        bHtml += '<tr>';
+        bHtml += '<td><strong>' + esc(m.asset) + '</strong></td>';
+        bHtml += '<td>' + esc(m.measure) + '</td>';
+        bHtml += '<td class="num">' + (m.capex_net != null ? fmtCurrency(Number(m.capex_net)) : '—') + '</td>';
+        bHtml += '<td class="num neg">' + (m.irr != null ? fmtPct(Number(m.irr)) : '—') + '</td>';
+        bHtml += '<td>' + esc(m.barrier) + '</td>';
+        bHtml += '</tr>';
+      });
+      setHtml('below-tbody', bHtml);
+      belowSection.style.display = '';
+    }
+
+    /* ════════════════════════════════
+       13. DEFERRED MEASURES
+    ════════════════════════════════ */
+    var defSection = document.getElementById('deferred-section');
+    if (defSection && deferred.length > 0) {
+      var dHtml = '';
+      deferred.forEach(function(m) {
+        dHtml += '<tr>';
+        dHtml += '<td><strong>' + esc(m.asset) + '</strong></td>';
+        dHtml += '<td>' + esc(m.measure) + '</td>';
+        dHtml += '<td class="num">' + esc(m.install_year != null ? String(m.install_year) : '—') + '</td>';
+        dHtml += '<td class="num">' + (m.capex_net != null ? fmtCurrency(Number(m.capex_net)) : '—') + '</td>';
+        dHtml += '<td>' + esc(m.reason) + '</td>';
+        dHtml += '</tr>';
+      });
+      setHtml('deferred-tbody', dHtml);
+      defSection.style.display = '';
+    }
+
+    /* ════════════════════════════════
+       14. DATA QUALITY
+    ════════════════════════════════ */
+    var dqSection = document.getElementById('dataquality-section');
+    var dqItems = dq.items || [];
+    if (dqSection && (dq.summary || dqItems.length > 0)) {
+      if (dq.summary) { setHtml('dq-summary', esc(dq.summary)); showEl('dq-summary'); }
+      if (dqItems.length > 0) {
+        var itemsHtml = '';
+        dqItems.forEach(function(it) {
+          var dot = (it.dot === 'green' || it.dot === 'amber' || it.dot === 'red') ? it.dot : 'green';
+          itemsHtml += '<div class="dq-item"><span class="dq-dot ' + dot + '"></span><span>' + esc(it.text) + '</span></div>';
+        });
+        setHtml('dq-items', itemsHtml);
+        showEl('dq-items');
+      }
+      dqSection.style.display = '';
+    }
+
+    /* ════════════════════════════════
+       15. METHODOLOGY & SOURCES
+    ════════════════════════════════ */
+    var methodSection = document.getElementById('methodology-section');
+    var methodology = data.methodology;
+    var srcs = data.sources || [];
+    if (methodSection && (methodology || srcs.length > 0)) {
+      if (methodology) { setHtml('methodology-intro', String(methodology).split(/\n\n+/).map(function(pp){ return '<p style="margin:0 0 8px">' + esc(pp) + '</p>'; }).join('')); showEl('methodology-intro'); }
+      if (srcs.length > 0) {
+        var srcHtml = '';
+        srcs.forEach(function(s, i) {
+          srcHtml += '<li class="source-item">';
+          srcHtml += '<span class="source-num">' + (i + 1) + '</span>';
+          srcHtml += '<span class="source-body">';
+          srcHtml += '<span class="source-label">' + esc(s.label) + '</span>';
+          if (s.value_cited) srcHtml += ' <span class="source-value">— ' + esc(s.value_cited) + '</span>';
+          var validUrl = safeUrl(s.url);
+          if (validUrl) srcHtml += '<br><a class="source-url" target="_blank" rel="noopener noreferrer" href="' + esc(validUrl) + '">' + esc(validUrl) + '</a>';
+          srcHtml += '</span></li>';
+        });
+        setHtml('sources-list', srcHtml);
+        showEl('sources-block');
+      }
+      methodSection.style.display = '';
+    }
+
+    /* ════════════════════════════════
+       16. FOOTER (parameters)
+    ════════════════════════════════ */
+    var pBits = [];
+    if (params.irr_hurdle != null)         pBits.push('IRR hurdle ' + fmtPct(num(params.irr_hurdle)));
+    if (params.utility_escalation != null) pBits.push('Utility escalation ' + fmtPct(num(params.utility_escalation)) + '/yr');
+    if (params.discount_rate != null)      pBits.push('Discount rate ' + fmtPct(num(params.discount_rate)));
+    if (params.exit_year_floor != null)    pBits.push('Exit year floor ' + params.exit_year_floor);
+    if (params.value_method)               pBits.push(params.value_method === 'inclusive' ? 'Value-inclusive IRR' : (params.value_method + ' IRR'));
+    setText('footer-params', pBits.length ? ('Parameters: ' + pBits.join(' · ')) : '');
+  }
+</script>
+
+<div class="report">
+
+  <!-- 1. DOCUMENT HEADER -->
+  <div class="doc-header">
+    <div class="doc-header-eyebrow">Soapbox Sustainability Intelligence — Portfolio Decarbonization Analysis</div>
+    <div class="doc-header-title" id="hdr-title">Portfolio</div>
+    <div class="doc-header-sub" id="hdr-sub">—</div>
+    <!-- Brand logos (bottom-left of cover). Both are the canonical assets from the
+         Soapbox Design System (brand/logos/soapbox-logo-reversed.svg + the Audette
+         brand mark), embedded inline — no external images per template rules. -->
+    <div class="doc-header-logos">
+      <svg width="109" height="22" viewBox="0 0 178 36" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Soapbox">
+        <defs>
+          <linearGradient id="sbx-tile" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stop-color="#1aa863"></stop>
+            <stop offset="1" stop-color="#0c6c3d"></stop>
+          </linearGradient>
+          <linearGradient id="sbx-sheen" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#ffffff" stop-opacity="0.42"></stop>
+            <stop offset="0.55" stop-color="#ffffff" stop-opacity="0"></stop>
+          </linearGradient>
+        </defs>
+        <rect x="2" y="2" width="32" height="32" rx="8.5" fill="url(#sbx-tile)"></rect>
+        <rect x="2" y="2" width="32" height="32" rx="8.5" fill="url(#sbx-sheen)"></rect>
+        <text x="18" y="25.5" text-anchor="middle" font-family="'Bricolage Grotesque',-apple-system,'Helvetica Neue',Arial,sans-serif" font-weight="800" font-size="20" fill="#ffffff">S</text>
+        <text x="45" y="26" font-family="'Bricolage Grotesque',-apple-system,'Helvetica Neue',Arial,sans-serif" font-weight="800" font-size="27" letter-spacing="-0.6" fill="#ffffff">Soapbox<tspan fill="#f0652c">.</tspan></text>
+      </svg>
+      <div class="logo-divider"></div>
+      <svg width="27" height="22" viewBox="0 0 74 61" role="img" aria-label="Audette" style="display:block"><rect fill="#eb02ad" x="41.18" y="0.26" width="6.56" height="19.05"/><circle fill="#eb02ad" cx="62.48" cy="9.78" r="9.52"/><path fill="#eb02ad" d="M19.65,9.78.12,59.94h9l4.67-12.59H35l4.74,12.59H49L29.48,9.78ZM16.74,39.49,24.38,19,32,39.49Z"/></svg>
+    </div>
+  </div>
+  <div class="meta-strip">
+    <span id="hdr-date"></span>
+    <span id="hdr-by"></span>
+    <span class="meta-confidential">CONFIDENTIAL</span>
+  </div>
+
+  <!-- 2. EXECUTIVE SUMMARY -->
+  <div id="exec-summary-row" style="display:none">
+    <div class="exec-summary-label">Executive Summary</div>
+    <div class="exec-headline">—</div>
+    <div class="exec-narrative"></div>
+  </div>
+
+  <!-- 3. PORTFOLIO KPIs -->
+  <div class="kpi-bar" id="kpi-bar" style="display:none"><!-- JS --></div>
+
+  <!-- 4. ASSET-PRIORITIZATION QUADRANT (signature chart) -->
+  <div id="quadrant-section" class="section" style="display:none">
+    <div class="section-label">Prioritization</div>
+    <h2 class="section-title">Asset-Prioritization Quadrant</h2>
+    <p class="section-intro">Each asset is plotted by its emissions-reduction potential (how much decarbonization is achievable) against the value creation its recommended measure bundle delivers. Assets meeting the IRR hurdle are green; bubble size scales with tonnes of CO₂e reduction available. The upper-right quadrant — high impact and high return — is where capital works hardest.</p>
+    <div class="chart-block" id="quadrant-chart"><!-- JS-drawn SVG --></div>
+  </div>
+
+  <!-- 5. FUND-LEVEL SUMMARY -->
+  <div id="fund-section" class="section" style="display:none">
+    <div class="section-label">Fund View</div>
+    <h2 class="section-title">Fund-Level Summary</h2>
+    <div style="overflow-x:auto">
+      <table class="profile-table">
+        <thead><tr>
+          <th>Fund</th>
+          <th class="num">Assets</th>
+          <th class="num">CapEx Net</th>
+          <th class="num">Value Creation</th>
+          <th class="num">Emissions Reduction</th>
+        </tr></thead>
+        <tbody id="fund-tbody"><!-- JS --></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- 6. TOP ASSETS BY VALUE CREATION -->
+  <div id="top-section" class="section" style="display:none">
+    <div class="section-label">Asset Ranking</div>
+    <h2 class="section-title" id="top-section-title">Top Assets by Value Creation</h2>
+    <div style="overflow-x:auto">
+      <table class="profile-table">
+        <thead><tr>
+          <th>#</th>
+          <th>Asset</th>
+          <th>Fund</th>
+          <th class="num">Exit</th>
+          <th class="num">Emissions (tCO₂e)</th>
+          <th class="num">% Reduction</th>
+          <th class="num">CapEx Net</th>
+          <th class="num">Value Created</th>
+          <th>Lead Measure</th>
+        </tr></thead>
+        <tbody id="top-tbody"><!-- JS --></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- 7. EMISSIONS TRAJECTORY -->
+  <div id="trajectory-section" class="section" style="display:none">
+    <div class="section-label">Pathway Analysis</div>
+    <h2 class="section-title">Emissions Trajectory (2025–2040)</h2>
+    <div class="chart-block" id="trajectory-chart"><!-- JS-drawn SVG --></div>
+    <div id="trajectory-table"><!-- JS --></div>
+  </div>
+
+  <!-- 8. CRREM PATHWAY (optional) -->
+  <div id="crrem-section" class="section" style="display:none">
+    <div class="section-label">CRREM</div>
+    <h2 class="section-title">CRREM Pathway Analysis</h2>
+    <div style="overflow-x:auto">
+      <table class="profile-table">
+        <thead><tr>
+          <th>Metric</th>
+          <th class="num">Current</th>
+          <th class="num">With Measures</th>
+          <th class="num">CRREM 2030</th>
+          <th class="num">CRREM 2035</th>
+          <th class="num">CRREM 2040</th>
+        </tr></thead>
+        <tbody id="crrem-traj-tbody"><!-- JS --></tbody>
+      </table>
+    </div>
+    <div id="crrem-strand-wrap" style="overflow-x:auto;display:none">
+      <table class="profile-table" style="margin-top:16px">
+        <thead><tr>
+          <th>Stranding Status</th>
+          <th class="num">Today (no action)</th>
+          <th class="num">With Recommended Measures</th>
+        </tr></thead>
+        <tbody id="crrem-strand-tbody"><!-- JS --></tbody>
+      </table>
+    </div>
+    <p class="chart-source" id="crrem-excluded-note" style="display:none;font-style:italic"></p>
+  </div>
+
+  <!-- 9. BPS EXPOSURE (optional) -->
+  <div id="bps-section" class="section" style="display:none">
+    <div class="section-label">Regulatory Risk</div>
+    <h2 class="section-title">Building Performance Standards Exposure</h2>
+    <div class="callout callout-warn" id="bps-callout" style="display:none">
+      <div class="callout-value" id="bps-callout-value">—</div>
+      <div class="callout-text" id="bps-callout-text">—</div>
+    </div>
+    <div style="overflow-x:auto;margin-top:16px">
+      <table class="profile-table">
+        <thead><tr>
+          <th>Asset</th>
+          <th>Fund</th>
+          <th>Jurisdiction</th>
+          <th>BPS Status</th>
+          <th class="num">Annual Fine (no action)</th>
+          <th class="num">Fine Avoidance (measures)</th>
+        </tr></thead>
+        <tbody id="bps-tbody"><!-- JS --></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- 10. MEASURE CATEGORY SUMMARY -->
+  <div id="cat-section" class="section" style="display:none">
+    <div class="section-label">Measure Breakdown</div>
+    <h2 class="section-title">Measure Category Summary</h2>
+    <div style="overflow-x:auto">
+      <table class="profile-table">
+        <thead><tr>
+          <th>Category</th>
+          <th class="num">Assets</th>
+          <th class="num">CapEx Net</th>
+          <th class="num">Value Creation</th>
+          <th class="num">tCO₂ Reduced</th>
+          <th class="num">$/tCO₂</th>
+        </tr></thead>
+        <tbody id="cat-tbody"><!-- JS --></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- 10b. PORTFOLIO-SCALE PROGRAM & ECONOMIES OF SCALE -->
+  <div id="scale-section" class="section" style="display:none">
+    <div class="section-label">Portfolio Strategy</div>
+    <h2 class="section-title">Portfolio-Scale Program &amp; Economies of Scale</h2>
+    <p class="section-intro" id="scale-thesis">The measures above, executed programmatically across the portfolio rather than asset-by-asset, unlock procurement, financing, and mobilization efficiencies. The sequenced program and the scale levers below are derived from the aggregated results — same measures, executed at portfolio scale.</p>
+    <div id="exit-price-protection"><!-- JS: exit-price-protection callout --></div>
+    <hr style="border:none;border-top:1px solid #E2E8F0;margin:26px 0 0">
+    <div class="section-label">Suggested Sequenced portfolio program</div>
+    <div style="overflow-x:auto">
+      <table class="profile-table">
+        <thead><tr>
+          <th>Phase</th>
+          <th>Years</th>
+          <th class="num">Assets</th>
+          <th>Program</th>
+          <th class="num">Net CapEx</th>
+          <th class="num">GHGI reduction</th>
+        </tr></thead>
+        <tbody id="scale-prog-tbody"><!-- JS --></tbody>
+      </table>
+    </div>
+    <hr style="border:none;border-top:1px solid #E2E8F0;margin:26px 0 0">
+    <div class="section-label">Suggested Economies of scale</div>
+    <div style="overflow-x:auto">
+      <table class="profile-table">
+        <thead><tr>
+          <th>Lever</th>
+          <th class="num">Applies to</th>
+          <th>Opportunity</th>
+          <th class="num">Est. benefit</th>
+          <th>Basis</th>
+        </tr></thead>
+        <tbody id="scale-opps-tbody"><!-- JS --></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- 11. ASSET-BY-ASSET DETAIL (optional) -->
+  <div id="asset-section" class="section" style="display:none">
+    <div class="section-label">Asset Detail</div>
+    <h2 class="section-title">Asset-by-Asset Detail</h2>
+    <div style="overflow-x:auto">
+      <table class="profile-table">
+        <thead><tr>
+          <th>Asset</th>
+          <th>Fund</th>
+          <th class="num">Exit</th>
+          <th class="num">CapEx Net</th>
+          <th class="num">Value Created</th>
+          <th class="num">% Reduction</th>
+          <th class="num">IRR</th>
+          <th id="asset-th-crrem" style="display:none">CRREM Status</th>
+          <th class="num" id="asset-th-bps" style="display:none">BPS Exposure</th>
+        </tr></thead>
+        <tbody id="asset-tbody"><!-- JS --></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- 12. BELOW-HURDLE MEASURES -->
+  <div id="below-section" class="section" style="display:none">
+    <div class="section-label">Reference</div>
+    <h2 class="section-title">Below-Hurdle Measures</h2>
+    <p class="section-intro">These measures do not meet the <span id="below-hurdle-pct">—</span> hurdle at stated assumptions. They may become viable under different hold periods, exit cap rates, or if utility rates escalate faster than <span id="below-escal">—</span>/yr.</p>
+    <div style="overflow-x:auto">
+      <table class="profile-table">
+        <thead><tr>
+          <th>Asset</th>
+          <th>Measure</th>
+          <th class="num">CapEx Net</th>
+          <th class="num">IRR</th>
+          <th>Barrier</th>
+        </tr></thead>
+        <tbody id="below-tbody"><!-- JS --></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- 13. DEFERRED MEASURES -->
+  <div id="deferred-section" class="section" style="display:none">
+    <div class="section-label">Timing</div>
+    <h2 class="section-title">Deferred Measures</h2>
+    <p class="section-intro">Measures deferred due to retrofit lead-time constraints relative to hold period. Install year shown for planning purposes.</p>
+    <div style="overflow-x:auto">
+      <table class="profile-table">
+        <thead><tr>
+          <th>Asset</th>
+          <th>Measure</th>
+          <th class="num">Install Year</th>
+          <th class="num">CapEx Net</th>
+          <th>Reason</th>
+        </tr></thead>
+        <tbody id="deferred-tbody"><!-- JS --></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- 14. DATA QUALITY -->
+  <div id="dataquality-section" class="section" style="display:none">
+    <div class="section-label">Methodology</div>
+    <h2 class="section-title">Data Quality</h2>
+    <p class="section-intro" id="dq-summary" style="display:none"></p>
+    <div class="dq-grid" id="dq-items" style="display:none"><!-- JS --></div>
+    <p style="margin-top:12px;font-size:12px;font-style:italic;color:#94A3B8">All values labeled (est.) are based on BPD MCP peer-group median EUI and carry ±40% uncertainty. Where sources conflicted by &gt;25%, the most authoritative source was used (measured/ESPM &gt; audit &gt; Audette model &gt; estimate).</p>
+  </div>
+
+  <!-- 15. METHODOLOGY & SOURCES -->
+  <div id="methodology-section" class="section" style="display:none">
+    <div class="section-label">Appendix</div>
+    <h2 class="section-title">Methodology &amp; Sources</h2>
+    <div class="section-intro" id="methodology-intro" style="display:none"></div>
+    <div id="sources-block" style="display:none">
+      <details>
+        <summary>Sources &amp; Citations</summary>
+        <div class="sources-inner">
+          <ol class="sources-list" id="sources-list"></ol>
+        </div>
+      </details>
+    </div>
+  </div>
+
+  <!-- 16. FOOTER -->
+  <div class="report-footer">
+    <div class="footer-sources">Data sources: Audette · Soapbox DCF Engine · CRREM 2024 · IRA §48E/§179D · BPD (LBNL)</div>
+    <div class="footer-params" id="footer-params"></div>
+    <div class="footer-limitation">This analysis is based on data available at time of run. CapEx estimates carry ±30% uncertainty without site inspection. IRR sensitivity to exit cap rate is high — a 50bp cap rate change can move IRR by 3–5pp. Verify with physical due diligence before committing capital.</div>
+  </div>
+
+</div><!-- /report -->
+
+</body>
+</html>
